@@ -2,6 +2,7 @@ import { ArrowUp, Loader2, Plug, Square } from 'lucide-react'
 import { type KeyboardEvent, useCallback, useEffect, useRef } from 'react'
 
 import type { LiveSessionModel } from '../../../../shared/ipc/contracts'
+import type { ComposerContextUsageState } from '../../stores/composerContextUsage'
 import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
@@ -35,6 +36,8 @@ export interface SessionComposerProps {
   isSubmitting: boolean
   isAttaching: boolean
   isInterrupting: boolean
+  composerContextUsage: ComposerContextUsageState | null
+  composerContextUsageDisplayMode: 'percentage' | 'tokens'
   onDraftChange: (value: string) => void
   onModelChange: (value: string) => void
   onModeChange: (value: string) => void
@@ -62,6 +65,8 @@ export function SessionComposer({
   isSubmitting,
   isAttaching,
   isInterrupting,
+  composerContextUsage,
+  composerContextUsageDisplayMode,
   onDraftChange,
   onModelChange,
   onModeChange,
@@ -237,6 +242,10 @@ export function SessionComposer({
 
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-fd-tertiary">{statusText}</span>
+            <ContextUsageIndicator
+              usage={composerContextUsage}
+              displayMode={composerContextUsageDisplayMode}
+            />
 
             {isWorking ? (
               <button
@@ -272,4 +281,63 @@ export function SessionComposer({
       </div>
     </section>
   )
+}
+
+function ContextUsageIndicator({
+  usage,
+  displayMode,
+}: {
+  usage: ComposerContextUsageState | null
+  displayMode: 'percentage' | 'tokens'
+}) {
+  const label =
+    usage === null
+      ? '--'
+      : displayMode === 'tokens'
+        ? `${formatCompactTokens(usage.usedContext)}/${formatCompactTokens(usage.contextLimit)}`
+        : `${usage.usedPercentage}%`
+  const tooltipSummary = usage
+    ? `${usage.usedPercentage}% · ${formatCompactTokens(usage.usedContext)}/${formatCompactTokens(usage.contextLimit)} context used\nTotal processed: ${formatCompactTokens(usage.totalProcessedTokens)} tokens`
+    : 'Context usage is unavailable yet.'
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="Context usage"
+            title={tooltipSummary}
+            className="inline-flex min-w-8 items-center justify-center rounded-full border border-fd-border-default px-2 py-0.5 text-[10px] font-medium tabular-nums text-fd-secondary"
+          >
+            {label}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6} className="max-w-[260px]">
+          {usage ? (
+            <div className="space-y-1 text-[11px]">
+              <p className="font-medium">
+                {`${usage.usedPercentage}% · ${formatCompactTokens(usage.usedContext)}/${formatCompactTokens(usage.contextLimit)} context used`}
+              </p>
+              <p className="opacity-70">
+                Total processed: {formatCompactTokens(usage.totalProcessedTokens)} tokens
+              </p>
+              <p className="opacity-50">Automatically compacts its context when needed.</p>
+            </div>
+          ) : (
+            <p className="text-[11px] opacity-70">Context usage is unavailable yet.</p>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+function formatCompactTokens(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    notation: 'compact',
+    maximumFractionDigits: 0,
+  })
+    .format(value)
+    .toLowerCase()
 }

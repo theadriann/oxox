@@ -19,6 +19,13 @@ describe('buildSessionComposerProps', () => {
         isAttachingSelected: false,
         isInterruptingSelected: false,
         isSendingSelected: true,
+        selectedComposerContextUsage: {
+          contextLimit: 258000,
+          usedContext: 78000,
+          remainingContext: 180000,
+          usedPercentage: 30,
+          totalProcessedTokens: 298000,
+        },
         selectedAvailableModels: [{ id: 'gpt-5.4', name: 'GPT 5.4' }],
         selectedPreferences: {
           autonomyLevel: 'medium',
@@ -40,12 +47,17 @@ describe('buildSessionComposerProps', () => {
       sessionStore: {
         selectedSessionId: 'session-1',
       } as never,
+      uiStore: {
+        composerContextUsageDisplayMode: 'percentage',
+      } as never,
     })
 
     expect(props.error).toBe('outer error')
     expect(props.composer.canAttach).toBe(true)
     expect(props.composer.isAttached).toBe(true)
     expect(props.composer.isSubmitting).toBe(true)
+    expect(props.composer.composerContextUsageDisplayMode).toBe('percentage')
+    expect(props.composer.composerContextUsage?.usedPercentage).toBe(30)
     expect(props.composer.selectedAutonomyLevel).toBe('medium')
 
     props.composer.onAttach()
@@ -89,6 +101,7 @@ describe('buildSessionComposerProps', () => {
         isAttachingSelected: false,
         isInterruptingSelected: false,
         isSendingSelected: false,
+        selectedComposerContextUsage: null,
         selectedAvailableModels: [],
         selectedPreferences: {
           autonomyLevel: 'medium',
@@ -110,9 +123,14 @@ describe('buildSessionComposerProps', () => {
       sessionStore: {
         selectedSessionId: '',
       } as never,
+      uiStore: {
+        composerContextUsageDisplayMode: 'tokens',
+      } as never,
     })
 
     expect(props.composer.canComposeDetached).toBe(true)
+    expect(props.composer.composerContextUsage).toBeNull()
+    expect(props.composer.composerContextUsageDisplayMode).toBe('tokens')
     expect(props.composer.isAttached).toBe(false)
     expect(props.composer.isSubmitting).toBe(true)
 

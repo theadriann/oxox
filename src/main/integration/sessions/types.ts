@@ -33,12 +33,14 @@ export type StreamJsonRpcModel = {
   id?: string
   name?: string
   provider?: string
+  maxContextLimit?: number
 }
 
 export interface LiveSessionModel {
   id: string
   name: string
   provider?: string | null
+  maxContextLimit?: number | null
 }
 
 export interface LiveSessionSettings {

@@ -59,7 +59,9 @@ export function readFoundationBootstrap(
     (options.readDroidExecHelp ?? readDroidExecHelp)(options.droidPath),
   )
 
-  return isEmptyFoundationBootstrap(cliBootstrap) ? settingsBootstrap : cliBootstrap
+  return isEmptyFoundationBootstrap(cliBootstrap)
+    ? settingsBootstrap
+    : mergeSettingsBootstrapIntoCliBootstrap(settingsBootstrap, cliBootstrap)
 }
 
 export function createFoundationBootstrapState({
@@ -84,7 +86,10 @@ export function createFoundationBootstrapState({
           return
         }
 
-        const nextSnapshot = parseDroidExecHelpBootstrap(helpText)
+        const nextSnapshot = mergeSettingsBootstrapIntoCliBootstrap(
+          readFactorySettingsBootstrap(settingsPath),
+          parseDroidExecHelpBootstrap(helpText),
+        )
 
         if (!bootstrapChanged(snapshot, nextSnapshot)) {
           return
@@ -269,6 +274,7 @@ function parseFactoryModels(value: unknown): LiveSessionModel[] {
         id,
         name,
         provider: toOptionalString(model.provider),
+        maxContextLimit: toOptionalNumber(model.maxContextLimit),
       },
     ]
   })
@@ -277,16 +283,23 @@ function parseFactoryModels(value: unknown): LiveSessionModel[] {
 function parseFactoryDefaultSettings(
   value: unknown,
 ): FoundationBootstrap['factoryDefaultSettings'] {
-  if (!isRecord(value) || !isRecord(value.sessionDefaultSettings)) {
+  if (!isRecord(value)) {
     return {}
   }
 
-  const model = toNonEmptyString(value.sessionDefaultSettings.model)
-  const interactionMode = toNonEmptyString(value.sessionDefaultSettings.interactionMode)
+  const sessionDefaultSettings = isRecord(value.sessionDefaultSettings)
+    ? value.sessionDefaultSettings
+    : null
+  const model = sessionDefaultSettings ? toNonEmptyString(sessionDefaultSettings.model) : undefined
+  const interactionMode = sessionDefaultSettings
+    ? toNonEmptyString(sessionDefaultSettings.interactionMode)
+    : undefined
+  const compactionTokenLimit = toOptionalNumber(value.compactionTokenLimit)
 
   return {
     ...(model ? { model } : {}),
     ...(interactionMode ? { interactionMode } : {}),
+    ...(typeof compactionTokenLimit === 'number' ? { compactionTokenLimit } : {}),
   }
 }
 
@@ -308,6 +321,40 @@ function toOptionalString(value: unknown): string | null | undefined {
   return normalized === undefined ? undefined : normalized
 }
 
+function toOptionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function mergeSettingsBootstrapIntoCliBootstrap(
+  settingsBootstrap: Pick<FoundationBootstrap, 'factoryModels' | 'factoryDefaultSettings'>,
+  cliBootstrap: Pick<FoundationBootstrap, 'factoryModels' | 'factoryDefaultSettings'>,
+): Pick<FoundationBootstrap, 'factoryModels' | 'factoryDefaultSettings'> {
+  const settingsModelsById = new Map(
+    settingsBootstrap.factoryModels.map((model) => [model.id, model] as const),
+  )
+
+  return {
+    factoryModels: cliBootstrap.factoryModels.map((model) => {
+      const settingsModel = settingsModelsById.get(model.id)
+
+      return {
+        ...model,
+        ...(typeof settingsModel?.maxContextLimit === 'number'
+          ? { maxContextLimit: settingsModel.maxContextLimit }
+          : {}),
+      }
+    }),
+    factoryDefaultSettings: {
+      ...cliBootstrap.factoryDefaultSettings,
+      ...(typeof settingsBootstrap.factoryDefaultSettings.compactionTokenLimit === 'number'
+        ? {
+            compactionTokenLimit: settingsBootstrap.factoryDefaultSettings.compactionTokenLimit,
+          }
+        : {}),
+    },
+  }
+}
+
 function bootstrapChanged(
   previous: Pick<FoundationBootstrap, 'factoryModels' | 'factoryDefaultSettings'>,
   next: Pick<FoundationBootstrap, 'factoryModels' | 'factoryDefaultSettings'>,
@@ -316,6 +363,8 @@ function bootstrapChanged(
     previous.factoryDefaultSettings.model !== next.factoryDefaultSettings.model ||
     previous.factoryDefaultSettings.interactionMode !==
       next.factoryDefaultSettings.interactionMode ||
+    previous.factoryDefaultSettings.compactionTokenLimit !==
+      next.factoryDefaultSettings.compactionTokenLimit ||
     JSON.stringify(previous.factoryModels) !== JSON.stringify(next.factoryModels)
   )
 }

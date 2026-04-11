@@ -291,6 +291,64 @@ describe('ComposerStore', () => {
     expect(composerStore.isInterruptingSelected).toBe(true)
   })
 
+  it('keeps context usage aligned with the live snapshot model until the snapshot updates', () => {
+    const { composerStore } = createStores({
+      bootstrap: createBootstrap({
+        factoryModels: [
+          { id: 'gpt-5.4', name: 'GPT 5.4', maxContextLimit: 400000 },
+          { id: 'gpt-5.4-mini', name: 'GPT 5.4 Mini', maxContextLimit: 100000 },
+        ],
+        factoryDefaultSettings: {
+          model: 'gpt-5.4-mini',
+          interactionMode: 'auto',
+          compactionTokenLimit: 500000,
+        },
+      }),
+      snapshot: createLiveSnapshot({
+        availableModels: [
+          { id: 'gpt-5.4', name: 'GPT 5.4', maxContextLimit: 400000 },
+          { id: 'gpt-5.4-mini', name: 'GPT 5.4 Mini', maxContextLimit: 100000 },
+        ],
+        settings: {
+          modelId: 'gpt-5.4-mini',
+          interactionMode: 'spec',
+        },
+        events: [
+          {
+            type: 'session.tokenUsageChanged',
+            tokenUsage: {
+              inputTokens: 50000,
+              outputTokens: 1000,
+              cacheCreationTokens: 0,
+              cacheReadTokens: 0,
+              thinkingTokens: 0,
+            },
+            lastCallTokenUsage: {
+              inputTokens: 50000,
+              cacheReadTokens: 0,
+            },
+          },
+        ],
+      }),
+    })
+
+    expect(composerStore.selectedPreferences.modelId).toBe('gpt-5.4-mini')
+    expect(composerStore.selectedComposerContextUsage).toMatchObject({
+      contextLimit: 100000,
+      usedContext: 50000,
+      usedPercentage: 50,
+    })
+
+    composerStore.updatePreferences('session-alpha', { modelId: 'gpt-5.4' })
+
+    expect(composerStore.selectedPreferences.modelId).toBe('gpt-5.4')
+    expect(composerStore.selectedComposerContextUsage).toMatchObject({
+      contextLimit: 100000,
+      usedContext: 50000,
+      usedPercentage: 50,
+    })
+  })
+
   it('hydrates persisted preferences and persists updates back to localStorage', () => {
     window.localStorage.setItem(
       'oxox.session.composer',

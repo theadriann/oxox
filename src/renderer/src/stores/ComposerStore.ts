@@ -4,6 +4,11 @@ import type { LiveSessionModel } from '../../../shared/ipc/contracts'
 import type { PlatformApiClient } from '../platform/apiClient'
 import { createLocalStoragePort, type PersistencePort } from '../platform/persistence'
 import {
+  type ComposerContextUsageState,
+  deriveComposerContextUsage,
+  getLatestTokenUsageEvent,
+} from './composerContextUsage'
+import {
   type ComposerPreferences,
   deriveComposerPreferences,
   deriveDefaultComposerPreferences,
@@ -190,6 +195,32 @@ export class ComposerStore {
     }
 
     return 'No detached models are available from the Droid CLI.'
+  }
+
+  get selectedComposerContextUsage(): ComposerContextUsageState | null {
+    const snapshot = this.liveSessionStore.selectedSnapshot
+
+    if (!snapshot) {
+      return null
+    }
+
+    const latestTokenUsageEvent = getLatestTokenUsageEvent(snapshot)
+    const activeModelId = snapshot.settings.modelId
+    const snapshotModel = snapshot.availableModels.find((model) => model.id === activeModelId)
+    const foundationModel = this.foundationStore.factoryModels.find(
+      (model) => model.id === activeModelId,
+    )
+    const compactionTokenLimit = this.foundationStore.factoryDefaultSettings.compactionTokenLimit
+
+    return deriveComposerContextUsage({
+      compactionTokenLimit:
+        typeof compactionTokenLimit === 'number' && Number.isFinite(compactionTokenLimit)
+          ? compactionTokenLimit
+          : undefined,
+      modelMaxContextLimit: snapshotModel?.maxContextLimit ?? foundationModel?.maxContextLimit,
+      cumulativeTokenUsage: latestTokenUsageEvent?.tokenUsage ?? null,
+      lastCallTokenUsage: latestTokenUsageEvent?.lastCallTokenUsage ?? null,
+    })
   }
 
   get hasPendingDraft(): boolean {

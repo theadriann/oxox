@@ -23,7 +23,7 @@ export const SessionComposerConnected = observer(function SessionComposerConnect
   isSubmittingDetached = false,
   onSubmitDetached,
 }: SessionComposerConnectedProps) {
-  const { composerStore, liveSessionStore, sessionStore } = useStores()
+  const { composerStore, liveSessionStore, sessionStore, uiStore } = useStores()
   const { composer, error } = buildSessionComposerProps({
     canComposeDetached,
     composerStore,
@@ -32,6 +32,7 @@ export const SessionComposerConnected = observer(function SessionComposerConnect
     onAttach,
     onSubmitDetached,
     sessionStore,
+    uiStore,
   })
 
   return (

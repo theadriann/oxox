@@ -119,6 +119,9 @@ export function normalizeAvailableModels(
         id: model.id,
         name: typeof model.name === 'string' && model.name.length > 0 ? model.name : model.id,
         ...(typeof model.provider === 'string' ? { provider: model.provider } : {}),
+        ...(typeof model.maxContextLimit === 'number'
+          ? { maxContextLimit: model.maxContextLimit }
+          : {}),
       } satisfies LiveSessionModel
     })
     .filter((model): model is LiveSessionModel => model !== null)

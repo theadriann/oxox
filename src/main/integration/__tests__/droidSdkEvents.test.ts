@@ -227,6 +227,47 @@ describe('mapDroidMessageToSessionEvent', () => {
 })
 
 describe('mapDroidNotificationPayloadToSessionEvents', () => {
+  it('preserves exact context-window fields from raw token usage notifications', () => {
+    expect(
+      mapDroidNotificationPayloadToSessionEvents(
+        {
+          type: 'session_token_usage_changed',
+          sessionId: 'session-1',
+          tokenUsage: {
+            inputTokens: 1000,
+            outputTokens: 500,
+            cacheCreationTokens: 50,
+            cacheReadTokens: 200,
+            thinkingTokens: 100,
+          },
+          lastCallTokenUsage: {
+            inputTokens: 78000,
+            cacheReadTokens: 0,
+          },
+        },
+        'session-1',
+      ),
+    ).toEqual([
+      {
+        type: 'session.tokenUsageChanged',
+        sessionId: 'session-1',
+        tokenUsage: {
+          inputTokens: 1000,
+          outputTokens: 500,
+          cacheCreationTokens: 50,
+          cacheReadTokens: 200,
+          thinkingTokens: 100,
+        },
+        lastCallTokenUsage: {
+          inputTokens: 78000,
+          cacheReadTokens: 0,
+        },
+      },
+    ])
+  })
+})
+
+describe('mapDroidNotificationPayloadToSessionEvents', () => {
   it('maps legacy raw tool_call notifications before the SDK fallback path', () => {
     expect(
       mapDroidNotificationPayloadToSessionEvents(

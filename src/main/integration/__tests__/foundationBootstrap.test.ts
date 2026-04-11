@@ -37,6 +37,7 @@ describe('foundation bootstrap', () => {
             id: 'claude-3.7',
             displayName: 'Claude 3.7 Sonnet',
             provider: 'anthropic',
+            maxContextLimit: 180000,
             apiKey: 'super-secret',
             baseUrl: 'https://internal.example.com',
           },
@@ -51,6 +52,7 @@ describe('foundation bootstrap', () => {
           interactionMode: 'spec',
           apiKey: 'still-secret',
         },
+        compactionTokenLimit: 300000,
       }),
     )
 
@@ -62,11 +64,13 @@ describe('foundation bootstrap', () => {
           id: 'claude-3.7',
           name: 'Claude 3.7 Sonnet',
           provider: 'anthropic',
+          maxContextLimit: 180000,
         },
       ],
       factoryDefaultSettings: {
         model: 'claude-3.7',
         interactionMode: 'spec',
+        compactionTokenLimit: 300000,
       },
     })
     expect(bootstrap.factoryModels[0]).not.toHaveProperty('apiKey')
@@ -93,6 +97,26 @@ describe('foundation bootstrap', () => {
     expect(readFactorySettingsBootstrap(settingsPath)).toEqual({
       factoryModels: [],
       factoryDefaultSettings: {},
+    })
+  })
+
+  it('reads top-level compactionTokenLimit without session default settings', () => {
+    const tempDirectory = mkdtempSync(join(tmpdir(), 'oxox-settings-'))
+    const settingsPath = join(tempDirectory, 'settings.json')
+    cleanupPaths.push(tempDirectory)
+
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        compactionTokenLimit: 0,
+      }),
+    )
+
+    expect(readFactorySettingsBootstrap(settingsPath)).toEqual({
+      factoryModels: [],
+      factoryDefaultSettings: {
+        compactionTokenLimit: 0,
+      },
     })
   })
 
@@ -178,6 +202,51 @@ Model details:
       ],
       factoryDefaultSettings: {
         model: 'claude-opus-4-6',
+      },
+    })
+  })
+
+  it('merges settings-derived maxContextLimit and compactionTokenLimit into CLI bootstrap', () => {
+    const tempDirectory = mkdtempSync(join(tmpdir(), 'oxox-bootstrap-'))
+    const settingsPath = join(tempDirectory, 'settings.json')
+    cleanupPaths.push(tempDirectory)
+
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        customModels: [
+          {
+            id: 'claude-opus-4-6',
+            displayName: 'Claude Opus 4.6',
+            maxContextLimit: 180000,
+          },
+        ],
+        compactionTokenLimit: 300000,
+      }),
+    )
+
+    expect(
+      readFoundationBootstrap({
+        settingsPath,
+        droidPath: '/Users/test/.local/bin/droid',
+        readDroidExecHelp: vi.fn().mockReturnValue(`
+Usage: droid exec [options] [prompt]
+
+Available Models:
+  claude-opus-4-6                         Claude Opus 4.6 (default)
+  gpt-5.4                                 GPT-5.4
+
+Model details:
+`),
+      }),
+    ).toEqual({
+      factoryModels: [
+        { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', maxContextLimit: 180000 },
+        { id: 'gpt-5.4', name: 'GPT-5.4' },
+      ],
+      factoryDefaultSettings: {
+        model: 'claude-opus-4-6',
+        compactionTokenLimit: 300000,
       },
     })
   })
@@ -292,6 +361,66 @@ Model details:
       factoryModels: [{ id: 'claude-opus-4-6', name: 'Claude Opus 4.6' }],
       factoryDefaultSettings: {
         model: 'claude-opus-4-6',
+      },
+    })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves settings-derived compactionTokenLimit and overlapping model maxContextLimit on refresh', async () => {
+    const tempDirectory = mkdtempSync(join(tmpdir(), 'oxox-bootstrap-'))
+    const settingsPath = join(tempDirectory, 'settings.json')
+    cleanupPaths.push(tempDirectory)
+
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        customModels: [
+          {
+            id: 'claude-opus-4-6',
+            displayName: 'Local Claude',
+            maxContextLimit: 180000,
+          },
+        ],
+        compactionTokenLimit: 300000,
+      }),
+    )
+
+    const onChange = vi.fn()
+    const bootstrapState = createFoundationBootstrapState({
+      settingsPath,
+      droidPath: '/Users/test/.local/bin/droid',
+      onChange,
+      readDroidExecHelp: vi.fn().mockResolvedValue(`
+Usage: droid exec [options] [prompt]
+
+Available Models:
+  claude-opus-4-6                         Claude Opus 4.6 (default)
+
+Model details:
+`),
+    })
+
+    expect(bootstrapState.getSnapshot()).toEqual({
+      factoryModels: [
+        {
+          id: 'claude-opus-4-6',
+          name: 'Local Claude',
+          maxContextLimit: 180000,
+          provider: undefined,
+        },
+      ],
+      factoryDefaultSettings: {
+        compactionTokenLimit: 300000,
+      },
+    })
+
+    await bootstrapState.refreshFromDroidCli()
+
+    expect(bootstrapState.getSnapshot()).toEqual({
+      factoryModels: [{ id: 'claude-opus-4-6', name: 'Claude Opus 4.6', maxContextLimit: 180000 }],
+      factoryDefaultSettings: {
+        model: 'claude-opus-4-6',
+        compactionTokenLimit: 300000,
       },
     })
     expect(onChange).toHaveBeenCalledTimes(1)

@@ -14,11 +14,13 @@ interface PersistedSidebarState {
   isContextPanelHidden?: boolean
   collapsedProjectKeys?: string[]
   contentLayout?: ContentLayout
+  composerContextUsageDisplayMode?: ComposerContextUsageDisplayMode
 }
 
 export type AppView = 'sessions' | 'settings'
 export type SettingsSection = 'general' | 'archive'
 export type ContentLayout = 'fluid' | 'fixed'
+export type ComposerContextUsageDisplayMode = 'percentage' | 'tokens'
 
 export class UIStore {
   readonly colorMode = 'dark'
@@ -32,6 +34,7 @@ export class UIStore {
   isCommandPaletteOpen = false
   collapsedProjectKeys: string[] = []
   contentLayout: ContentLayout = 'fixed'
+  composerContextUsageDisplayMode: ComposerContextUsageDisplayMode = 'percentage'
   activeView: AppView = 'sessions'
   settingsSection: SettingsSection = 'general'
   private readonly persistence: PersistencePort
@@ -146,6 +149,11 @@ export class UIStore {
     this.persist()
   }
 
+  setComposerContextUsageDisplayMode(mode: ComposerContextUsageDisplayMode): void {
+    this.composerContextUsageDisplayMode = mode
+    this.persist()
+  }
+
   isProjectCollapsed(projectKey: string): boolean {
     return this.collapsedProjectKeys.includes(projectKey)
   }
@@ -172,6 +180,8 @@ export class UIStore {
     this.isContextPanelHidden = nextState.isContextPanelHidden ?? false
     this.collapsedProjectKeys = nextState.collapsedProjectKeys ?? []
     this.contentLayout = nextState.contentLayout === 'fluid' ? 'fluid' : 'fixed'
+    this.composerContextUsageDisplayMode =
+      nextState.composerContextUsageDisplayMode === 'tokens' ? 'tokens' : 'percentage'
   }
 
   private persist(): void {
@@ -182,6 +192,7 @@ export class UIStore {
       isContextPanelHidden: this.isContextPanelHidden,
       collapsedProjectKeys: this.collapsedProjectKeys,
       contentLayout: this.contentLayout,
+      composerContextUsageDisplayMode: this.composerContextUsageDisplayMode,
     }
 
     this.persistence.set(getSidebarStateStorageKey(), state)
@@ -222,6 +233,7 @@ function readPersistedSidebarState(persistence: PersistencePort): PersistedSideb
       contextPanelWidth: parsed.contextPanelWidth,
       isContextPanelHidden: parsed.isContextPanelHidden,
       contentLayout: parsed.contentLayout,
+      composerContextUsageDisplayMode: parsed.composerContextUsageDisplayMode,
       collapsedProjectKeys: Array.isArray(parsed.collapsedProjectKeys)
         ? parsed.collapsedProjectKeys.filter((value): value is string => typeof value === 'string')
         : [],

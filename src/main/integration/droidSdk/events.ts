@@ -69,6 +69,37 @@ export function mapDroidNotificationPayloadToSessionEvents(
         },
       ]
 
+    case 'session_token_usage_changed': {
+      const tokenUsage = isRecord(notification.tokenUsage) ? notification.tokenUsage : {}
+      const lastCallTokenUsage = isRecord(notification.lastCallTokenUsage)
+        ? notification.lastCallTokenUsage
+        : null
+
+      return [
+        {
+          type: 'session.tokenUsageChanged',
+          sessionId,
+          tokenUsage: {
+            inputTokens: toNumberValue(tokenUsage.inputTokens),
+            outputTokens: toNumberValue(tokenUsage.outputTokens),
+            cacheCreationTokens: toNumberValue(
+              tokenUsage.cacheCreationTokens ?? tokenUsage.cacheWriteTokens,
+            ),
+            cacheReadTokens: toNumberValue(tokenUsage.cacheReadTokens),
+            thinkingTokens: toNumberValue(tokenUsage.thinkingTokens),
+          },
+          ...(lastCallTokenUsage
+            ? {
+                lastCallTokenUsage: {
+                  inputTokens: toNumberValue(lastCallTokenUsage.inputTokens),
+                  cacheReadTokens: toNumberValue(lastCallTokenUsage.cacheReadTokens),
+                },
+              }
+            : {}),
+        },
+      ]
+    }
+
     default:
       return null
   }
@@ -427,6 +458,10 @@ function toOptionalString(value: unknown): string | undefined {
 
 function toStringValue(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback
+}
+
+function toNumberValue(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 function serializeUnknownAsMarkdown(value: unknown): string | null {

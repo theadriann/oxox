@@ -12,6 +12,7 @@ interface SessionComposerConnectedSelectorOptions {
     isAttachingSelected: boolean
     isInterruptingSelected: boolean
     isSendingSelected: boolean
+    selectedComposerContextUsage: SessionComposerProps['composerContextUsage']
     selectedAvailableModels: SessionComposerProps['availableModels']
     selectedPreferences: {
       autonomyLevel: string
@@ -48,6 +49,9 @@ interface SessionComposerConnectedSelectorOptions {
   sessionStore: {
     selectedSessionId: string
   }
+  uiStore: {
+    composerContextUsageDisplayMode: SessionComposerProps['composerContextUsageDisplayMode']
+  }
 }
 
 export function buildSessionComposerProps({
@@ -58,6 +62,7 @@ export function buildSessionComposerProps({
   onAttach,
   onSubmitDetached,
   sessionStore,
+  uiStore,
 }: SessionComposerConnectedSelectorOptions): {
   error: string | null
   composer: SessionComposerProps
@@ -74,6 +79,8 @@ export function buildSessionComposerProps({
       availableModels: composerStore.selectedAvailableModels,
       canAttach: selectedSessionId ? composerStore.canAttachSelected : false,
       canComposeDetached: canUseDetachedComposer,
+      composerContextUsage: composerStore.selectedComposerContextUsage,
+      composerContextUsageDisplayMode: uiStore.composerContextUsageDisplayMode,
       draft: composerStore.draft,
       isAttached: Boolean(liveSessionStore.selectedSnapshot),
       isAttaching: composerStore.isAttachingSelected,

@@ -287,7 +287,10 @@ function factoryModelsEqual(
   return left.every((model, index) => {
     const other = right[index]
     return (
-      model.id === other?.id && model.name === other?.name && model.provider === other?.provider
+      model.id === other?.id &&
+      model.name === other?.name &&
+      model.provider === other?.provider &&
+      model.maxContextLimit === other?.maxContextLimit
     )
   })
 }
@@ -296,7 +299,11 @@ function foundationDefaultSettingsEqual(
   left: FoundationBootstrap['factoryDefaultSettings'],
   right: FoundationBootstrap['factoryDefaultSettings'],
 ): boolean {
-  return left.model === right.model && left.interactionMode === right.interactionMode
+  return (
+    left.model === right.model &&
+    left.interactionMode === right.interactionMode &&
+    left.compactionTokenLimit === right.compactionTokenLimit
+  )
 }
 
 function stringArraysEqual(left: string[], right: string[]): boolean {

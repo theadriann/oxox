@@ -23,6 +23,11 @@ export interface TokenUsageSnapshot {
   readonly thinkingTokens: number
 }
 
+export interface LastCallTokenUsageSnapshot {
+  readonly inputTokens: number
+  readonly cacheReadTokens: number
+}
+
 interface BaseSessionEvent {
   readonly type: string
   readonly sessionId?: string
@@ -121,6 +126,7 @@ export interface SessionTitleChangedEvent extends BaseSessionEvent {
 export interface SessionTokenUsageChangedEvent extends BaseSessionEvent {
   readonly type: 'session.tokenUsageChanged'
   readonly tokenUsage: TokenUsageSnapshot
+  readonly lastCallTokenUsage?: LastCallTokenUsageSnapshot | null
   readonly previousTokenUsage?: TokenUsageSnapshot
 }
 

@@ -2,6 +2,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
+import type { ComposerContextUsageState } from '../../../stores/composerContextUsage'
 
 import { SessionComposer } from '../SessionComposer'
 
@@ -12,6 +13,8 @@ function ControlledComposer({
   onAttach = () => undefined,
   onInterrupt = () => undefined,
   onSubmit = () => undefined,
+  composerContextUsage = null,
+  composerContextUsageDisplayMode = 'percentage',
 }: {
   status?: 'idle' | 'active' | 'waiting' | 'completed' | 'reconnecting' | 'error' | 'orphaned'
   isAttached?: boolean
@@ -24,6 +27,8 @@ function ControlledComposer({
     interactionMode: string
     autonomyLevel: string
   }) => void
+  composerContextUsage?: ComposerContextUsageState | null
+  composerContextUsageDisplayMode?: 'percentage' | 'tokens'
 }) {
   const [draft, setDraft] = useState('')
   const [modelId, setModelId] = useState('gpt-5.4')
@@ -42,6 +47,8 @@ function ControlledComposer({
       isAttaching={false}
       isInterrupting={false}
       isSubmitting={false}
+      composerContextUsage={composerContextUsage}
+      composerContextUsageDisplayMode={composerContextUsageDisplayMode}
       selectedAutonomyLevel={autonomyLevel}
       selectedMode={interactionMode}
       selectedModelId={modelId}
@@ -143,5 +150,31 @@ describe('SessionComposer', () => {
 
     expect(screen.getByText(/Reconnect to continue/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: /Reconnect$/i })).toBeTruthy()
+  })
+
+  it('shows a context usage percentage next to send and exposes the full breakdown in a tooltip', async () => {
+    render(
+      <ControlledComposer
+        composerContextUsage={{
+          contextLimit: 258000,
+          usedContext: 78000,
+          remainingContext: 180000,
+          usedPercentage: 30,
+          totalProcessedTokens: 298000,
+        }}
+      />,
+    )
+
+    expect(screen.getByText('30%')).toBeTruthy()
+    const contextUsageButton = screen.getByRole('button', { name: /Context usage/i })
+
+    expect(contextUsageButton.getAttribute('title')).toMatch(/78k\/258k context used/i)
+    expect(contextUsageButton.getAttribute('title')).toMatch(/Total processed: 298k tokens/i)
+  })
+
+  it('shows a placeholder instead of guessing when exact context usage is unavailable', () => {
+    render(<ControlledComposer />)
+
+    expect(screen.getByText('--')).toBeTruthy()
   })
 })

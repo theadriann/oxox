@@ -167,6 +167,7 @@ export interface FoundationBootstrap {
   factoryDefaultSettings: {
     model?: string
     interactionMode?: string
+    compactionTokenLimit?: number
   }
 }
 
@@ -216,6 +217,11 @@ export interface LiveSessionTokenUsageRecord {
   thinkingTokens: number
 }
 
+export interface LiveSessionLastCallTokenUsageRecord {
+  inputTokens: number
+  cacheReadTokens: number
+}
+
 export interface LiveSessionRewindFileRecord {
   filePath: string
   contentHash: string
@@ -261,6 +267,7 @@ export interface LiveSessionModel {
   id: string
   name: string
   provider?: string | null
+  maxContextLimit?: number | null
 }
 
 export interface LiveSessionSettings {
@@ -381,6 +388,7 @@ export interface LiveSessionTitleChangedEventRecord extends BaseLiveSessionEvent
 export interface LiveSessionTokenUsageChangedEventRecord extends BaseLiveSessionEventRecord {
   type: 'session.tokenUsageChanged'
   tokenUsage: LiveSessionTokenUsageRecord
+  lastCallTokenUsage?: LiveSessionLastCallTokenUsageRecord | null
   previousTokenUsage?: LiveSessionTokenUsageRecord
 }
 

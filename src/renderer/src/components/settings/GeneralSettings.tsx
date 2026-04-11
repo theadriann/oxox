@@ -42,6 +42,32 @@ export const GeneralSettings = observer(function GeneralSettings() {
             label="Context panel visible"
           />
         </SettingsRow>
+
+        <SettingsRow
+          label="Composer context usage"
+          description="Choose how the inline context indicator next to Send is displayed."
+        >
+          <div className="flex items-center gap-1 rounded-md border border-fd-border-default bg-fd-panel p-1">
+            {(['percentage', 'tokens'] as const).map((mode) => {
+              const isActive = uiStore.composerContextUsageDisplayMode === mode
+
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`rounded px-2 py-1 text-[11px] transition-colors ${
+                    isActive
+                      ? 'bg-fd-ember-400 text-white'
+                      : 'text-fd-secondary hover:bg-fd-border-subtle'
+                  }`}
+                  onClick={() => uiStore.setComposerContextUsageDisplayMode(mode)}
+                >
+                  {mode === 'percentage' ? 'Percent' : 'Flat'}
+                </button>
+              )
+            })}
+          </div>
+        </SettingsRow>
       </div>
 
       <div className="flex flex-col gap-2">
