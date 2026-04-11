@@ -1,0 +1,84 @@
+// @vitest-environment jsdom
+
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { OxoxBridge } from '../../../../shared/ipc/contracts'
+import { RenameWorkflowStore } from '../RenameWorkflowStore'
+
+function createSessionApi(overrides: Partial<OxoxBridge['session']> = {}) {
+  return {
+    renameViaDaemon: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  }
+}
+
+describe('RenameWorkflowStore', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it('opens and closes the rename dialog', () => {
+    const store = new RenameWorkflowStore(
+      () => 'session-alpha',
+      () => ({ title: 'Alpha session' }) as any,
+      createSessionApi(),
+    )
+
+    store.openRenameDialog()
+
+    expect(store.isRenameDialogOpen).toBe(true)
+    expect(store.renameDraft).toBe('Alpha session')
+
+    store.closeRenameDialog()
+
+    expect(store.isRenameDialogOpen).toBe(false)
+    expect(store.renameDraft).toBe('')
+  })
+
+  it('does not open dialog when no session is selected', () => {
+    const store = new RenameWorkflowStore(
+      () => null,
+      () => null,
+      createSessionApi(),
+    )
+
+    store.openRenameDialog()
+
+    expect(store.isRenameDialogOpen).toBe(false)
+  })
+
+  it('submits the rename via daemon api', async () => {
+    const renameViaDaemon = vi.fn().mockResolvedValue(undefined)
+    const onRenamed = vi.fn().mockResolvedValue(undefined)
+    const store = new RenameWorkflowStore(
+      () => 'session-alpha',
+      () => ({ title: 'Alpha session' }) as any,
+      createSessionApi({ renameViaDaemon }),
+      onRenamed,
+    )
+
+    store.openRenameDialog()
+    store.setRenameDraft('New name')
+    await store.submitRename()
+
+    expect(renameViaDaemon).toHaveBeenCalledWith('session-alpha', 'New name')
+    expect(onRenamed).toHaveBeenCalledWith('session-alpha', 'New name')
+    expect(store.isRenameDialogOpen).toBe(false)
+    expect(store.renamingSessionId).toBeNull()
+  })
+
+  it('surfaces errors from the rename call', async () => {
+    const renameViaDaemon = vi.fn().mockRejectedValue(new Error('Rename failed'))
+    const store = new RenameWorkflowStore(
+      () => 'session-alpha',
+      () => ({ title: 'Alpha' }) as any,
+      createSessionApi({ renameViaDaemon }),
+    )
+
+    store.openRenameDialog()
+    store.setRenameDraft('New')
+    await store.submitRename()
+
+    expect(store.error).toBe('Rename failed')
+    expect(store.renamingSessionId).toBeNull()
+  })
+})

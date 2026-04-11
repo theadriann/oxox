@@ -1,0 +1,18 @@
+commands:
+  install: pnpm install
+  dev: pnpm run dev
+  build: pnpm run build
+  typecheck: pnpm exec tsc --noEmit
+  test: pnpm exec vitest run
+  lint: pnpm exec biome check .
+  format: pnpm exec biome format . --write
+  lint-fix: pnpm exec biome check . --fix
+  package: pnpm run package
+
+services:
+  electron-dev:
+    start: pnpm run dev
+    stop: lsof -ti :3105 | xargs kill 2>/dev/null; true
+    healthcheck: curl -sf http://localhost:3105 || true
+    port: 3105
+    depends_on: []

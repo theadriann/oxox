@@ -1,0 +1,430 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-display: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "SF Mono", "SFMono-Regular", ui-monospace, monospace;
+
+  --color-fd-canvas: var(--fd-canvas);
+  --color-fd-surface: var(--fd-surface);
+  --color-fd-panel: var(--fd-panel);
+  --color-fd-elevated: var(--fd-elevated);
+  --color-fd-glass: var(--fd-glass);
+  --color-fd-overlay: var(--fd-overlay);
+  --color-fd-primary: var(--fd-text-primary);
+  --color-fd-secondary: var(--fd-text-secondary);
+  --color-fd-tertiary: var(--fd-text-tertiary);
+  --color-fd-inverse: var(--fd-text-inverse);
+  --color-fd-border-subtle: var(--fd-border-subtle);
+  --color-fd-border-default: var(--fd-border-default);
+  --color-fd-border-strong: var(--fd-border-strong);
+  --color-fd-ember-400: var(--fd-ember-400);
+  --color-fd-ember-500: var(--fd-ember-500);
+  --color-fd-ember-600: var(--fd-ember-600);
+  --color-fd-ember-glow: var(--fd-ember-glow);
+  --color-fd-ready: var(--fd-ready);
+  --color-fd-danger: var(--fd-danger);
+  --color-fd-warning: var(--fd-warning);
+  --color-fd-session-active: var(--fd-session-active);
+  --color-fd-session-waiting: var(--fd-session-waiting);
+  --color-fd-session-idle: var(--fd-session-idle);
+  --color-fd-session-completed: var(--fd-session-completed);
+  --color-fd-session-disconnected: var(--fd-session-disconnected);
+
+  --color-background: var(--fd-canvas);
+  --color-foreground: var(--fd-text-primary);
+  --color-card: var(--fd-panel);
+  --color-card-foreground: var(--fd-text-primary);
+  --color-popover: var(--fd-elevated);
+  --color-popover-foreground: var(--fd-text-primary);
+  --color-primary: var(--fd-ember-500);
+  --color-primary-foreground: var(--fd-text-inverse);
+  --color-secondary: var(--fd-surface);
+  --color-secondary-foreground: var(--fd-text-primary);
+  --color-muted: var(--fd-surface);
+  --color-muted-foreground: var(--fd-text-secondary);
+  --color-accent: var(--fd-panel);
+  --color-accent-foreground: var(--fd-text-primary);
+  --color-border: var(--fd-border-default);
+  --color-input: var(--fd-border-strong);
+  --color-ring: var(--fd-ember-400);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/geist-latin-500-normal.woff2") format("woff2");
+  font-display: block;
+  font-style: normal;
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/geist-latin-600-normal.woff2") format("woff2");
+  font-display: block;
+  font-style: normal;
+  font-weight: 600;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-latin-400-normal.woff2") format("woff2");
+  font-display: block;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-latin-500-normal.woff2") format("woff2");
+  font-display: block;
+  font-style: normal;
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: "SF Mono";
+  src: url("/fonts/SF-Mono-Regular.otf") format("opentype");
+  font-display: block;
+  font-style: normal;
+  font-weight: 400;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Surface scale -- warm neutral charcoal (Factory/T3 Code inspired) */
+  --fd-canvas: #1a1a1a;
+  --fd-surface: #1e1e1e;
+  --fd-panel: #232323;
+  --fd-elevated: #2a2a2a;
+  --fd-glass: rgba(255, 255, 255, 0.03);
+  --fd-overlay: rgba(12, 12, 12, 0.78);
+
+  /* Border scale -- warm, subtle */
+  --fd-border-subtle: rgba(255, 255, 255, 0.06);
+  --fd-border-default: rgba(255, 255, 255, 0.10);
+  --fd-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Text scale -- warm whites, not blue-tinted */
+  --fd-text-primary: #e6e6e6;
+  --fd-text-secondary: #999999;
+  --fd-text-tertiary: #666666;
+  --fd-text-inverse: #1a1a1a;
+
+  /* Accent -- warm ember, slightly muted for elegance */
+  --fd-ember-400: #f0944e;
+  --fd-ember-500: #e06b1f;
+  --fd-ember-600: #c45510;
+  --fd-ember-glow: rgba(224, 107, 31, 0.18);
+
+  /* Semantic */
+  --fd-ready: #2eb67d;
+  --fd-danger: #e5534b;
+  --fd-warning: #d4a72c;
+
+  /* Session status */
+  --fd-session-active: #2eb67d;
+  --fd-session-waiting: #d4a72c;
+  --fd-session-idle: rgba(110, 210, 155, 0.6);
+  --fd-session-completed: #606060;
+  --fd-session-disconnected: #3a3a3a;
+
+  /* Shadows -- tighter, more subtle */
+  --fd-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.24), 0 1px 2px rgba(0, 0, 0, 0.18);
+  --fd-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.32);
+
+  /* Radii -- TIGHT, professional, technical */
+  --fd-radius-sm: 4px;
+  --fd-radius-md: 6px;
+  --fd-radius-lg: 8px;
+  --fd-radius-xl: 10px;
+  --radius: 0.625rem;
+
+  /* Motion -- snappier */
+  --fd-motion-fast: 80ms;
+  --fd-motion-base: 140ms;
+  --fd-motion-slow: 200ms;
+  --fd-motion-emphasis: 260ms;
+  --fd-motion-shimmer: 1.2s;
+  --fd-ease-default: cubic-bezier(0.16, 1, 0.3, 1);
+  --fd-ease-exit: cubic-bezier(0.4, 0, 0.7, 0.2);
+
+  /* Layout */
+  --oxox-sidebar-width: 240px;
+  --oxox-context-panel-width: 280px;
+}
+
+@layer base {
+  * {
+    @apply box-border border-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply min-h-screen;
+  }
+
+  body {
+    @apply bg-fd-canvas font-body text-fd-primary antialiased;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+  }
+
+  button {
+    font-family: var(--font-body);
+  }
+
+  code,
+  pre {
+    font-family: var(--font-mono);
+  }
+
+  :where(button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 1.5px solid var(--fd-ember-400);
+    outline-offset: 1px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--fd-ember-500) 12%, transparent);
+  }
+
+  :where(input, select, textarea):focus-visible {
+    border-color: var(--fd-ember-400);
+  }
+
+  ::selection {
+    background: rgba(224, 107, 31, 0.28);
+    color: var(--fd-text-primary);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+}
+
+/* @pierre/diffs container — constrain height within tool call cards */
+.diffs-container {
+  max-height: 280px;
+  overflow: auto;
+  background: var(--fd-canvas);
+  border-radius: 0 0 var(--fd-radius-md) var(--fd-radius-md);
+}
+
+.diffs-container > * {
+  font-size: 12px !important;
+}
+
+/* Tool call expanded content scrollable area */
+.tool-call-expanded-content {
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--fd-surface);
+  border-top: 1px solid var(--fd-border-subtle);
+}
+
+.tool-call-expanded-content .tool-call-section + .tool-call-section {
+  border-top: 1px solid var(--fd-border-subtle);
+}
+
+/* Resize states */
+body.oxox-sidebar-resizing,
+body.oxox-context-panel-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* Skeleton shimmer */
+@keyframes oxox-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.oxox-skeleton {
+  background-color: var(--fd-surface);
+  background-image: linear-gradient(
+    90deg,
+    var(--fd-surface) 0%,
+    color-mix(in srgb, var(--fd-border-default) 50%, var(--fd-surface)) 50%,
+    var(--fd-surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: oxox-skeleton-shimmer var(--fd-motion-shimmer) ease-in-out infinite;
+}
+
+/* App layout grid — 2-column: sidebar | app-content */
+.oxox-app-layout {
+  display: grid;
+  gap: 0;
+  height: 100%;
+  transition: grid-template-columns var(--fd-motion-base) var(--fd-ease-default);
+}
+
+/* Content area — inner grid: detail | context-panel */
+.oxox-content-area {
+  display: grid;
+  gap: 0;
+  min-height: 0;
+  min-width: 0;
+  transition: grid-template-columns var(--fd-motion-base) var(--fd-ease-default);
+}
+
+/* Sidebar shell */
+.oxox-sidebar-shell {
+  position: relative;
+  width: 100%;
+  border-right: 1px solid var(--fd-border-subtle);
+}
+
+/* Sidebar resize handle */
+.oxox-sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  display: none;
+  width: 8px;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.oxox-sidebar-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition:
+    background-color var(--fd-motion-fast) var(--fd-ease-default),
+    opacity var(--fd-motion-fast) var(--fd-ease-default);
+}
+
+.oxox-sidebar-resize-handle:hover::before,
+body.oxox-sidebar-resizing .oxox-sidebar-resize-handle::before {
+  background: var(--fd-ember-400);
+}
+
+/* Context panel shell */
+.oxox-context-panel-shell {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  border-left: 1px solid var(--fd-border-subtle);
+}
+
+/* Context panel resize handle */
+.oxox-context-panel-resize-handle {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  bottom: 0;
+  display: none;
+  width: 8px;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.oxox-context-panel-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition:
+    background-color var(--fd-motion-fast) var(--fd-ease-default),
+    opacity var(--fd-motion-fast) var(--fd-ease-default);
+}
+
+.oxox-context-panel-resize-handle:hover::before,
+body.oxox-context-panel-resizing .oxox-context-panel-resize-handle::before {
+  background: var(--fd-ember-400);
+}
+
+/* Desktop layout */
+@media (min-width: 1280px) {
+  .oxox-app-layout--sidebar-visible {
+    grid-template-columns: minmax(180px, var(--oxox-sidebar-width)) minmax(0, 1fr);
+  }
+
+  .oxox-app-layout--sidebar-hidden {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .oxox-content-area--with-context {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, var(--oxox-context-panel-width));
+  }
+
+  .oxox-content-area--without-context {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .oxox-sidebar-shell {
+    max-width: min(var(--oxox-sidebar-width), 50vw);
+  }
+
+  .oxox-context-panel-shell {
+    max-width: min(var(--oxox-context-panel-width), 50vw);
+  }
+
+  .oxox-sidebar-resize-handle,
+  .oxox-context-panel-resize-handle {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oxox-skeleton {
+    animation: none;
+    background-position: 0 0;
+  }
+
+  .oxox-app-layout,
+  .oxox-content-area,
+  .oxox-sidebar-resize-handle::before,
+  .oxox-context-panel-resize-handle::before {
+    transition-duration: 0ms;
+  }
+}
