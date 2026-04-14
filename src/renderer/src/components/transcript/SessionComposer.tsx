@@ -140,146 +140,140 @@ export function SessionComposer({
                 : 'Ready'
 
   return (
-    <section className="px-0 pb-1">
-      <div className="rounded-lg border border-fd-border-default bg-fd-panel">
-        <textarea
-          ref={textareaRef}
-          aria-label="Message composer"
-          className="w-full resize-none rounded-t-lg border-0 bg-transparent px-3 py-2 text-[13px] leading-[18px] text-fd-primary outline-none transition-colors placeholder:text-fd-tertiary disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={isEditorDisabled}
-          placeholder={
-            isWorking
-              ? 'Agent is generating...'
-              : canUseComposer
-                ? 'Ask anything, @tag files/folders, or use / to show available commands'
-                : 'Connect to send a message'
-          }
-          rows={2}
-          style={{ maxHeight: `${TEXTAREA_MAX_HEIGHT}px` }}
-          value={draft}
-          onChange={(event) => onDraftChange(event.target.value)}
-          onKeyDown={handleKeyDown}
-        />
+    <>
+      <textarea
+        ref={textareaRef}
+        aria-label="Message composer"
+        className="w-full resize-none border-0 bg-transparent px-3 py-2 text-[13px] leading-[18px] text-fd-primary outline-none transition-colors placeholder:text-fd-tertiary disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={isEditorDisabled}
+        placeholder={
+          isWorking
+            ? 'Agent is generating...'
+            : canUseComposer
+              ? 'Ask anything, @tag files/folders, or use / to show available commands'
+              : 'Connect to send a message'
+        }
+        rows={2}
+        style={{ maxHeight: `${TEXTAREA_MAX_HEIGHT}px` }}
+        value={draft}
+        onChange={(event) => onDraftChange(event.target.value)}
+        onKeyDown={handleKeyDown}
+      />
 
-        <div className="flex items-center justify-between gap-2 border-t border-fd-border-subtle px-2 py-1.5">
-          <div className="flex items-center gap-1.5">
-            {(!isConnected || !isAttached) && canAttach ? (
-              <TooltipProvider delayDuration={300}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={attachActionLabel}
-                      disabled={isAttaching}
-                      onClick={onAttach}
-                    >
-                      {isAttaching ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Plug className="size-3.5" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={4}>
-                    {attachActionLabel}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : null}
+      <div className="flex items-center justify-between gap-2 border-t border-fd-border-subtle px-2 py-1.5">
+        <div className="flex items-center gap-1.5">
+          {(!isConnected || !isAttached) && canAttach ? (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={attachActionLabel}
+                    disabled={isAttaching}
+                    onClick={onAttach}
+                  >
+                    {isAttaching ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Plug className="size-3.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={4}>
+                  {attachActionLabel}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
 
-            <ModelSelector
-              models={modelOptions}
-              selectedModelId={selectedModelId}
-              disabled={areSelectorsDisabled}
-              onModelChange={onModelChange}
-            />
+          <ModelSelector
+            models={modelOptions}
+            selectedModelId={selectedModelId}
+            disabled={areSelectorsDisabled}
+            onModelChange={onModelChange}
+          />
 
-            <Select
-              value={selectedMode}
-              onValueChange={onModeChange}
-              disabled={areSelectorsDisabled}
+          <Select value={selectedMode} onValueChange={onModeChange} disabled={areSelectorsDisabled}>
+            <SelectTrigger
+              aria-label="Mode selector"
+              size="sm"
+              className="h-6 min-w-0 gap-1 border-input bg-transparent px-2 text-[11px] text-fd-tertiary dark:bg-transparent"
             >
-              <SelectTrigger
-                aria-label="Mode selector"
-                size="sm"
-                className="h-6 min-w-0 gap-1 border-input bg-transparent px-2 text-[11px] text-fd-tertiary dark:bg-transparent"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" sideOffset={6} className="min-w-[100px]">
-                {MODE_OPTIONS.map((mode) => (
-                  <SelectItem key={mode.value} value={mode.value}>
-                    <span className="text-xs">{mode.label}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" sideOffset={6} className="min-w-[100px]">
+              {MODE_OPTIONS.map((mode) => (
+                <SelectItem key={mode.value} value={mode.value}>
+                  <span className="text-xs">{mode.label}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-            <Select
-              value={selectedAutonomyLevel}
-              onValueChange={onAutonomyLevelChange}
-              disabled={areSelectorsDisabled}
+          <Select
+            value={selectedAutonomyLevel}
+            onValueChange={onAutonomyLevelChange}
+            disabled={areSelectorsDisabled}
+          >
+            <SelectTrigger
+              aria-label="Autonomy level selector"
+              size="sm"
+              className="h-6 min-w-0 gap-1 border-input bg-transparent px-2 text-[11px] text-fd-tertiary dark:bg-transparent"
             >
-              <SelectTrigger
-                aria-label="Autonomy level selector"
-                size="sm"
-                className="h-6 min-w-0 gap-1 border-input bg-transparent px-2 text-[11px] text-fd-tertiary dark:bg-transparent"
-              >
-                <span className="text-[10px] text-fd-quaternary mr-0.5">Autonomy</span>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" sideOffset={6} className="min-w-[100px]">
-                {AUTONOMY_OPTIONS.map((level) => (
-                  <SelectItem key={level.value} value={level.value}>
-                    <span className="text-xs">{level.label}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <span className="text-[10px] text-fd-quaternary mr-0.5">Autonomy</span>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" sideOffset={6} className="min-w-[100px]">
+              {AUTONOMY_OPTIONS.map((level) => (
+                <SelectItem key={level.value} value={level.value}>
+                  <span className="text-xs">{level.label}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-fd-tertiary">{statusText}</span>
-            <ContextUsageIndicator
-              usage={composerContextUsage}
-              displayMode={composerContextUsageDisplayMode}
-            />
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-fd-tertiary">{statusText}</span>
+          <ContextUsageIndicator
+            usage={composerContextUsage}
+            displayMode={composerContextUsageDisplayMode}
+          />
 
-            {isWorking ? (
-              <button
-                aria-label="Stop generation"
-                className="flex size-6 cursor-pointer items-center justify-center rounded-md bg-fd-ember-400 text-white transition-colors hover:bg-fd-ember-500 disabled:opacity-40"
-                disabled={isInterrupting}
-                type="button"
-                onClick={onInterrupt}
-              >
-                {isInterrupting ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <Square className="size-3" />
-                )}
-              </button>
-            ) : (
-              <button
-                aria-label="Send message"
-                className="flex size-6 cursor-pointer items-center justify-center rounded-md bg-fd-primary text-fd-canvas transition-colors hover:bg-fd-primary/80 disabled:opacity-30 disabled:cursor-not-allowed"
-                disabled={isSendDisabled}
-                type="button"
-                onClick={handleSubmit}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <ArrowUp className="size-3.5" />
-                )}
-              </button>
-            )}
-          </div>
+          {isWorking ? (
+            <button
+              aria-label="Stop generation"
+              className="flex size-6 cursor-pointer items-center justify-center rounded-md bg-fd-ember-400 text-white transition-colors hover:bg-fd-ember-500 disabled:opacity-40"
+              disabled={isInterrupting}
+              type="button"
+              onClick={onInterrupt}
+            >
+              {isInterrupting ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <Square className="size-3" />
+              )}
+            </button>
+          ) : (
+            <button
+              aria-label="Send message"
+              className="flex size-6 cursor-pointer items-center justify-center rounded-md bg-fd-primary text-fd-canvas transition-colors hover:bg-fd-primary/80 disabled:opacity-30 disabled:cursor-not-allowed"
+              disabled={isSendDisabled}
+              type="button"
+              onClick={handleSubmit}
+            >
+              {isSubmitting ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <ArrowUp className="size-3.5" />
+              )}
+            </button>
+          )}
         </div>
       </div>
-    </section>
+    </>
   )
 }
 

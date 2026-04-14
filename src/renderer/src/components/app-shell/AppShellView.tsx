@@ -170,17 +170,19 @@ export function AppShellView({
                   </div>
                   <div className="flex flex-col gap-2 pb-2">
                     <ContentContainer layout={uiState.contentLayout}>
-                      <TodoListConnected />
-                      {viewModel.shouldRenderComposer ? (
-                        <SessionComposerConnected
-                          canComposeDetached={viewModel.canComposeDetached}
-                          isSubmittingDetached={controller.newSessionForm.isSubmitting}
-                          onAttach={() => void controller.handleAttachSelectedSession()}
-                          onSubmitDetached={(payload) =>
-                            void controller.newSessionForm.submitNewSession(payload)
-                          }
-                        />
-                      ) : null}
+                      <div className="rounded-lg border border-fd-border-default bg-fd-panel">
+                        <TodoListConnected />
+                        {viewModel.shouldRenderComposer ? (
+                          <SessionComposerConnected
+                            canComposeDetached={viewModel.canComposeDetached}
+                            isSubmittingDetached={controller.newSessionForm.isSubmitting}
+                            onAttach={() => void controller.handleAttachSelectedSession()}
+                            onSubmitDetached={(payload) =>
+                              void controller.newSessionForm.submitNewSession(payload)
+                            }
+                          />
+                        ) : null}
+                      </div>
                     </ContentContainer>
                   </div>
                 </motion.section>
