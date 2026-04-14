@@ -179,6 +179,10 @@ function mockBridge(sessionOverrides: Partial<OxoxBridge['session']> = {}) {
       addUserMessage: vi.fn().mockResolvedValue(undefined),
       updateSettings: vi.fn().mockResolvedValue(undefined),
       interrupt: vi.fn().mockResolvedValue(undefined),
+      compact: vi.fn().mockResolvedValue({
+        snapshot: createLiveSnapshot({ sessionId: 'session-compact' }),
+        removedCount: 3,
+      }),
       fork: vi.fn().mockResolvedValue(createLiveSnapshot({ sessionId: 'session-fork' })),
       getRewindInfo: vi.fn().mockResolvedValue(createRewindInfo()),
       executeRewind: vi.fn().mockResolvedValue({
@@ -557,6 +561,40 @@ describe('ComposerStore', () => {
     expect(getSnapshot).toHaveBeenCalledWith('session-fork')
     expect(liveSessionStore.selectedSnapshot?.status).toBe('waiting')
     expect(composerStore.interruptingSessionId).toBeNull()
+  })
+
+  it('compacts the selected session and switches to the compacted snapshot', async () => {
+    const compact = vi.fn().mockResolvedValue({
+      snapshot: createLiveSnapshot({
+        sessionId: 'session-compact',
+        title: 'Compacted session',
+        status: 'active',
+      }),
+      removedCount: 7,
+    })
+
+    mockBridge({
+      compact,
+    })
+
+    const { composerStore, liveSessionStore, sessionStore } = createStores({
+      snapshot: createLiveSnapshot({ title: 'Original session' }),
+    })
+
+    await composerStore.compactSelected()
+
+    expect(compact).toHaveBeenCalledWith('session-alpha', undefined)
+    expect(sessionStore.selectedSessionId).toBe('session-compact')
+    expect(sessionStore.selectedSession).toMatchObject({
+      id: 'session-compact',
+      title: 'Compacted session',
+      derivationType: 'compact',
+    })
+    expect(liveSessionStore.selectedSnapshot?.title).toBe('Compacted session')
+    expect(composerStore.feedbackStore.feedback).toEqual({
+      message: 'Compacted “Compacted session” and removed 7 messages.',
+      tone: 'success',
+    })
   })
 
   it('uses the primary fork api even when the selected session is not live', async () => {

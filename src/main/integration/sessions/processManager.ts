@@ -146,6 +146,7 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
     availableModels: LiveSessionModel[],
     viewerId: string | undefined,
     parentSessionId: string | null,
+    derivationType: string | null = parentSessionId ? 'fork' : null,
   ): ManagedSession => {
     const timestamp = now()
     const managedSession: ManagedSession = {
@@ -173,8 +174,8 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
     tracker.set(managedSession)
     persistManagedSession(managedSession)
 
-    if (parentSessionId) {
-      options.database.linkSessionParent(sessionId, parentSessionId, 'fork', timestamp)
+    if (parentSessionId && derivationType) {
+      options.database.linkSessionParent(sessionId, parentSessionId, derivationType, timestamp)
     }
 
     return managedSession
@@ -421,7 +422,7 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
       sessionId: string,
       request: CompactSessionRequest = {},
     ): Promise<LiveSessionCompactResult> {
-      const parentSession = requireTrackedSession(sessionId)
+      const parentSession = await ensureLoadedSession(sessionId)
       return derivationManager.compact(parentSession, request)
     },
 

@@ -1,4 +1,13 @@
-import { Archive, ClipboardCopy, Ellipsis, GitBranch, Pencil, Pin, RotateCcw } from 'lucide-react'
+import {
+  Archive,
+  ClipboardCopy,
+  Ellipsis,
+  GitBranch,
+  Minimize2,
+  Pencil,
+  Pin,
+  RotateCcw,
+} from 'lucide-react'
 import type { KeyboardEvent } from 'react'
 
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
@@ -33,6 +42,7 @@ interface SessionItemProps {
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>, focusKey: string, sessionId: string) => void
   onArchiveSession?: (sessionId: string) => void
   onCopySessionId?: (sessionId: string) => void
+  onCompactSession?: (sessionId: string) => void
   onForkSession?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
@@ -53,6 +63,7 @@ export function SessionItem({
   onKeyDown,
   onArchiveSession,
   onCopySessionId,
+  onCompactSession,
   onForkSession,
   onRenameSession,
   onRewindSession,
@@ -124,6 +135,12 @@ export function SessionItem({
             <DropdownMenuItem onClick={() => onForkSession(session.id)}>
               <GitBranch className="size-3" />
               Fork session
+            </DropdownMenuItem>
+          ) : null}
+          {onCompactSession ? (
+            <DropdownMenuItem onClick={() => onCompactSession(session.id)}>
+              <Minimize2 className="size-3" />
+              Compact session
             </DropdownMenuItem>
           ) : null}
           {onRewindSession ? (

@@ -242,6 +242,37 @@ describe('SessionStore', () => {
     expect(store.pinnedSessions.map((session) => session.id)).toEqual(['session-touched'])
   })
 
+  it('keeps compact-derived sessions visible in sidebar groups and pinned sessions before a new user message', () => {
+    const sessions: SessionRecord[] = [
+      {
+        id: 'session-compact-derived',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        parentSessionId: 'session-parent',
+        derivationType: 'compact',
+        modelId: 'gpt-5.4',
+        title: 'Compacted session',
+        status: 'idle',
+        transport: 'stream-jsonrpc',
+        createdAt: '2026-03-24T08:00:00.000Z',
+        lastActivityAt: '2026-03-24T08:05:00.000Z',
+        updatedAt: '2026-03-24T08:05:00.000Z',
+        hasUserMessage: false,
+      },
+    ]
+    const store = new SessionStore()
+
+    store.hydrateSessions(sessions)
+    store.togglePinnedSession('session-compact-derived')
+
+    expect(store.projectGroups).toHaveLength(1)
+    expect(store.projectGroups[0]?.sessions.map((session) => session.id)).toEqual([
+      'session-compact-derived',
+    ])
+    expect(store.pinnedSessions.map((session) => session.id)).toEqual(['session-compact-derived'])
+  })
+
   it('keeps the current session array when ids and updatedAt values are unchanged', () => {
     const sessions = [
       {

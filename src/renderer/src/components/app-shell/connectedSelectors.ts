@@ -128,6 +128,7 @@ interface BuildAppShellSidebarPropsOptions {
   foundationStore: {
     isLoading: boolean
   }
+  onCompactSession: (sessionId: string) => void
   onCopySessionId: (sessionId: string) => void
   onForkSession: (sessionId: string) => void
   onNewSession: (workspacePath?: string) => void
@@ -156,6 +157,7 @@ interface BuildAppShellSidebarPropsOptions {
 export function buildAppShellSidebarProps({
   errorState,
   foundationStore,
+  onCompactSession,
   onCopySessionId,
   onForkSession,
   onNewSession,
@@ -183,6 +185,7 @@ export function buildAppShellSidebarProps({
       onSetProjectDisplayName: sessionStore.setProjectDisplayName,
       onArchiveProject: sessionStore.archiveProject,
       onArchiveSession: sessionStore.archiveSession,
+      onCompactSession,
       onCopySessionId,
       onForkSession,
       onRenameSession,

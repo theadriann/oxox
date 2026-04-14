@@ -42,6 +42,7 @@ export interface SessionSidebarProps {
   onArchiveProject?: (projectKey: string) => void
   onArchiveSession?: (sessionId: string) => void
   onCopySessionId?: (sessionId: string) => void
+  onCompactSession?: (sessionId: string) => void
   onForkSession?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
@@ -70,6 +71,7 @@ export const SessionSidebar = observer(function SessionSidebar({
   onArchiveProject,
   onArchiveSession,
   onCopySessionId,
+  onCompactSession,
   onForkSession,
   onRenameSession,
   onRewindSession,
@@ -232,6 +234,7 @@ export const SessionSidebar = observer(function SessionSidebar({
               onArchiveProject={onArchiveProject}
               onArchiveSession={onArchiveSession}
               onCopySessionId={onCopySessionId}
+              onCompactSession={onCompactSession}
               onForkSession={onForkSession}
               onRenameSession={onRenameSession}
               onRewindSession={onRewindSession}

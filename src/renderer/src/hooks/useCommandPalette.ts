@@ -1,6 +1,7 @@
 import {
   Copy,
   GitBranch,
+  Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
   RotateCcw,
@@ -27,6 +28,7 @@ interface UseCommandPaletteOptions {
   onAttachSelectedSession: () => void | Promise<void>
   onDetachSelectedSession: () => void | Promise<void>
   onCopySelectedSessionId: () => void | Promise<void>
+  onCompactSelectedSession: () => void | Promise<void>
   onForkSelectedSession: () => void | Promise<void>
   onRenameSelectedSession: () => void | Promise<void>
   onRewindSelectedSession: () => void | Promise<void>
@@ -52,6 +54,7 @@ export function useCommandPalette({
   onAttachSelectedSession,
   onDetachSelectedSession,
   onCopySelectedSessionId,
+  onCompactSelectedSession,
   onForkSelectedSession,
   onRenameSelectedSession,
   onRewindSelectedSession,
@@ -231,6 +234,16 @@ export function useCommandPalette({
         },
       },
       {
+        id: 'compact-session',
+        label: 'Compact Session',
+        description: 'Manually compact the selected session into a new live session.',
+        keywords: ['compact', 'compress', 'summarize', 'session'],
+        icon: Minimize2,
+        onSelect: () => {
+          void onCompactSelectedSession()
+        },
+      },
+      {
         id: 'rewind-session',
         label: 'Rewind Session',
         description: 'Choose a message, review affected files, and create a rewind fork.',
@@ -256,6 +269,7 @@ export function useCommandPalette({
   }, [
     canAttachSelectedSession,
     onAttachSelectedSession,
+    onCompactSelectedSession,
     onCopySelectedSessionId,
     onDetachSelectedSession,
     onForkSelectedSession,

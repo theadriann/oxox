@@ -516,6 +516,42 @@ export class ComposerStore {
     }
   }
 
+  async compactSelected(customInstructions?: string): Promise<void> {
+    const selectedSessionId = this.sessionStore.selectedSessionId
+    const compact = this.sessionApi.compact
+
+    if (!selectedSessionId || !compact) {
+      return
+    }
+
+    runInAction(() => {
+      this.error = null
+    })
+
+    try {
+      const existingSession = this.sessionStore.selectedSession
+      const result = await compact(selectedSessionId, customInstructions)
+
+      this.sessionStore.upsertSession({
+        ...toSessionRecord(result.snapshot, existingSession),
+        derivationType: 'compact',
+      })
+      this.liveSessionStore.upsertSnapshot(result.snapshot)
+      this.sessionStore.selectSession(result.snapshot.sessionId)
+      this.feedbackStore.showFeedback(
+        `Compacted “${result.snapshot.title}” and removed ${result.removedCount} messages.`,
+      )
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to compact the selected session.'
+
+      runInAction(() => {
+        this.error = message
+      })
+      this.feedbackStore.showFeedback(message, 'error')
+    }
+  }
+
   async interruptSelected(): Promise<void> {
     const selectedSnapshot = this.liveSessionStore.selectedSnapshot
 

@@ -1310,6 +1310,112 @@ describe('createSessionProcessManager', () => {
     })
   })
 
+  it('loads detached sessions on demand for compact', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-session-process-'))
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    database.upsertSession({
+      sessionId: 'session-compact-source',
+      projectWorkspacePath: '/tmp/compact-source',
+      modelId: 'gpt-5.4',
+      hasUserMessage: true,
+      title: 'Compact source',
+      status: 'completed',
+      transport: 'artifacts',
+      createdAt: '2026-04-08T20:00:00.000Z',
+      lastActivityAt: '2026-04-08T20:10:00.000Z',
+      updatedAt: '2026-04-08T20:10:00.000Z',
+    })
+
+    const sourceProcess = new FakeChildProcess(7_201)
+    const compactProcess = new FakeChildProcess(7_202)
+    const spawnProcess = vi
+      .fn()
+      .mockReturnValueOnce(sourceProcess)
+      .mockReturnValueOnce(compactProcess)
+    const manager = createSessionProcessManager({
+      database,
+      droidPath: '/opt/factory/bin/droid',
+      droidSdkSessionFactory: createTestDroidSdkSessionFactory(spawnProcess),
+      spawnProcess,
+    })
+    cleanup.push(() => manager.dispose())
+
+    const compactPromise = manager.compactSession('session-compact-source', {
+      viewerId: 'window-1',
+    })
+
+    await waitFor(() => sourceProcess.writes.length === 1)
+    sourceProcess.emitStdout(
+      createResponse(getRequestId(sourceProcess), {
+        session: {
+          messages: [
+            {
+              id: 'message-1',
+              role: 'user',
+              content: [{ type: 'text', text: 'Compact me' }],
+            },
+          ],
+        },
+        settings: { modelId: 'gpt-5.4', reasoningEffort: 'medium' },
+        cwd: '/tmp/compact-source',
+        isAgentLoopInProgress: false,
+      }),
+    )
+
+    await waitFor(() => sourceProcess.writes.length === 2)
+    const compactRequest = JSON.parse(sourceProcess.writes[1] ?? '{}') as {
+      method?: string
+      params?: Record<string, unknown>
+      id?: string
+    }
+    expect(compactRequest.method).toBe('droid.compact_session')
+    expect(compactRequest.params).toEqual({})
+    sourceProcess.emitStdout(
+      createResponse(compactRequest.id ?? 'session:compact:1', {
+        newSessionId: 'session-compact-derived',
+        removedCount: 4,
+      }),
+    )
+
+    await waitFor(() => compactProcess.writes.length === 1)
+    compactProcess.emitStdout(
+      createResponse(getRequestId(compactProcess), {
+        session: {
+          messages: [
+            {
+              id: 'message-1',
+              role: 'assistant',
+              content: [{ type: 'text', text: 'Compacted summary' }],
+            },
+          ],
+        },
+        settings: { modelId: 'gpt-5.4', reasoningEffort: 'medium' },
+        cwd: '/tmp/compact-source',
+        isAgentLoopInProgress: false,
+      }),
+    )
+
+    await expect(compactPromise).resolves.toMatchObject({
+      snapshot: expect.objectContaining({
+        sessionId: 'session-compact-derived',
+        parentSessionId: 'session-compact-source',
+        status: 'idle',
+      }),
+      removedCount: 4,
+    })
+    expect(database.getSession('session-compact-derived')).toMatchObject({
+      id: 'session-compact-derived',
+      parentSessionId: 'session-compact-source',
+      derivationType: 'compact',
+      hasUserMessage: false,
+    })
+  })
+
   it('sends the initial prompt to the live session and persists resulting messages', async () => {
     const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-session-process-'))
     const database = createDatabaseService({

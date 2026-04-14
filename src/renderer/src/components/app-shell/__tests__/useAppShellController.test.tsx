@@ -81,6 +81,7 @@ describe('useAppShellController', () => {
     const stores = {
       composerStore: {
         attachSelected: vi.fn().mockResolvedValue(false),
+        compactSelected: vi.fn(),
         copySelectedId: vi.fn(),
         detachSelected: vi.fn(),
         feedback: null,
@@ -186,6 +187,7 @@ describe('useAppShellController', () => {
       const closeForm = vi.fn()
       const selectSession = vi.fn()
       const attachSelected = vi.fn().mockResolvedValue(true)
+      const compactSelected = vi.fn().mockResolvedValue(undefined)
       const forkSelected = vi.fn().mockResolvedValue(undefined)
       const openRewindDialog = vi.fn()
       const resultRef = { current: null as ReturnType<typeof useAppShellController> | null }
@@ -217,6 +219,7 @@ describe('useAppShellController', () => {
             {
               composerStore: {
                 attachSelected,
+                compactSelected,
                 copySelectedId: vi.fn(),
                 detachSelected: vi.fn(),
                 feedback: null,
@@ -284,11 +287,18 @@ describe('useAppShellController', () => {
       expect(focusSpy).toHaveBeenCalledTimes(1)
 
       await act(async () => {
+        await resultRef.current?.handleCompactSelectedSession()
+      })
+
+      expect(compactSelected).toHaveBeenCalledTimes(1)
+      expect(resultRef.current.transcriptScrollSignal).toBe(2)
+
+      await act(async () => {
         await resultRef.current?.handleForkSelectedSession()
       })
 
       expect(forkSelected).toHaveBeenCalledTimes(1)
-      expect(resultRef.current.transcriptScrollSignal).toBe(2)
+      expect(resultRef.current.transcriptScrollSignal).toBe(3)
 
       act(() => {
         resultRef.current?.handleRewindSelectedSession()

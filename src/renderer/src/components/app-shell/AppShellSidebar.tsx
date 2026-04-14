@@ -49,6 +49,14 @@ export const AppShellSidebar = observer(function AppShellSidebar({
     [composerStore, sessionStore],
   )
 
+  const handleCompactSession = useCallback(
+    (sessionId: string) => {
+      sessionStore.selectSession(sessionId)
+      void composerStore.compactSelected()
+    },
+    [composerStore, sessionStore],
+  )
+
   const handleRenameSession = useCallback(
     (sessionId: string) => {
       sessionStore.selectSession(sessionId)
@@ -69,6 +77,7 @@ export const AppShellSidebar = observer(function AppShellSidebar({
   const sidebarState = buildAppShellSidebarProps({
     errorState,
     foundationStore,
+    onCompactSession: handleCompactSession,
     onCopySessionId: handleCopySessionId,
     onForkSession: handleForkSession,
     onNewSession,

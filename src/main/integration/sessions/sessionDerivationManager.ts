@@ -32,6 +32,7 @@ export interface SessionDerivationManagerOptions {
     availableModels: import('./types').LiveSessionModel[],
     viewerId: string | undefined,
     parentSessionId: string | null,
+    derivationType?: string | null,
   ) => ManagedSession
 }
 
@@ -41,11 +42,13 @@ export function createSessionDerivationManager(options: SessionDerivationManager
     parentSession,
     viewerId,
     requestIdPrefix,
+    derivationType,
   }: {
     newSessionId: string
     parentSession: ManagedSession
     viewerId?: string
     requestIdPrefix: string
+    derivationType?: string | null
   }) => {
     const transport = options.createTransport(newSessionId, parentSession.cwd)
     const result = await transport.loadSession(options.nextRequestId(requestIdPrefix), newSessionId)
@@ -70,6 +73,7 @@ export function createSessionDerivationManager(options: SessionDerivationManager
       availableModels,
       viewerId,
       parentSession.sessionId,
+      derivationType,
     )
     managedSession.updatedAt = options.now()
     managedSession.workingStatus = result.isAgentLoopInProgress ? 'active' : 'idle'
@@ -91,6 +95,7 @@ export function createSessionDerivationManager(options: SessionDerivationManager
       parentSession,
       viewerId: request.viewerId,
       requestIdPrefix: 'session:fork:attach',
+      derivationType: 'fork',
     })
 
     return toSnapshotFromManaged(managedSession)
@@ -122,6 +127,7 @@ export function createSessionDerivationManager(options: SessionDerivationManager
       parentSession,
       viewerId,
       requestIdPrefix: 'session:rewind:attach',
+      derivationType: 'fork',
     })
 
     return {
@@ -152,6 +158,7 @@ export function createSessionDerivationManager(options: SessionDerivationManager
       parentSession,
       viewerId: request.viewerId,
       requestIdPrefix: 'session:compact:attach',
+      derivationType: 'compact',
     })
 
     return {

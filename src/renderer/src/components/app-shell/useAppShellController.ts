@@ -97,6 +97,11 @@ export function useAppShellController({
     setTranscriptScrollSignal((current) => current + 1)
   }, [composerStore])
 
+  const handleCompactSelectedSession = useCallback(async () => {
+    await composerStore.compactSelected()
+    setTranscriptScrollSignal((current) => current + 1)
+  }, [composerStore])
+
   const handleRenameSelectedSession = useCallback(() => {
     composerStore.renameWorkflow.openRenameDialog()
   }, [composerStore])
@@ -112,6 +117,7 @@ export function useAppShellController({
     sessionStore,
     uiStore,
     onAttachSelectedSession: handleAttachSelectedSession,
+    onCompactSelectedSession: handleCompactSelectedSession,
     onCopySelectedSessionId: composerStore.copySelectedId,
     onDetachSelectedSession: composerStore.detachSelected,
     onFocusTranscriptPrimaryAction: focusTranscriptPrimaryAction,
@@ -161,6 +167,7 @@ export function useAppShellController({
     contextPanelToggleButtonRef,
     detailPanelRef,
     handleAttachSelectedSession,
+    handleCompactSelectedSession,
     handleBrowseSessions,
     handleForkSelectedSession,
     handleRewindSelectedSession,

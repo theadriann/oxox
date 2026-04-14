@@ -56,6 +56,7 @@ interface SessionListProps {
   onArchiveProject?: (projectKey: string) => void
   onArchiveSession?: (sessionId: string) => void
   onCopySessionId?: (sessionId: string) => void
+  onCompactSession?: (sessionId: string) => void
   onForkSession?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
@@ -82,6 +83,7 @@ export function SessionList({
   onArchiveProject,
   onArchiveSession,
   onCopySessionId,
+  onCompactSession,
   onForkSession,
   onRenameSession,
   onRewindSession,
@@ -168,6 +170,7 @@ export function SessionList({
                 onKeyDown={onSessionKeyDown}
                 onArchiveSession={onArchiveSession}
                 onCopySessionId={onCopySessionId}
+                onCompactSession={onCompactSession}
                 onForkSession={onForkSession}
                 onRenameSession={onRenameSession}
                 onRewindSession={onRewindSession}

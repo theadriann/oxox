@@ -81,7 +81,7 @@ export class SessionStore {
 
     return this.sessions.filter(
       (session) =>
-        session.hasUserMessage &&
+        shouldSurfaceInSidebar(session) &&
         this.pinnedSessionIds.includes(session.id) &&
         !archivedSessionSet.has(session.id) &&
         !archivedProjectSet.has(session.projectKey),
@@ -96,7 +96,7 @@ export class SessionStore {
     for (const session of this.sessions) {
       if (archivedSessionSet.has(session.id)) continue
       if (archivedProjectSet.has(session.projectKey)) continue
-      if (!session.hasUserMessage) continue
+      if (!shouldSurfaceInSidebar(session)) continue
 
       const existing = groups.get(session.projectKey)
 
@@ -405,6 +405,10 @@ function toSessionPreview(session: SessionRecord): SessionPreview {
 
 function sortSessionsByRecency(left: SessionPreview, right: SessionPreview): number {
   return right.lastActivityTimestamp - left.lastActivityTimestamp
+}
+
+function shouldSurfaceInSidebar(session: SessionPreview): boolean {
+  return session.hasUserMessage || session.derivationType === 'compact'
 }
 
 function applyDisplayNameOverrides(

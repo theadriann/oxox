@@ -28,6 +28,7 @@ function createSessionPreview(overrides: Partial<SessionPreview> = {}): SessionP
 describe('SessionItem', () => {
   it('renders a selected session row and forwards archive actions', async () => {
     const onArchiveSession = vi.fn()
+    const onCompactSession = vi.fn()
 
     render(
       <SessionItem
@@ -41,11 +42,16 @@ describe('SessionItem', () => {
         onSelectSession={vi.fn()}
         onTogglePinnedSession={vi.fn()}
         onArchiveSession={onArchiveSession}
+        onCompactSession={onCompactSession}
         onKeyDown={vi.fn()}
         onFocus={vi.fn()}
         setSessionRef={vi.fn()}
       />,
     )
+
+    await userEvent.click(screen.getByRole('button', { name: /more actions for alpha/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /compact session/i }))
+    expect(onCompactSession).toHaveBeenCalledWith('session-alpha')
 
     await userEvent.click(screen.getByRole('button', { name: /more actions for alpha/i }))
     await userEvent.click(screen.getByRole('menuitem', { name: /archive session/i }))

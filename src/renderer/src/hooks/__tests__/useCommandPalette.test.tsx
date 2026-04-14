@@ -88,6 +88,7 @@ function CommandPaletteProbe({
   onAttachSelectedSession,
   onDetachSelectedSession,
   onCopySelectedSessionId,
+  onCompactSelectedSession,
   onForkSelectedSession,
   onRenameSelectedSession,
   onRewindSelectedSession,
@@ -103,6 +104,7 @@ function CommandPaletteProbe({
   onAttachSelectedSession: () => void
   onDetachSelectedSession: () => void
   onCopySelectedSessionId: () => void
+  onCompactSelectedSession: () => void
   onForkSelectedSession: () => void
   onRenameSelectedSession: () => void
   onRewindSelectedSession: () => void
@@ -119,6 +121,7 @@ function CommandPaletteProbe({
     onAttachSelectedSession,
     onDetachSelectedSession,
     onCopySelectedSessionId,
+    onCompactSelectedSession,
     onForkSelectedSession,
     onRenameSelectedSession,
     onRewindSelectedSession,
@@ -198,6 +201,7 @@ describe('useCommandPalette', () => {
         onAttachSelectedSession={vi.fn()}
         onDetachSelectedSession={vi.fn()}
         onCopySelectedSessionId={vi.fn()}
+        onCompactSelectedSession={vi.fn()}
         onForkSelectedSession={vi.fn()}
         onRenameSelectedSession={vi.fn()}
         onRewindSelectedSession={vi.fn()}
@@ -212,6 +216,7 @@ describe('useCommandPalette', () => {
     expect(screen.getByText('Summarize Session')).toBeTruthy()
     expect(screen.getByText('Attach to Session')).toBeTruthy()
     expect(screen.getByText('Copy Session ID')).toBeTruthy()
+    expect(screen.getByText('Compact Session')).toBeTruthy()
     expect(screen.getByText('Fork Session')).toBeTruthy()
     expect(screen.getByText('Rename Session')).toBeTruthy()
     expect(screen.getByText('Rewind Session')).toBeTruthy()
@@ -263,6 +268,7 @@ describe('useCommandPalette', () => {
           onAttachSelectedSession={vi.fn()}
           onDetachSelectedSession={vi.fn()}
           onCopySelectedSessionId={vi.fn()}
+          onCompactSelectedSession={vi.fn()}
           onForkSelectedSession={vi.fn()}
           onRenameSelectedSession={vi.fn()}
           onRewindSelectedSession={vi.fn()}

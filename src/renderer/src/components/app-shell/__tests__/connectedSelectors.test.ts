@@ -109,6 +109,7 @@ describe('app-shell connected selectors', () => {
       foundationStore: {
         isLoading: true,
       } as never,
+      onCompactSession: vi.fn(),
       onNewSession: vi.fn(),
       onResizeStart: vi.fn(),
       prefersReducedMotion: false,
@@ -132,6 +133,7 @@ describe('app-shell connected selectors', () => {
     expect(sidebarProps.isHidden).toBe(true)
     expect(sidebarProps.sidebar.activeCount).toBe(2)
     expect(sidebarProps.sidebar.isLoading).toBe(true)
+    expect(sidebarProps.sidebar.onCompactSession).toBeTypeOf('function')
 
     const contextPanelState = buildAppShellContextPanelState({
       isContextPanelHidden: false,
