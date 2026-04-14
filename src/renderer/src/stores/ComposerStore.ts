@@ -15,6 +15,7 @@ import {
   type FactoryDefaults,
   persistComposerPreferences,
   readPersistedComposerPreferences,
+  resolveReasoningEffort,
   SESSION_COMPOSER_STORAGE_KEY,
 } from './composerPreferences'
 import { type ComposerFeedback, FeedbackStore } from './FeedbackStore'
@@ -268,17 +269,27 @@ export class ComposerStore {
       return
     }
 
+    const snapshot = this.liveSessionStore.snapshotsById.get(sessionId) ?? null
+    const nextPreferences = {
+      ...deriveComposerPreferences(
+        sessionId,
+        snapshot,
+        this.preferencesBySessionId,
+        this.foundationStore.factoryDefaultSettings as FactoryDefaults,
+        this.foundationStore.factoryModels,
+      ),
+      ...partial,
+    }
+
     this.preferencesBySessionId = {
       ...this.preferencesBySessionId,
       [sessionId]: {
-        ...deriveComposerPreferences(
-          sessionId,
-          this.liveSessionStore.snapshotsById.get(sessionId) ?? null,
-          this.preferencesBySessionId,
-          this.foundationStore.factoryDefaultSettings as FactoryDefaults,
-          this.foundationStore.factoryModels,
+        ...nextPreferences,
+        reasoningEffort: resolveReasoningEffort(
+          nextPreferences.modelId,
+          nextPreferences.reasoningEffort,
+          snapshot?.availableModels?.length ? snapshot.availableModels : this.foundationStore.factoryModels,
         ),
-        ...partial,
       },
     }
   }
@@ -297,13 +308,22 @@ export class ComposerStore {
   }
 
   updatePendingDraftPreferences(partial: Partial<ComposerPreferences>): void {
-    this.pendingDraftPreferences = {
+    const nextPreferences = {
       ...(this.pendingDraftPreferences ??
         deriveDefaultComposerPreferences(
           this.foundationStore.factoryDefaultSettings as FactoryDefaults,
           this.foundationStore.factoryModels,
         )),
       ...partial,
+    }
+
+    this.pendingDraftPreferences = {
+      ...nextPreferences,
+      reasoningEffort: resolveReasoningEffort(
+        nextPreferences.modelId,
+        nextPreferences.reasoningEffort,
+        this.foundationStore.factoryModels,
+      ),
     }
   }
 
@@ -316,6 +336,7 @@ export class ComposerStore {
     text: string
     modelId: string
     interactionMode: string
+    reasoningEffort?: string
     autonomyLevel: string
   }): Promise<void> {
     const { addUserMessage, attach, create, updateSettings } = this.sessionApi
@@ -339,6 +360,7 @@ export class ComposerStore {
         await updateSettings(liveSession.sessionId, {
           modelId: payload.modelId,
           interactionMode: payload.interactionMode,
+          ...(payload.reasoningEffort ? { reasoningEffort: payload.reasoningEffort } : {}),
           autonomyLevel: payload.autonomyLevel,
         })
         await addUserMessage(liveSession.sessionId, payload.text)
@@ -354,6 +376,7 @@ export class ComposerStore {
         this.updatePreferences(liveSession.sessionId, {
           modelId: payload.modelId,
           interactionMode: payload.interactionMode,
+          reasoningEffort: payload.reasoningEffort ?? '',
           autonomyLevel: payload.autonomyLevel,
         })
         await this.liveSessionStore.refreshSnapshot(liveSession.sessionId)
@@ -398,6 +421,7 @@ export class ComposerStore {
       await updateSettings(liveSession.sessionId, {
         modelId: payload.modelId,
         interactionMode: payload.interactionMode,
+        ...(payload.reasoningEffort ? { reasoningEffort: payload.reasoningEffort } : {}),
         autonomyLevel: payload.autonomyLevel,
       })
       await addUserMessage(liveSession.sessionId, payload.text)
@@ -409,6 +433,7 @@ export class ComposerStore {
       this.updatePreferences(liveSession.sessionId, {
         modelId: payload.modelId,
         interactionMode: payload.interactionMode,
+        reasoningEffort: payload.reasoningEffort ?? '',
         autonomyLevel: payload.autonomyLevel,
       })
 

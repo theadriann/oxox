@@ -134,12 +134,23 @@ Custom Models:
   custom:gpt-5.4(high)                    [OpenAI] GPT 5.4 (High)
 
 Model details:
-  - Claude Opus 4.6: supports reasoning: Yes
+  - Claude Opus 4.6: supports reasoning: Yes; supported: [off, low, medium, high, max]; default: high
+  - GPT-5.4: supports reasoning: Yes; supported: [low, medium, high, xhigh]; default: medium
 `),
     ).toEqual({
       factoryModels: [
-        { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
-        { id: 'gpt-5.4', name: 'GPT-5.4' },
+        {
+          id: 'claude-opus-4-6',
+          name: 'Claude Opus 4.6',
+          supportedReasoningEfforts: ['off', 'low', 'medium', 'high', 'max'],
+          defaultReasoningEffort: 'high',
+        },
+        {
+          id: 'gpt-5.4',
+          name: 'GPT-5.4',
+          supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+          defaultReasoningEffort: 'medium',
+        },
         {
           id: 'custom:claude-opus-4-6',
           name: 'Claude 4.6 Opus',

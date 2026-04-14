@@ -132,11 +132,14 @@ export function parseDroidExecHelpBootstrap(
     extractDroidHelpSection(helpText, 'Custom Models:'),
     true,
   )
+  const modelDetailsByName = parseDroidHelpModelDetails(
+    extractDroidHelpSection(helpText, 'Model details:'),
+  )
   const defaultModel = availableModels.find((model) => model.isDefault)?.id
 
   return {
-    factoryModels: [...availableModels, ...customModels].map(
-      ({ isDefault: _ignored, ...model }) => model,
+    factoryModels: [...availableModels, ...customModels].map(({ isDefault: _ignored, ...model }) =>
+      enrichModelWithDetails(model, modelDetailsByName),
     ),
     factoryDefaultSettings: defaultModel ? { model: defaultModel } : {},
   }
@@ -252,6 +255,73 @@ function parseDroidHelpModels(
   })
 }
 
+function parseDroidHelpModelDetails(
+  lines: string[],
+): Map<string, Pick<LiveSessionModel, 'supportedReasoningEfforts' | 'defaultReasoningEffort'>> {
+  const detailsByName = new Map<
+    string,
+    Pick<LiveSessionModel, 'supportedReasoningEfforts' | 'defaultReasoningEffort'>
+  >()
+
+  for (const line of lines) {
+    const match = line
+      .trim()
+      .match(
+        /^-\s+(.+?):\s+supports reasoning:\s+(Yes|No)(?:;\s+supported:\s+\[([^\]]*)\])?(?:;\s+default:\s+([^;]+))?/,
+      )
+
+    if (!match) {
+      continue
+    }
+
+    const [, name, supportsReasoning, supportedValues, defaultValue] = match
+
+    if (supportsReasoning !== 'Yes') {
+      continue
+    }
+
+    const supportedReasoningEfforts = supportedValues
+      ?.split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+
+    detailsByName.set(name.trim(), {
+      ...(supportedReasoningEfforts && supportedReasoningEfforts.length > 0
+        ? { supportedReasoningEfforts }
+        : {}),
+      ...(typeof defaultValue === 'string' && defaultValue.trim().length > 0
+        ? { defaultReasoningEffort: defaultValue.trim() }
+        : {}),
+    })
+  }
+
+  return detailsByName
+}
+
+function enrichModelWithDetails(
+  model: LiveSessionModel,
+  detailsByName: Map<
+    string,
+    Pick<LiveSessionModel, 'supportedReasoningEfforts' | 'defaultReasoningEffort'>
+  >,
+): LiveSessionModel {
+  const details = detailsByName.get(model.name)
+
+  if (!details) {
+    return model
+  }
+
+  return {
+    ...model,
+    ...(details.supportedReasoningEfforts
+      ? { supportedReasoningEfforts: [...details.supportedReasoningEfforts] }
+      : {}),
+    ...(details.defaultReasoningEffort
+      ? { defaultReasoningEffort: details.defaultReasoningEffort }
+      : {}),
+  }
+}
+
 function parseFactoryModels(value: unknown): LiveSessionModel[] {
   if (!isRecord(value) || !Array.isArray(value.customModels)) {
     return []
@@ -294,11 +364,15 @@ function parseFactoryDefaultSettings(
   const interactionMode = sessionDefaultSettings
     ? toNonEmptyString(sessionDefaultSettings.interactionMode)
     : undefined
+  const reasoningEffort = sessionDefaultSettings
+    ? toNonEmptyString(sessionDefaultSettings.reasoningEffort)
+    : undefined
   const compactionTokenLimit = toOptionalNumber(value.compactionTokenLimit)
 
   return {
     ...(model ? { model } : {}),
     ...(interactionMode ? { interactionMode } : {}),
+    ...(reasoningEffort ? { reasoningEffort } : {}),
     ...(typeof compactionTokenLimit === 'number' ? { compactionTokenLimit } : {}),
   }
 }
@@ -346,6 +420,11 @@ function mergeSettingsBootstrapIntoCliBootstrap(
     }),
     factoryDefaultSettings: {
       ...cliBootstrap.factoryDefaultSettings,
+      ...(typeof settingsBootstrap.factoryDefaultSettings.reasoningEffort === 'string'
+        ? {
+            reasoningEffort: settingsBootstrap.factoryDefaultSettings.reasoningEffort,
+          }
+        : {}),
       ...(typeof settingsBootstrap.factoryDefaultSettings.compactionTokenLimit === 'number'
         ? {
             compactionTokenLimit: settingsBootstrap.factoryDefaultSettings.compactionTokenLimit,
@@ -363,6 +442,8 @@ function bootstrapChanged(
     previous.factoryDefaultSettings.model !== next.factoryDefaultSettings.model ||
     previous.factoryDefaultSettings.interactionMode !==
       next.factoryDefaultSettings.interactionMode ||
+    previous.factoryDefaultSettings.reasoningEffort !==
+      next.factoryDefaultSettings.reasoningEffort ||
     previous.factoryDefaultSettings.compactionTokenLimit !==
       next.factoryDefaultSettings.compactionTokenLimit ||
     JSON.stringify(previous.factoryModels) !== JSON.stringify(next.factoryModels)

@@ -32,7 +32,11 @@ export type StreamJsonRpcSession = {
 export type StreamJsonRpcModel = {
   id?: string
   name?: string
+  displayName?: string
   provider?: string
+  modelProvider?: string
+  supportedReasoningEfforts?: string[]
+  defaultReasoningEffort?: string
   maxContextLimit?: number
 }
 
@@ -40,6 +44,8 @@ export interface LiveSessionModel {
   id: string
   name: string
   provider?: string | null
+  supportedReasoningEfforts?: string[]
+  defaultReasoningEffort?: string
   maxContextLimit?: number | null
 }
 

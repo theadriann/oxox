@@ -11,7 +11,12 @@ function SessionSelectionBootstrap() {
   foundationStore.foundation = {
     ...foundationStore.foundation,
     factoryModels: [
-      { id: 'gpt-5.4', name: 'GPT 5.4' },
+      {
+        id: 'gpt-5.4',
+        name: 'GPT 5.4',
+        supportedReasoningEfforts: ['medium', 'high'],
+        defaultReasoningEffort: 'medium',
+      },
       { id: 'gpt-5.4-mini', name: 'GPT 5.4 Mini' },
     ],
     factoryDefaultSettings: {
@@ -48,12 +53,18 @@ function SessionSelectionBootstrap() {
     projectWorkspacePath: '/tmp/project-alpha',
     parentSessionId: null,
     availableModels: [
-      { id: 'gpt-5.4', name: 'GPT 5.4' },
+      {
+        id: 'gpt-5.4',
+        name: 'GPT 5.4',
+        supportedReasoningEfforts: ['medium', 'high'],
+        defaultReasoningEffort: 'medium',
+      },
       { id: 'gpt-5.4-mini', name: 'GPT 5.4 Mini' },
     ],
     settings: {
       modelId: 'gpt-5.4',
       interactionMode: 'auto',
+      reasoningEffort: 'medium',
     },
     messages: [],
     events: [],
@@ -86,6 +97,7 @@ describe('SessionComposerConnected', () => {
       expect(window.oxox.session.updateSettings).toHaveBeenCalledWith('session-live-1', {
         modelId: 'gpt-5.4',
         interactionMode: 'auto',
+        reasoningEffort: 'medium',
         autonomyLevel: 'medium',
       })
     })

@@ -68,25 +68,42 @@ describe('deriveDefaultComposerPreferences', () => {
     expect(prefs).toEqual({
       modelId: 'gpt-5.4',
       interactionMode: 'auto',
+      reasoningEffort: '',
       autonomyLevel: 'medium',
     })
   })
 
   it('uses first factory model when no default model', () => {
-    const bootstrap = createBootstrap({ factoryDefaultSettings: {} })
+    const bootstrap = createBootstrap({
+      factoryDefaultSettings: {},
+      factoryModels: [
+        {
+          id: 'gpt-5.4',
+          name: 'GPT 5.4',
+          supportedReasoningEfforts: ['medium', 'high'],
+          defaultReasoningEffort: 'medium',
+        },
+      ],
+    })
     const prefs = deriveDefaultComposerPreferences(
       bootstrap.factoryDefaultSettings,
       bootstrap.factoryModels,
     )
 
     expect(prefs.modelId).toBe('gpt-5.4')
+    expect(prefs.reasoningEffort).toBe('medium')
   })
 })
 
 describe('deriveComposerPreferences', () => {
   it('returns persisted preferences when available', () => {
     const persisted: Record<string, ComposerPreferences> = {
-      'session-1': { modelId: 'claude-3.7', interactionMode: 'spec', autonomyLevel: 'high' },
+      'session-1': {
+        modelId: 'claude-3.7',
+        interactionMode: 'spec',
+        reasoningEffort: 'high',
+        autonomyLevel: 'high',
+      },
     }
 
     const prefs = deriveComposerPreferences(
@@ -97,13 +114,25 @@ describe('deriveComposerPreferences', () => {
       createBootstrap().factoryModels,
     )
 
-    expect(prefs).toEqual({ modelId: 'claude-3.7', interactionMode: 'spec', autonomyLevel: 'high' })
+    expect(prefs).toEqual({
+      modelId: 'claude-3.7',
+      interactionMode: 'spec',
+      reasoningEffort: 'high',
+      autonomyLevel: 'high',
+    })
   })
 
   it('derives from snapshot settings when no persisted prefs', () => {
     const snapshot = {
-      settings: { modelId: 'gpt-5.4-mini', interactionMode: 'spec' },
-      availableModels: [{ id: 'gpt-5.4-mini', name: 'Mini' }],
+      settings: { modelId: 'gpt-5.4-mini', interactionMode: 'spec', reasoningEffort: 'low' },
+      availableModels: [
+        {
+          id: 'gpt-5.4-mini',
+          name: 'Mini',
+          supportedReasoningEfforts: ['low', 'medium'],
+          defaultReasoningEffort: 'low',
+        },
+      ],
     } as unknown as LiveSessionSnapshot
 
     const prefs = deriveComposerPreferences(
@@ -116,5 +145,6 @@ describe('deriveComposerPreferences', () => {
 
     expect(prefs.modelId).toBe('gpt-5.4-mini')
     expect(prefs.interactionMode).toBe('spec')
+    expect(prefs.reasoningEffort).toBe('low')
   })
 })

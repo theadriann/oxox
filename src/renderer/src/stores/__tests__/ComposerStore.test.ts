@@ -443,7 +443,12 @@ describe('ComposerStore', () => {
     const { composerStore, liveSessionStore } = createStores({
       bootstrap: createBootstrap({
         factoryModels: [
-          { id: 'gpt-5.4', name: 'GPT 5.4' },
+          {
+            id: 'gpt-5.4',
+            name: 'GPT 5.4',
+            supportedReasoningEfforts: ['medium', 'high'],
+            defaultReasoningEffort: 'medium',
+          },
           { id: 'gpt-5.4-mini', name: 'GPT 5.4 Mini' },
         ],
       }),
@@ -468,6 +473,7 @@ describe('ComposerStore', () => {
     expect(updateSettings).toHaveBeenCalledWith('session-alpha', {
       modelId: 'gpt-5.4-mini',
       interactionMode: 'spec',
+      reasoningEffort: '',
       autonomyLevel: 'medium',
     })
     expect(addUserMessage).toHaveBeenCalledWith('session-alpha', 'Ship it')

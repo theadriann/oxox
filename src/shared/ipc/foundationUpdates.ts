@@ -290,6 +290,11 @@ function factoryModelsEqual(
       model.id === other?.id &&
       model.name === other?.name &&
       model.provider === other?.provider &&
+      stringArraysEqual(
+        model.supportedReasoningEfforts ?? [],
+        other?.supportedReasoningEfforts ?? [],
+      ) &&
+      model.defaultReasoningEffort === other?.defaultReasoningEffort &&
       model.maxContextLimit === other?.maxContextLimit
     )
   })
@@ -302,6 +307,7 @@ function foundationDefaultSettingsEqual(
   return (
     left.model === right.model &&
     left.interactionMode === right.interactionMode &&
+    left.reasoningEffort === right.reasoningEffort &&
     left.compactionTokenLimit === right.compactionTokenLimit
   )
 }

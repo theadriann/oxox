@@ -18,6 +18,7 @@ interface SessionComposerConnectedSelectorOptions {
       autonomyLevel: string
       interactionMode: string
       modelId: string
+      reasoningEffort: string
     }
     selectedStatus: SessionComposerProps['status']
     setDraft: (value: string) => void
@@ -25,14 +26,25 @@ interface SessionComposerConnectedSelectorOptions {
       text: string
       modelId: string
       interactionMode: string
+      reasoningEffort?: string
       autonomyLevel: string
     }) => Promise<void> | void
     updatePendingDraftPreferences: (
-      payload: Partial<{ autonomyLevel: string; interactionMode: string; modelId: string }>,
+      payload: Partial<{
+        autonomyLevel: string
+        interactionMode: string
+        modelId: string
+        reasoningEffort: string
+      }>,
     ) => void
     updatePreferences: (
       sessionId: string,
-      payload: Partial<{ autonomyLevel: string; interactionMode: string; modelId: string }>,
+      payload: Partial<{
+        autonomyLevel: string
+        interactionMode: string
+        modelId: string
+        reasoningEffort: string
+      }>,
     ) => Promise<void> | void
   }
   isSubmittingDetached: boolean
@@ -120,6 +132,14 @@ export function buildSessionComposerProps({
 
         void composerStore.updatePreferences(selectedSessionId, { modelId: value })
       },
+      onReasoningEffortChange: (value) => {
+        if (!selectedSessionId) {
+          composerStore.updatePendingDraftPreferences({ reasoningEffort: value })
+          return
+        }
+
+        void composerStore.updatePreferences(selectedSessionId, { reasoningEffort: value })
+      },
       onSubmit: (payload) => {
         if (!selectedSessionId && onSubmitDetached) {
           void onSubmitDetached(payload)
@@ -131,6 +151,7 @@ export function buildSessionComposerProps({
       selectedAutonomyLevel: composerStore.selectedPreferences.autonomyLevel,
       selectedMode: composerStore.selectedPreferences.interactionMode,
       selectedModelId: composerStore.selectedPreferences.modelId,
+      selectedReasoningEffort: composerStore.selectedPreferences.reasoningEffort,
       status: composerStore.selectedStatus,
     },
   }

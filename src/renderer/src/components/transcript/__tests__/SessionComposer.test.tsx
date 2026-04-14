@@ -15,6 +15,15 @@ function ControlledComposer({
   onSubmit = () => undefined,
   composerContextUsage = null,
   composerContextUsageDisplayMode = 'percentage',
+  availableModels = [
+    {
+      id: 'gpt-5.4',
+      name: 'GPT 5.4',
+      supportedReasoningEfforts: ['medium', 'high'],
+      defaultReasoningEffort: 'medium',
+    },
+    { id: 'gpt-5.4-mini', name: 'GPT 5.4 Mini' },
+  ],
 }: {
   status?: 'idle' | 'active' | 'waiting' | 'completed' | 'reconnecting' | 'error' | 'orphaned'
   isAttached?: boolean
@@ -26,21 +35,26 @@ function ControlledComposer({
     modelId: string
     interactionMode: string
     autonomyLevel: string
+      reasoningEffort?: string
   }) => void
   composerContextUsage?: ComposerContextUsageState | null
   composerContextUsageDisplayMode?: 'percentage' | 'tokens'
+  availableModels?: Array<{
+    id: string
+    name: string
+    supportedReasoningEfforts?: string[]
+    defaultReasoningEffort?: string
+  }>
 }) {
   const [draft, setDraft] = useState('')
   const [modelId, setModelId] = useState('gpt-5.4')
   const [interactionMode, setInteractionMode] = useState('auto')
+  const [reasoningEffort, setReasoningEffort] = useState('medium')
   const [autonomyLevel, setAutonomyLevel] = useState('medium')
 
   return (
     <SessionComposer
-      availableModels={[
-        { id: 'gpt-5.4', name: 'GPT 5.4' },
-        { id: 'gpt-5.4-mini', name: 'GPT 5.4 Mini' },
-      ]}
+      availableModels={availableModels}
       canAttach={canAttach}
       draft={draft}
       isAttached={isAttached}
@@ -52,6 +66,7 @@ function ControlledComposer({
       selectedAutonomyLevel={autonomyLevel}
       selectedMode={interactionMode}
       selectedModelId={modelId}
+      selectedReasoningEffort={reasoningEffort}
       status={status}
       onAttach={onAttach}
       onAutonomyLevelChange={setAutonomyLevel}
@@ -59,6 +74,7 @@ function ControlledComposer({
       onInterrupt={onInterrupt}
       onModeChange={setInteractionMode}
       onModelChange={setModelId}
+      onReasoningEffortChange={setReasoningEffort}
       onSubmit={onSubmit}
     />
   )
@@ -80,8 +96,26 @@ describe('SessionComposer', () => {
       text: 'Send with the composer button',
       modelId: 'gpt-5.4',
       interactionMode: 'auto',
+      reasoningEffort: 'medium',
       autonomyLevel: 'medium',
     })
+  })
+
+  it('shows reasoning effort selection only when the selected model supports it', () => {
+    const { rerender } = render(<ControlledComposer />)
+
+    expect(screen.getByRole('combobox', { name: /Reasoning effort selector/i })).toBeTruthy()
+
+    rerender(
+      <ControlledComposer
+        availableModels={[
+          { id: 'custom:model-1', name: 'Custom model' },
+          { id: 'gpt-5.4', name: 'GPT 5.4', supportedReasoningEfforts: ['medium', 'high'] },
+        ]}
+      />,
+    )
+
+    expect(screen.queryByRole('combobox', { name: /Reasoning effort selector/i })).toBeNull()
   })
 
   it('shows a working-state stop action and a completed-session disabled state', () => {
@@ -120,6 +154,7 @@ describe('SessionComposer', () => {
       text: 'Auto attach from send',
       modelId: 'gpt-5.4',
       interactionMode: 'auto',
+      reasoningEffort: 'medium',
       autonomyLevel: 'medium',
     })
   })

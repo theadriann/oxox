@@ -117,8 +117,25 @@ export function normalizeAvailableModels(
 
       return {
         id: model.id,
-        name: typeof model.name === 'string' && model.name.length > 0 ? model.name : model.id,
-        ...(typeof model.provider === 'string' ? { provider: model.provider } : {}),
+        name:
+          typeof model.name === 'string' && model.name.length > 0
+            ? model.name
+            : typeof model.displayName === 'string' && model.displayName.length > 0
+              ? model.displayName
+              : model.id,
+        ...(typeof model.provider === 'string'
+          ? { provider: model.provider }
+          : typeof model.modelProvider === 'string'
+            ? { provider: model.modelProvider }
+            : {}),
+        ...(Array.isArray(model.supportedReasoningEfforts) &&
+        model.supportedReasoningEfforts.every((value) => typeof value === 'string')
+          ? { supportedReasoningEfforts: [...model.supportedReasoningEfforts] }
+          : {}),
+        ...(typeof model.defaultReasoningEffort === 'string' &&
+        model.defaultReasoningEffort.length > 0
+          ? { defaultReasoningEffort: model.defaultReasoningEffort }
+          : {}),
         ...(typeof model.maxContextLimit === 'number'
           ? { maxContextLimit: model.maxContextLimit }
           : {}),

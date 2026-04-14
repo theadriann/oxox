@@ -21,12 +21,24 @@ const AUTONOMY_OPTIONS = [
   { value: 'high', label: 'High' },
 ] as const
 
+const REASONING_LABELS: Record<string, string> = {
+  off: 'Off',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  max: 'Max',
+  xhigh: 'XHigh',
+  minimal: 'Minimal',
+  none: 'None',
+}
+
 const TEXTAREA_MAX_HEIGHT = 200
 
 export interface SessionComposerProps {
   draft: string
   selectedModelId: string
   selectedMode: string
+  selectedReasoningEffort: string
   selectedAutonomyLevel: string
   availableModels: LiveSessionModel[]
   status: 'idle' | 'active' | 'waiting' | 'completed' | 'reconnecting' | 'orphaned' | 'error'
@@ -41,11 +53,13 @@ export interface SessionComposerProps {
   onDraftChange: (value: string) => void
   onModelChange: (value: string) => void
   onModeChange: (value: string) => void
+  onReasoningEffortChange: (value: string) => void
   onAutonomyLevelChange: (value: string) => void
   onSubmit: (payload: {
     text: string
     modelId: string
     interactionMode: string
+    reasoningEffort?: string
     autonomyLevel: string
   }) => void
   onAttach: () => void
@@ -56,6 +70,7 @@ export function SessionComposer({
   draft,
   selectedModelId,
   selectedMode,
+  selectedReasoningEffort,
   selectedAutonomyLevel,
   availableModels,
   status,
@@ -70,6 +85,7 @@ export function SessionComposer({
   onDraftChange,
   onModelChange,
   onModeChange,
+  onReasoningEffortChange,
   onAutonomyLevelChange,
   onSubmit,
   onAttach,
@@ -94,6 +110,8 @@ export function SessionComposer({
       : selectedModelId
         ? [{ id: selectedModelId, name: selectedModelId }]
         : []
+  const selectedModel = modelOptions.find((model) => model.id === selectedModelId)
+  const reasoningEffortOptions = selectedModel?.supportedReasoningEfforts ?? []
 
   const resizeTextarea = useCallback(() => {
     const el = textareaRef.current
@@ -113,6 +131,9 @@ export function SessionComposer({
       text: trimmedDraft,
       modelId: selectedModelId,
       interactionMode: selectedMode,
+      ...(reasoningEffortOptions.length > 0 && selectedReasoningEffort
+        ? { reasoningEffort: selectedReasoningEffort }
+        : {}),
       autonomyLevel: selectedAutonomyLevel,
     })
   }
@@ -211,6 +232,32 @@ export function SessionComposer({
               ))}
             </SelectContent>
           </Select>
+
+          {reasoningEffortOptions.length > 0 ? (
+            <Select
+              value={selectedReasoningEffort}
+              onValueChange={onReasoningEffortChange}
+              disabled={areSelectorsDisabled}
+            >
+              <SelectTrigger
+                aria-label="Reasoning effort selector"
+                size="sm"
+                className="h-6 min-w-0 gap-1 border-input bg-transparent px-2 text-[11px] text-fd-tertiary dark:bg-transparent"
+              >
+                <span className="mr-0.5 text-[10px] text-fd-quaternary">Reasoning</span>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" sideOffset={6} className="min-w-[110px]">
+                {reasoningEffortOptions.map((effort) => (
+                  <SelectItem key={effort} value={effort}>
+                    <span className="text-xs">
+                      {REASONING_LABELS[effort] ?? effort}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
 
           <Select
             value={selectedAutonomyLevel}

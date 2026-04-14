@@ -115,6 +115,7 @@ export function useNewSessionForm({
       text: string
       modelId: string
       interactionMode: string
+      reasoningEffort?: string
       autonomyLevel: string
     }) => {
       const cwd = path.trim()
@@ -139,6 +140,7 @@ export function useNewSessionForm({
         await sessionApi.updateSettings(createdSession.sessionId, {
           modelId: payload.modelId,
           interactionMode: payload.interactionMode,
+          ...(payload.reasoningEffort ? { reasoningEffort: payload.reasoningEffort } : {}),
           autonomyLevel: payload.autonomyLevel,
         })
         await sessionApi.addUserMessage(createdSession.sessionId, initialPrompt)
@@ -151,6 +153,7 @@ export function useNewSessionForm({
         composerStore.updatePreferences(createdSession.sessionId, {
           modelId: payload.modelId,
           interactionMode: payload.interactionMode,
+          reasoningEffort: payload.reasoningEffort ?? '',
           autonomyLevel: payload.autonomyLevel,
         })
         composerStore.resetForSession(createdSession.sessionId)

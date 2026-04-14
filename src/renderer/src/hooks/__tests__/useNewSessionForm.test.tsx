@@ -233,6 +233,7 @@ describe('useNewSessionForm', () => {
     expect(updateSettings).toHaveBeenCalledWith('session-live-1', {
       modelId: 'gpt-5.4',
       interactionMode: 'auto',
+      reasoningEffort: 'medium',
       autonomyLevel: 'medium',
     })
     expect(addUserMessage).toHaveBeenCalledWith('session-live-1', 'Reply with HELLO_HOOK')

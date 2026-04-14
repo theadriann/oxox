@@ -82,5 +82,28 @@ describe('snapshotConverter', () => {
         name: 'gpt-5.4',
       },
     ])
+
+    expect(
+      normalizeAvailableModels(
+        [
+          {
+            id: 'gpt-5.4',
+            displayName: 'GPT 5.4',
+            modelProvider: 'openai',
+            supportedReasoningEfforts: ['medium', 'high'],
+            defaultReasoningEffort: 'medium',
+          },
+        ] as never,
+        { modelId: 'gpt-5.4' },
+      ),
+    ).toEqual([
+      {
+        id: 'gpt-5.4',
+        name: 'GPT 5.4',
+        provider: 'openai',
+        supportedReasoningEfforts: ['medium', 'high'],
+        defaultReasoningEffort: 'medium',
+      },
+    ])
   })
 })

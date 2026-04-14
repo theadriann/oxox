@@ -167,6 +167,7 @@ export interface FoundationBootstrap {
   factoryDefaultSettings: {
     model?: string
     interactionMode?: string
+    reasoningEffort?: string
     compactionTokenLimit?: number
   }
 }
@@ -267,6 +268,8 @@ export interface LiveSessionModel {
   id: string
   name: string
   provider?: string | null
+  supportedReasoningEfforts?: string[]
+  defaultReasoningEffort?: string
   maxContextLimit?: number | null
 }
 

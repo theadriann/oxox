@@ -161,7 +161,12 @@ function snapshotChanged(
 }
 
 function availableModelsSignature(snapshotModels: LiveSessionSnapshot['availableModels']): string {
-  return snapshotModels.map((model) => `${model.id}:${model.name}`).join('|')
+  return snapshotModels
+    .map(
+      (model) =>
+        `${model.id}:${model.name}:${(model.supportedReasoningEfforts ?? []).join(',')}:${model.defaultReasoningEffort ?? ''}`,
+    )
+    .join('|')
 }
 
 function lastMessageSignature(snapshot: LiveSessionSnapshot): string {
