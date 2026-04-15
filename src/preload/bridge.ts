@@ -1,4 +1,6 @@
 import type {
+  AppUpdateState,
+  AppUpdateStateChangedPayload,
   FoundationBootstrap,
   FoundationChangedPayload,
   LiveSessionCompactResult,
@@ -71,11 +73,21 @@ export function createOxoxBridge(
       getInfo: () => invokeTyped<RuntimeInfo>(invoke, IPC_CHANNELS.runtimeInfo),
     },
     app: {
+      getUpdateState: () => invokeTyped<AppUpdateState>(invoke, IPC_CHANNELS.appGetUpdateState),
+      checkForUpdates: () => invokeTyped<AppUpdateState>(invoke, IPC_CHANNELS.appCheckForUpdates),
+      installUpdate: () => invokeTyped<void>(invoke, IPC_CHANNELS.appInstallUpdate),
       onNotificationNavigation: (listener) =>
         subscribeTyped<NotificationNavigationPayload>(
           on,
           off,
           IPC_CHANNELS.appNotificationNavigation,
+          listener,
+        ),
+      onUpdateStateChanged: (listener) =>
+        subscribeTyped<AppUpdateStateChangedPayload>(
+          on,
+          off,
+          IPC_CHANNELS.appUpdateStateChanged,
           listener,
         ),
       openNewWindow: () => invokeTyped<void>(invoke, IPC_CHANNELS.appOpenWindow),

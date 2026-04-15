@@ -11,6 +11,7 @@ export interface StatusBarProps {
   activeSessionCount: number
   lastSyncAt: string | null
   droidCliVersion: string | null
+  updateStatusLabel?: string | null
   now?: number
 }
 
@@ -43,6 +44,7 @@ export function StatusBar({
   droidCliVersion,
   now,
   nextRetryDelayMs,
+  updateStatusLabel,
 }: StatusBarProps) {
   const prefersReducedMotion = useReducedMotion()
   const daemonMeta = DAEMON_STATUS_META[daemonStatus]
@@ -81,6 +83,7 @@ export function StatusBar({
       </div>
 
       <div className="flex items-center gap-4">
+        {updateStatusLabel ? <span>{updateStatusLabel}</span> : null}
         {droidCliVersion ? (
           <span className="font-mono" title={droidCliVersion}>
             droid {droidCliVersion}

@@ -20,6 +20,7 @@ interface UseAppShellControllerOptions
     | 'sessionStore'
     | 'transcriptStore'
     | 'uiStore'
+    | 'updateStore'
   > {
   rootStore: RootStore
 }
@@ -34,6 +35,7 @@ export function useAppShellController({
   sessionStore,
   transcriptStore,
   uiStore,
+  updateStore,
 }: UseAppShellControllerOptions) {
   const [transcriptScrollSignal, setTranscriptScrollSignal] = useState(0)
   const detailPanelRef = useRef<HTMLElement | null>(null)
@@ -81,6 +83,7 @@ export function useAppShellController({
     pluginHostStore,
     sessionStore,
     transcriptStore,
+    updateStore,
     onSelectSession: handleSelectSession,
   })
 

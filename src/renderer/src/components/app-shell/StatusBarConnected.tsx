@@ -5,9 +5,10 @@ import { StatusBar } from '../status-bar/StatusBar'
 import { buildStatusBarProps } from './connectedSelectors'
 
 export const StatusBarConnected = observer(function StatusBarConnected() {
-  const { foundationStore, sessionStore } = useStores()
+  const { foundationStore, sessionStore, updateStore } = useStores()
   const props = buildStatusBarProps({
     foundationStore,
+    updateStore,
     sessionStore,
   })
 

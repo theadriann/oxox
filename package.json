@@ -1,6 +1,6 @@
 {
   "name": "oxox",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
@@ -11,7 +11,7 @@
     "start": "electron-vite preview",
     "package": "pnpm run build && electron-builder --mac --dir",
     "dist": "pnpm run dist:mac",
-    "dist:mac": "pnpm run build && electron-builder --mac",
+    "dist:mac": "pnpm run build && electron-builder --mac --universal",
     "dist:mac:x64": "pnpm run build && electron-builder --mac --x64",
     "dist:mac:arm64": "pnpm run build && electron-builder --mac --arm64",
     "dist:mac:all": "pnpm run build && electron-builder --mac --x64 && electron-builder --mac --arm64",
@@ -40,6 +40,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "electron-updater": "^6.8.3",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.38.0",
     "input-otp": "^1.4.2",
@@ -106,9 +107,22 @@
     "asarUnpack": [
       "node_modules/better-sqlite3/**/*"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "theadriann",
+        "repo": "oxox",
+        "releaseType": "release"
+      }
+    ],
     "mac": {
       "category": "public.app-category.developer-tools",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "gatekeeperAssess": false,
+      "hardenedRuntime": true,
       "icon": "build/icons/icon.icns",
+      "notarize": true,
       "target": [
         "dmg",
         "zip"

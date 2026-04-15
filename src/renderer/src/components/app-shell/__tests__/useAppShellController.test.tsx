@@ -116,6 +116,7 @@ describe('useAppShellController', () => {
       },
       transcriptStore: {},
       uiStore: {},
+      updateStore: {},
     }
 
     useNewSessionFormMock.mockReturnValue(newSessionForm)
@@ -143,6 +144,7 @@ describe('useAppShellController', () => {
       rootStore: stores.rootStore,
       sessionStore: stores.sessionStore,
       transcriptStore: stores.transcriptStore,
+      updateStore: stores.updateStore,
     })
     expect(useCommandPaletteMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -260,6 +262,7 @@ describe('useAppShellController', () => {
               uiStore: {
                 showSidebar: vi.fn(),
               },
+              updateStore: {},
             } as never
           }
         />,

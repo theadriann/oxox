@@ -4,17 +4,23 @@ import { act, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 const {
+  useAppUpdateEventsMock,
   useFoundationPollMock,
   useLiveSessionPollMock,
   usePluginCapabilityEventsMock,
   usePluginHostEventsMock,
   useNotificationNavigationMock,
 } = vi.hoisted(() => ({
+  useAppUpdateEventsMock: vi.fn(),
   useFoundationPollMock: vi.fn(),
   useLiveSessionPollMock: vi.fn(),
   usePluginCapabilityEventsMock: vi.fn(),
   usePluginHostEventsMock: vi.fn(),
   useNotificationNavigationMock: vi.fn(),
+}))
+
+vi.mock('../useAppUpdateEvents', () => ({
+  useAppUpdateEvents: useAppUpdateEventsMock,
 }))
 
 vi.mock('../useFoundationPoll', () => ({
@@ -61,6 +67,10 @@ describe('useAppRuntime', () => {
       initRuntime: vi.fn().mockResolvedValue(undefined),
       refresh: vi.fn().mockResolvedValue(undefined),
     }
+    const updateStore = {
+      refresh: vi.fn().mockResolvedValue(undefined),
+      applySnapshot: vi.fn(),
+    }
     const liveSessionStore = {
       selectedSnapshotId: 'session-live-1',
       selectedSnapshot: null,
@@ -96,10 +106,15 @@ describe('useAppRuntime', () => {
         sessionStore={sessionStore}
         transcriptStore={transcriptStore}
         composerStore={composerStore}
+        updateStore={updateStore}
         onSelectSession={onSelectSession}
       />,
     )
 
+    expect(useAppUpdateEventsMock).toHaveBeenCalledWith({
+      appApi: rootStore.api.app,
+      updateStore,
+    })
     expect(useFoundationPollMock).toHaveBeenCalledWith({
       foundationApi: rootStore.api.foundation,
       foundationStore,
@@ -148,6 +163,10 @@ describe('useAppRuntime', () => {
           initRuntime: vi.fn().mockResolvedValue(undefined),
           refresh: vi.fn().mockResolvedValue(undefined),
         }}
+        updateStore={{
+          refresh: vi.fn().mockResolvedValue(undefined),
+          applySnapshot: vi.fn(),
+        }}
         liveSessionStore={{
           selectedSnapshotId: null,
           selectedSnapshot: null,
@@ -193,6 +212,10 @@ describe('useAppRuntime', () => {
         foundationStore={{
           initRuntime: vi.fn().mockResolvedValue(undefined),
           refresh: vi.fn().mockResolvedValue(undefined),
+        }}
+        updateStore={{
+          refresh: vi.fn().mockResolvedValue(undefined),
+          applySnapshot: vi.fn(),
         }}
         liveSessionStore={{
           selectedSnapshotId: 'session-2',

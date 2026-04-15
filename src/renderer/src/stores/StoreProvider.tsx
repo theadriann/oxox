@@ -14,6 +14,7 @@ export interface StoreContextValue {
   transcriptStore: RootStore['transcriptStore']
   transportStore: RootStore['transportStore']
   uiStore: RootStore['uiStore']
+  updateStore: RootStore['updateStore']
 }
 
 function createStores(
@@ -30,6 +31,7 @@ function createStores(
     transcriptStore: rootStore.transcriptStore,
     transportStore: rootStore.transportStore,
     uiStore: rootStore.uiStore,
+    updateStore: rootStore.updateStore,
   }
 }
 

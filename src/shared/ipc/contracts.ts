@@ -7,6 +7,10 @@ import type {
 export const IPC_CHANNELS = {
   runtimeInfo: 'app:runtime-info',
   appNotificationNavigation: 'app:notification-navigation',
+  appGetUpdateState: 'app:get-update-state',
+  appCheckForUpdates: 'app:check-for-updates',
+  appInstallUpdate: 'app:install-update',
+  appUpdateStateChanged: 'app:update-state-changed',
   appOpenWindow: 'app:open-window',
   pluginCapabilitiesChanged: 'plugin:capabilities-changed',
   pluginListCapabilities: 'plugin:list-capabilities',
@@ -37,6 +41,25 @@ export const IPC_CHANNELS = {
   sessionResolvePermissionRequest: 'session:resolve-permission-request',
   sessionResolveAskUserRequest: 'session:resolve-ask-user-request',
 } as const
+
+export type AppUpdatePhase =
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'downloaded'
+  | 'not-available'
+  | 'error'
+  | 'unsupported'
+
+export interface AppUpdateState {
+  phase: AppUpdatePhase
+  currentVersion: string
+  availableVersion: string | null
+  downloadedVersion: string | null
+  progressPercent: number | null
+  message: string | null
+  canInstall: boolean
+}
 
 export type RuntimePlatform = 'darwin' | 'linux' | 'win32'
 
@@ -449,13 +472,23 @@ export interface NotificationNavigationPayload {
   sessionId: string
 }
 
+export interface AppUpdateStateChangedPayload {
+  snapshot: AppUpdateState
+}
+
 export interface OxoxBridge {
   runtime: {
     getInfo: () => Promise<RuntimeInfo>
   }
   app?: {
+    getUpdateState: () => Promise<AppUpdateState>
+    checkForUpdates: () => Promise<AppUpdateState>
+    installUpdate: () => Promise<void>
     onNotificationNavigation: (
       listener: (payload: NotificationNavigationPayload) => void,
+    ) => (() => void) | undefined
+    onUpdateStateChanged?: (
+      listener: (payload: AppUpdateStateChangedPayload) => void,
     ) => (() => void) | undefined
     openNewWindow: () => Promise<void>
   }

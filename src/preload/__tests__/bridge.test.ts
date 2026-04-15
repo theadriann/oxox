@@ -94,6 +94,26 @@ describe('createOxoxBridge', () => {
               summary: 'Done',
             },
           })
+        case IPC_CHANNELS.appGetUpdateState:
+          return Promise.resolve({
+            phase: 'idle',
+            currentVersion: '0.0.4',
+            availableVersion: null,
+            downloadedVersion: null,
+            progressPercent: null,
+            message: null,
+            canInstall: false,
+          })
+        case IPC_CHANNELS.appCheckForUpdates:
+          return Promise.resolve({
+            phase: 'checking',
+            currentVersion: '0.0.4',
+            availableVersion: null,
+            downloadedVersion: null,
+            progressPercent: null,
+            message: 'Checking for updates…',
+            canInstall: false,
+          })
         case IPC_CHANNELS.sessionCreate:
         case IPC_CHANNELS.sessionAttach:
         case IPC_CHANNELS.sessionGetSnapshot:
@@ -125,6 +145,7 @@ describe('createOxoxBridge', () => {
         case IPC_CHANNELS.sessionAddUserMessage:
         case IPC_CHANNELS.sessionUpdateSettings:
         case IPC_CHANNELS.sessionRenameViaDaemon:
+        case IPC_CHANNELS.appInstallUpdate:
           return Promise.resolve(undefined)
         case IPC_CHANNELS.sessionInterrupt:
         case IPC_CHANNELS.appOpenWindow:
@@ -179,6 +200,24 @@ describe('createOxoxBridge', () => {
         summary: 'Done',
       },
     })
+    await expect(bridge.app?.getUpdateState()).resolves.toEqual({
+      phase: 'idle',
+      currentVersion: '0.0.4',
+      availableVersion: null,
+      downloadedVersion: null,
+      progressPercent: null,
+      message: null,
+      canInstall: false,
+    })
+    await expect(bridge.app?.checkForUpdates()).resolves.toEqual({
+      phase: 'checking',
+      currentVersion: '0.0.4',
+      availableVersion: null,
+      downloadedVersion: null,
+      progressPercent: null,
+      message: 'Checking for updates…',
+      canInstall: false,
+    })
     expect(bridge.plugin?.onCapabilitiesChanged).toBeTypeOf('function')
     await expect(bridge.session.create('/tmp/live')).resolves.toMatchObject({
       sessionId: 'session-live-1',
@@ -215,6 +254,7 @@ describe('createOxoxBridge', () => {
       bridge.session.renameViaDaemon('session-live-1', 'Renamed live session'),
     ).resolves.toBeUndefined()
     await expect(bridge.session.interrupt('session-live-1')).resolves.toBeUndefined()
+    await expect(bridge.app?.installUpdate()).resolves.toBeUndefined()
     await expect(bridge.app?.openNewWindow()).resolves.toBeUndefined()
     await expect(bridge.dialog.selectDirectory()).resolves.toBe('/tmp/live-session')
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.foundationBootstrap)
@@ -230,6 +270,8 @@ describe('createOxoxBridge', () => {
         sessionId: 'session-1',
       },
     )
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.appGetUpdateState)
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.appCheckForUpdates)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionCreate, '/tmp/live')
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionGetSnapshot, 'session-live-1')
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionAttach, 'session-live-1')
@@ -251,6 +293,7 @@ describe('createOxoxBridge', () => {
       'Renamed live session',
     )
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionInterrupt, 'session-live-1')
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.appInstallUpdate)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.appOpenWindow)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.dialogSelectDirectory)
   })
@@ -272,6 +315,45 @@ describe('createOxoxBridge', () => {
 
     unsubscribe?.()
     expect(off).toHaveBeenCalledWith(IPC_CHANNELS.appNotificationNavigation, handler)
+  })
+
+  it('subscribes to app update state events and returns an unsubscribe handler', () => {
+    const invoke = vi.fn()
+    const on = vi.fn()
+    const off = vi.fn()
+    const listener = vi.fn()
+
+    const bridge = createOxoxBridge(invoke, on, off)
+    const unsubscribe = bridge.app?.onUpdateStateChanged?.(listener)
+    const handler = on.mock.calls[0]?.[1]
+
+    expect(on).toHaveBeenCalledWith(IPC_CHANNELS.appUpdateStateChanged, expect.any(Function))
+
+    handler?.(undefined, {
+      snapshot: {
+        phase: 'downloaded',
+        currentVersion: '0.0.4',
+        availableVersion: '0.0.5',
+        downloadedVersion: '0.0.5',
+        progressPercent: 100,
+        message: 'Restart to install update.',
+        canInstall: true,
+      },
+    })
+    expect(listener).toHaveBeenCalledWith({
+      snapshot: {
+        phase: 'downloaded',
+        currentVersion: '0.0.4',
+        availableVersion: '0.0.5',
+        downloadedVersion: '0.0.5',
+        progressPercent: 100,
+        message: 'Restart to install update.',
+        canInstall: true,
+      },
+    })
+
+    unsubscribe?.()
+    expect(off).toHaveBeenCalledWith(IPC_CHANNELS.appUpdateStateChanged, handler)
   })
 
   it('subscribes to foundation change events through the typed bridge', () => {

@@ -17,3 +17,5 @@ pnpm-debug.log*
 release/
 tsconfig.web.tsbuildinfo
 tsconfig.node.tsbuildinfo
+package-mac-signed.sh
+certificate.p12

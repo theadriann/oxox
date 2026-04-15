@@ -30,6 +30,10 @@ vi.mock('../AppShellFeedbackConnected', () => ({
   AppShellFeedbackConnected: () => <div data-testid="feedback" />,
 }))
 
+vi.mock('../UpdatePromptConnected', () => ({
+  UpdatePromptConnected: () => <div data-testid="update-prompt" />,
+}))
+
 vi.mock('../DetailPanelConnected', () => ({
   DetailPanelConnected: (props: { transcriptScrollSignal: number }) => (
     <div data-testid="detail-panel">{props.transcriptScrollSignal}</div>
@@ -119,6 +123,7 @@ describe('AppShellView', () => {
     expect(screen.getByTestId('top-bar').textContent).toContain('New session')
     expect(screen.getByTestId('top-bar').textContent).toContain('/tmp/project-alpha')
     expect(screen.getByTestId('top-bar').textContent).toContain('sidebar-visible')
+    expect(screen.getByTestId('update-prompt')).toBeTruthy()
     expect(screen.getByTestId('detail-panel').textContent).toContain('3')
     expect(screen.getByTestId('session-composer').textContent).toContain(
       'detached-enabled:submitting',

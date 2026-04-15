@@ -1,4 +1,4 @@
-import type { RuntimeInfo } from '../../shared/ipc/contracts'
+import type { AppUpdateState, RuntimeInfo } from '../../shared/ipc/contracts'
 import { IPC_CHANNELS } from '../../shared/ipc/contracts'
 import type { PluginRegistry } from '../app/PluginRegistry'
 import type { FoundationService } from '../integration/foundationService'
@@ -32,6 +32,11 @@ interface IpcInvokeEventLike {
 export interface RegisterAppIpcHandlersOptions {
   ipcMain: IpcMainLike
   service: FoundationService
+  updater: {
+    getState: () => AppUpdateState
+    checkForUpdates: () => Promise<AppUpdateState>
+    installUpdate: () => void
+  }
   keepBootstrapHandlerOnCleanup?: boolean
   pluginRegistry: Pick<PluginRegistry, 'listCapabilities'>
   pluginHost: Pick<LocalPluginHostManager, 'listHosts'>
@@ -52,6 +57,7 @@ export interface RegisterAppIpcHandlersOptions {
 export function registerAppIpcHandlers({
   ipcMain,
   service,
+  updater,
   keepBootstrapHandlerOnCleanup = false,
   pluginRegistry,
   pluginHost,
@@ -90,6 +96,9 @@ export function registerAppIpcHandlers({
 
   const handlers: Record<string, (...args: unknown[]) => unknown> = {
     [IPC_CHANNELS.runtimeInfo]: () => getRuntimeInfo(),
+    [IPC_CHANNELS.appGetUpdateState]: () => updater.getState(),
+    [IPC_CHANNELS.appCheckForUpdates]: () => updater.checkForUpdates(),
+    [IPC_CHANNELS.appInstallUpdate]: () => updater.installUpdate(),
     [IPC_CHANNELS.appOpenWindow]: async () => {
       await createAppWindow()
     },

@@ -16,9 +16,20 @@ type PackageJson = {
     }
     files?: string[]
     asarUnpack?: string[]
+    publish?: Array<{
+      provider?: string
+      owner?: string
+      repo?: string
+      releaseType?: string
+    }>
     mac?: {
       category?: string
+      entitlements?: string
+      entitlementsInherit?: string
+      gatekeeperAssess?: boolean
+      hardenedRuntime?: boolean
       icon?: string
+      notarize?: boolean
       target?: string[]
     }
   }
@@ -32,12 +43,28 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as Package
 describe('packaging configuration', () => {
   it('defines electron-builder scripts for mac packaging', () => {
     expect(packageJson.devDependencies?.['electron-builder']).toBeDefined()
+    expect(packageJson.dependencies?.['electron-updater']).toBeDefined()
     expect(packageJson.dependencies?.uuid).toBeDefined()
     expect(packageJson.scripts?.package).toBe('pnpm run build && electron-builder --mac --dir')
-    expect(packageJson.scripts?.dist).toBe('pnpm run build && electron-builder --mac')
+    expect(packageJson.scripts?.dist).toBe('pnpm run dist:mac')
+    expect(packageJson.scripts?.['dist:mac']).toBe(
+      'pnpm run build && electron-builder --mac --universal',
+    )
+    expect(packageJson.scripts?.['dist:mac:x64']).toBe(
+      'pnpm run build && electron-builder --mac --x64',
+    )
+    expect(packageJson.scripts?.['dist:mac:arm64']).toBe(
+      'pnpm run build && electron-builder --mac --arm64',
+    )
+    expect(packageJson.scripts?.['dist:mac:all']).toBe(
+      'pnpm run build && electron-builder --mac --x64 && electron-builder --mac --arm64',
+    )
+    expect(packageJson.scripts?.package).not.toContain('--publish')
+    expect(packageJson.scripts?.dist).not.toContain('--publish')
+    expect(packageJson.scripts?.['dist:mac:all']).not.toContain('--publish')
   })
 
-  it('uses committed build resources for packaged app icons', () => {
+  it('uses committed build resources, GitHub publish metadata, and hardened-runtime notarization settings', () => {
     expect(packageJson.build).toMatchObject({
       appId: 'com.theadriann.oxox',
       productName: 'OXOX',
@@ -47,12 +74,26 @@ describe('packaging configuration', () => {
       },
       files: ['out/**', 'node_modules/**', 'package.json'],
       asarUnpack: ['node_modules/better-sqlite3/**/*'],
+      publish: [
+        {
+          provider: 'github',
+          owner: 'theadriann',
+          repo: 'oxox',
+          releaseType: 'release',
+        },
+      ],
       mac: {
         category: 'public.app-category.developer-tools',
+        entitlements: 'build/entitlements.mac.plist',
+        entitlementsInherit: 'build/entitlements.mac.plist',
+        gatekeeperAssess: false,
+        hardenedRuntime: true,
         icon: 'build/icons/icon.icns',
+        notarize: true,
       },
     })
 
+    expect(existsSync(resolve(projectRoot, 'build/entitlements.mac.plist'))).toBe(true)
     expect(existsSync(resolve(projectRoot, 'build/icons/icon.icns'))).toBe(true)
     expect(existsSync(resolve(projectRoot, 'build/icons/oxox.png'))).toBe(true)
     expect(existsSync(resolve(projectRoot, 'build/icons/icon.png'))).toBe(false)

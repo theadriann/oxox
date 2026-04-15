@@ -8,6 +8,8 @@ import type { PluginHostStore } from '../stores/PluginHostStore'
 import type { RootStore } from '../stores/RootStore'
 import type { SessionStore } from '../stores/SessionStore'
 import type { TranscriptStore } from '../stores/TranscriptStore'
+import type { UpdateStore } from '../stores/UpdateStore'
+import { useAppUpdateEvents } from './useAppUpdateEvents'
 import { useFoundationPoll } from './useFoundationPoll'
 import { useLiveSessionPoll } from './useLiveSessionPoll'
 import { useNotificationNavigation } from './useNotificationNavigation'
@@ -23,6 +25,7 @@ interface UseAppRuntimeOptions {
   pluginHostStore: PluginHostStore
   sessionStore: SessionStore
   transcriptStore: TranscriptStore
+  updateStore: UpdateStore
   onSelectSession: (sessionId: string) => void
 }
 
@@ -35,8 +38,10 @@ export function useAppRuntime({
   pluginHostStore,
   sessionStore,
   transcriptStore,
+  updateStore,
   onSelectSession,
 }: UseAppRuntimeOptions): void {
+  useAppUpdateEvents({ appApi: rootStore.api.app, updateStore })
   useFoundationPoll({ foundationApi: rootStore.api.foundation, foundationStore })
   useLiveSessionPoll({ liveSessionStore, sessionApi: rootStore.api.session })
   usePluginCapabilityEvents({ pluginApi: rootStore.api.plugin, pluginCapabilityStore })

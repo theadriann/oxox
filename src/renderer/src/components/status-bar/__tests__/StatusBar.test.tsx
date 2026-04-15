@@ -18,6 +18,7 @@ describe('StatusBar', () => {
         droidCliVersion="0.84.0"
         lastSyncAt="2026-03-25T00:01:01.000Z"
         nextRetryDelayMs={null}
+        updateStatusLabel="Downloading update…"
         now={Date.parse('2026-03-25T00:03:01.000Z')}
       />,
     )
@@ -25,6 +26,7 @@ describe('StatusBar', () => {
     expect(screen.getByText(/Connected/)).toBeTruthy()
     expect(screen.getByText('2 active sessions')).toBeTruthy()
     expect(screen.getByText(/2m ago/)).toBeTruthy()
+    expect(screen.getByText('Downloading update…')).toBeTruthy()
     expect(screen.getByText('droid 0.84.0')).toBeTruthy()
     expect(screen.getByTestId('daemon-status-indicator').className).toContain('bg-fd-ready')
   })
@@ -38,6 +40,7 @@ describe('StatusBar', () => {
         droidCliVersion="0.84.0"
         lastSyncAt="2026-03-25T00:02:59.000Z"
         nextRetryDelayMs={2_000}
+        updateStatusLabel={null}
         now={Date.parse('2026-03-25T00:03:01.000Z')}
       />,
     )
@@ -54,6 +57,7 @@ describe('StatusBar', () => {
         droidCliVersion={null}
         lastSyncAt={null}
         nextRetryDelayMs={null}
+        updateStatusLabel={null}
         now={Date.parse('2026-03-25T00:03:01.000Z')}
       />,
     )
@@ -73,6 +77,7 @@ describe('StatusBar', () => {
         droidCliVersion="0.84.0"
         lastSyncAt="2026-03-25T00:01:01.000Z"
         nextRetryDelayMs={null}
+        updateStatusLabel={null}
         now={Date.parse('2026-03-25T00:03:01.000Z')}
       />,
     )
@@ -87,6 +92,7 @@ describe('StatusBar', () => {
         droidCliVersion="0.84.0"
         lastSyncAt="2026-03-25T00:01:01.000Z"
         nextRetryDelayMs={null}
+        updateStatusLabel={null}
         now={Date.parse('2026-03-25T00:04:31.000Z')}
       />,
     )
@@ -106,6 +112,7 @@ describe('StatusBar', () => {
         droidCliVersion="0.84.0"
         lastSyncAt="2026-03-25T00:03:00.000Z"
         nextRetryDelayMs={null}
+        updateStatusLabel={null}
       />,
     )
 

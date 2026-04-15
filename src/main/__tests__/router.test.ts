@@ -39,6 +39,27 @@ describe('registerAppIpcHandlers', () => {
       resolvePermissionRequest: vi.fn(),
       resolveAskUserRequest: vi.fn(),
     }
+    const updater = {
+      getState: vi.fn().mockReturnValue({
+        phase: 'idle',
+        currentVersion: '0.0.4',
+        availableVersion: null,
+        downloadedVersion: null,
+        progressPercent: null,
+        message: null,
+        canInstall: false,
+      }),
+      checkForUpdates: vi.fn().mockResolvedValue({
+        phase: 'checking',
+        currentVersion: '0.0.4',
+        availableVersion: null,
+        downloadedVersion: null,
+        progressPercent: null,
+        message: 'Checking for updates…',
+        canInstall: false,
+      }),
+      installUpdate: vi.fn(),
+    }
     const pluginRegistry = {
       listCapabilities: vi.fn().mockReturnValue([
         {
@@ -64,6 +85,7 @@ describe('registerAppIpcHandlers', () => {
     const cleanup = registerAppIpcHandlers({
       ipcMain,
       service,
+      updater,
       pluginRegistry,
       pluginHost,
       invokePluginCapability,
@@ -76,6 +98,7 @@ describe('registerAppIpcHandlers', () => {
     const handledChannelCount = Object.keys(IPC_CHANNELS).filter(
       (channel) =>
         channel !== 'appNotificationNavigation' &&
+        channel !== 'appUpdateStateChanged' &&
         channel !== 'pluginCapabilitiesChanged' &&
         channel !== 'foundationChanged' &&
         channel !== 'sessionSnapshotChanged' &&
@@ -85,6 +108,26 @@ describe('registerAppIpcHandlers', () => {
     expect(ipcMain.handle).toHaveBeenCalledTimes(handledChannelCount)
     expect(await ipcMain.handlers.get(IPC_CHANNELS.runtimeInfo)?.()).toBe(runtimeInfo)
     expect(await ipcMain.handlers.get(IPC_CHANNELS.foundationBootstrap)?.()).toEqual({ ok: true })
+    expect(await ipcMain.handlers.get(IPC_CHANNELS.appGetUpdateState)?.()).toEqual({
+      phase: 'idle',
+      currentVersion: '0.0.4',
+      availableVersion: null,
+      downloadedVersion: null,
+      progressPercent: null,
+      message: null,
+      canInstall: false,
+    })
+    expect(await ipcMain.handlers.get(IPC_CHANNELS.appCheckForUpdates)?.()).toEqual({
+      phase: 'checking',
+      currentVersion: '0.0.4',
+      availableVersion: null,
+      downloadedVersion: null,
+      progressPercent: null,
+      message: 'Checking for updates…',
+      canInstall: false,
+    })
+    expect(updater.getState).toHaveBeenCalledTimes(1)
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(1)
     expect(await ipcMain.handlers.get(IPC_CHANNELS.pluginListCapabilities)?.()).toEqual([
       {
         qualifiedId: 'plugin.example:summarize',
@@ -128,6 +171,8 @@ describe('registerAppIpcHandlers', () => {
       'Renamed',
     )
     expect(service.renameSessionViaDaemon).toHaveBeenCalledWith('session-1', 'Renamed')
+    await ipcMain.handlers.get(IPC_CHANNELS.appInstallUpdate)?.()
+    expect(updater.installUpdate).toHaveBeenCalledTimes(1)
 
     cleanup()
 
@@ -166,6 +211,11 @@ describe('registerAppIpcHandlers', () => {
       resolvePermissionRequest: vi.fn(),
       resolveAskUserRequest: vi.fn(),
     }
+    const updater = {
+      getState: vi.fn(),
+      checkForUpdates: vi.fn(),
+      installUpdate: vi.fn(),
+    }
     const pluginHost = {
       listHosts: vi.fn().mockReturnValue([]),
     }
@@ -177,6 +227,7 @@ describe('registerAppIpcHandlers', () => {
     registerAppIpcHandlers({
       ipcMain,
       service,
+      updater,
       pluginRegistry,
       pluginHost,
       invokePluginCapability,
@@ -218,10 +269,24 @@ describe('registerAppIpcHandlers', () => {
       resolvePermissionRequest: vi.fn(),
       resolveAskUserRequest: vi.fn(),
     }
+    const updater = {
+      getState: vi.fn().mockReturnValue({
+        phase: 'idle',
+        currentVersion: '0.0.4',
+        availableVersion: null,
+        downloadedVersion: null,
+        progressPercent: null,
+        message: null,
+        canInstall: false,
+      }),
+      checkForUpdates: vi.fn(),
+      installUpdate: vi.fn(),
+    }
 
     const cleanup = registerAppIpcHandlers({
       ipcMain,
       service,
+      updater,
       pluginRegistry: { listCapabilities: vi.fn().mockReturnValue([]) },
       pluginHost: { listHosts: vi.fn().mockReturnValue([]) },
       invokePluginCapability: vi.fn(),

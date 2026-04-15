@@ -13,6 +13,7 @@ import { ContentContainer } from './ContentContainer'
 import { DetailPanelConnected } from './DetailPanelConnected'
 import { StatusBarConnected } from './StatusBarConnected'
 import { TodoListConnected } from './TodoListConnected'
+import { UpdatePromptConnected } from './UpdatePromptConnected'
 
 interface AppShellViewProps {
   commandPalette: {
@@ -129,6 +130,7 @@ export function AppShellView({
           ) : (
             <>
               <AppShellFeedbackConnected />
+              <UpdatePromptConnected />
 
               <div
                 className={`oxox-content-area flex-1 min-h-0 ${uiState.isContextPanelHidden ? 'oxox-content-area--without-context' : 'oxox-content-area--with-context'}`}

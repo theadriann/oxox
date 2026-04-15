@@ -19,6 +19,7 @@ export const AppShell = observer(() => {
     sessionStore,
     transcriptStore,
     uiStore,
+    updateStore,
   } = useStores()
   const prefersReducedMotion = useReducedMotion()
   const {
@@ -43,6 +44,7 @@ export const AppShell = observer(() => {
     sessionStore,
     transcriptStore,
     uiStore,
+    updateStore,
   })
   const {
     canComposeDetached,

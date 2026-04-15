@@ -4,6 +4,7 @@ import type { LiveSessionAskUserAnswerRecord } from '../../../../shared/ipc/cont
 import type { SessionSidebarProps } from '../sidebar/SessionSidebar'
 import type { StatusBarProps } from '../status-bar/StatusBar'
 import type { DetailPanelProps } from './DetailPanel'
+import type { UpdatePromptProps } from './UpdatePrompt'
 
 interface BuildDetailPanelConnectedPropsOptions {
   composerStore: {
@@ -217,6 +218,7 @@ export function buildAppShellContextPanelState({
 
 export function buildStatusBarProps({
   foundationStore,
+  updateStore,
   sessionStore,
 }: {
   foundationStore: {
@@ -232,6 +234,9 @@ export function buildStatusBarProps({
       }
     }
   }
+  updateStore: {
+    statusLabel: string | null
+  }
   sessionStore: {
     activeCount: number
   }
@@ -243,5 +248,27 @@ export function buildStatusBarProps({
     droidCliVersion: foundationStore.foundation.droidCli.version,
     lastSyncAt: foundationStore.foundation.daemon.lastSyncAt,
     nextRetryDelayMs: foundationStore.foundation.daemon.nextRetryDelayMs,
+    updateStatusLabel: updateStore.statusLabel,
+  }
+}
+
+export function buildUpdatePromptProps({
+  updateStore,
+}: {
+  updateStore: {
+    downloadedVersion: string | null
+    installUpdate: () => Promise<void> | void
+    dismissPrompt: () => void
+    shouldShowPrompt: boolean
+  }
+}): UpdatePromptProps | null {
+  if (!updateStore.shouldShowPrompt) {
+    return null
+  }
+
+  return {
+    downloadedVersion: updateStore.downloadedVersion,
+    onDismiss: updateStore.dismissPrompt,
+    onRestart: () => void updateStore.installUpdate(),
   }
 }

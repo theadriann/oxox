@@ -5,6 +5,7 @@ import {
   buildAppShellSidebarProps,
   buildDetailPanelConnectedProps,
   buildStatusBarProps,
+  buildUpdatePromptProps,
 } from '../connectedSelectors'
 
 describe('app-shell connected selectors', () => {
@@ -103,7 +104,7 @@ describe('app-shell connected selectors', () => {
     ])
   })
 
-  it('builds sidebar, context-panel visibility, and status-bar props from stores', () => {
+  it('builds sidebar, context-panel visibility, update prompt, and status-bar props from stores', () => {
     const sidebarProps = buildAppShellSidebarProps({
       errorState: undefined,
       foundationStore: {
@@ -161,6 +162,9 @@ describe('app-shell connected selectors', () => {
           },
         },
       } as never,
+      updateStore: {
+        statusLabel: 'Update ready',
+      } as never,
       sessionStore: {
         activeCount: 3,
       } as never,
@@ -173,6 +177,34 @@ describe('app-shell connected selectors', () => {
       droidCliVersion: '0.84.0',
       lastSyncAt: '2026-04-02T00:00:00.000Z',
       nextRetryDelayMs: null,
+      updateStatusLabel: 'Update ready',
     })
+
+    const restartNow = vi.fn()
+    const dismiss = vi.fn()
+    const promptProps = buildUpdatePromptProps({
+      updateStore: {
+        downloadedVersion: '0.0.5',
+        installUpdate: restartNow,
+        dismissPrompt: dismiss,
+        shouldShowPrompt: true,
+      } as never,
+    })
+
+    expect(promptProps?.downloadedVersion).toBe('0.0.5')
+    expect(promptProps?.onDismiss).toBe(dismiss)
+    promptProps?.onRestart()
+    expect(restartNow).toHaveBeenCalledTimes(1)
+
+    expect(
+      buildUpdatePromptProps({
+        updateStore: {
+          downloadedVersion: '0.0.5',
+          installUpdate: restartNow,
+          dismissPrompt: dismiss,
+          shouldShowPrompt: false,
+        } as never,
+      }),
+    ).toBeNull()
   })
 })

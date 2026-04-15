@@ -16,6 +16,7 @@ import { focusMainWindow } from './lifecycle/singleInstance'
 import { installSystemIntegration } from './native/systemIntegration'
 import { getRuntimeInfo } from './runtime/runtimeInfo'
 import { getContentSecurityPolicy } from './security/csp'
+import { type AppUpdater, createAppUpdater } from './updater/appUpdater'
 import { buildMainWindowOptions } from './windows/mainWindow'
 import { createWindowCoordinator } from './windows/windowCoordinator'
 import { createWindowLifecycleCoordinator } from './windows/windowLifecycle'
@@ -34,6 +35,7 @@ nativeTheme.themeSource = 'dark'
 let mainWindow: BrowserWindow | null = null
 let lastFocusedWindow: BrowserWindow | null = null
 let appKernel: AppKernel | null = null
+let appUpdater: AppUpdater | null = null
 let stopRuntimeCoordinator: (() => void) | null = null
 const gracefulQuitController = createGracefulQuitController({
   detachActiveSessions,
@@ -41,6 +43,8 @@ const gracefulQuitController = createGracefulQuitController({
   stopKernel: async () => {
     stopRuntimeCoordinator?.()
     stopRuntimeCoordinator = null
+    appUpdater?.dispose()
+    appUpdater = null
     await appKernel?.stopAsync()
     appKernel = null
   },
@@ -142,6 +146,16 @@ function broadcastFoundationChanged(payload: { refreshedAt: string }): void {
   }
 }
 
+function broadcastAppUpdateStateChanged(payload: { snapshot: unknown }): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) {
+      continue
+    }
+
+    window.webContents.send(IPC_CHANNELS.appUpdateStateChanged, payload)
+  }
+}
+
 function createLiveSessionSnapshotBroadcaster(
   getSessionSnapshot: (sessionId: string) => unknown,
 ): (payload: { sessionId: string }) => void {
@@ -206,6 +220,13 @@ if (hasSingleInstanceLock) {
 }
 
 app.whenReady().then(async () => {
+  appUpdater ??= createAppUpdater({
+    appVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    onStateChanged: (snapshot) => {
+      broadcastAppUpdateStateChanged({ snapshot })
+    },
+  })
   appKernel ??= new AppKernel({
     userDataPath: app.getPath('userData'),
     createFoundationService,
@@ -219,13 +240,14 @@ app.whenReady().then(async () => {
       const pluginRegistry = appKernel?.getPluginRegistry()
       const pluginHost = appKernel?.getPluginHost()
 
-      if (!pluginRegistry || !pluginHost) {
+      if (!pluginRegistry || !pluginHost || !appUpdater) {
         throw new Error('App kernel unavailable during IPC registration.')
       }
 
       return registerAppIpcHandlers({
         ipcMain,
         service,
+        updater: appUpdater,
         keepBootstrapHandlerOnCleanup: true,
         pluginRegistry,
         pluginHost,
@@ -262,6 +284,7 @@ app.whenReady().then(async () => {
       }),
   })
   const foundationService = appKernel.start()
+  void appUpdater.start()
   const broadcastLiveSessionSnapshot = createLiveSessionSnapshotBroadcaster((sessionId) =>
     foundationService.getSessionSnapshot(sessionId),
   )
@@ -310,5 +333,7 @@ app.on('will-quit', () => {
   gracefulQuitController.markQuitting()
   stopRuntimeCoordinator?.()
   stopRuntimeCoordinator = null
+  appUpdater?.dispose()
+  appUpdater = null
   appKernel = null
 })

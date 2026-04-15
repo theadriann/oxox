@@ -11,6 +11,7 @@ import { createStoreEventBus } from './storeEventBus'
 import { TranscriptStore } from './TranscriptStore'
 import { TransportStore } from './TransportStore'
 import { UIStore } from './UIStore'
+import { UpdateStore } from './UpdateStore'
 
 export class RootStore {
   readonly api: PlatformApiClient
@@ -25,6 +26,7 @@ export class RootStore {
   readonly pluginCapabilityStore: PluginCapabilityStore
   readonly pluginHostStore: PluginHostStore
   readonly composerStore: ComposerStore
+  readonly updateStore: UpdateStore
   private readonly disposers: Array<() => void> = []
 
   constructor(api: PlatformApiClient, persistence: PersistencePort = createLocalStoragePort()) {
@@ -59,6 +61,7 @@ export class RootStore {
         : undefined,
     )
     this.pluginHostStore = new PluginHostStore(listHosts ? () => listHosts() : async () => [])
+    this.updateStore = new UpdateStore(this.api.app)
     this.foundationStore = new FoundationStore(this.storeEventBus, {
       getBootstrap: this.api.foundation.getBootstrap,
       getRuntimeInfo: this.api.runtime.getInfo,
