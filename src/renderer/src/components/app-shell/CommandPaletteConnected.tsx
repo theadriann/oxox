@@ -1,5 +1,4 @@
 import { observer } from 'mobx-react-lite'
-import { useMemo } from 'react'
 
 import { useSessionStore, useUIStore } from '../../stores/StoreProvider'
 import type { CommandPaletteAction } from '../command-palette/CommandPalette'
@@ -29,13 +28,11 @@ export const CommandPaletteConnected = observer(function CommandPaletteConnected
     )
   }
 
-  const sessions = useMemo(() => sessionStore.sessions.slice(), [sessionStore.sessions])
-
   return (
     <CommandPalette
       open={uiStore.isCommandPaletteOpen}
       commands={resolvedCommandPalette.commands}
-      sessions={sessions}
+      sessions={sessionStore.sessions}
       onOpenChange={(open) =>
         open ? resolvedCommandPalette.openPalette() : resolvedCommandPalette.closePalette()
       }

@@ -2,20 +2,37 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Command } from 'cmdk'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Command as CommandIcon, FolderSearch, Hash, Search, Zap } from 'lucide-react'
-import {
-  memo,
-  type ReactNode,
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from 'react'
-import { buildCommandPaletteViewModel } from '../../hooks/commandPaletteSelectors'
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '../../lib/utils'
 import type { SessionPreview } from '../../stores/SessionStore'
+
+const MAX_VISIBLE_SESSIONS = 50
+
+const SESSION_COMMAND_IDS = new Set([
+  'attach-session',
+  'detach-session',
+  'copy-session-id',
+  'rename-session',
+  'rewind-session',
+  'fork-session',
+  'compact-session',
+])
+
+function isSessionCommand(id: string): boolean {
+  return SESSION_COMMAND_IDS.has(id) || id.startsWith('plugin-capability:')
+}
+
+/**
+ * Cheap case-insensitive substring filter for cmdk.
+ * Returns 1 (match) or 0 (no match) — replaces cmdk's default
+ * scoring algorithm which is the root cause of input lag on large lists.
+ */
+function substringFilter(value: string, search: string, keywords?: string[]): number {
+  const lower = search.toLowerCase()
+  if (value.toLowerCase().includes(lower)) return 1
+  if (keywords?.some((keyword) => keyword.toLowerCase().includes(lower))) return 1
+  return 0
+}
 
 export interface CommandPaletteAction {
   id: string
@@ -44,26 +61,24 @@ export function CommandPalette({
   onSelectSession,
 }: CommandPaletteProps) {
   const [search, setSearch] = useState('')
-  const deferredSearch = useDeferredValue(search)
-  const [, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const hasQuery = deferredSearch.trim().length > 0
-  const isStale = search !== deferredSearch
+  const hasQuery = search.trim().length > 0
 
-  const { globalCommands, sessionCommands, sessionsToRender } = useMemo(
-    () =>
-      buildCommandPaletteViewModel({
-        commands,
-        sessions,
-        hasQuery,
-      }),
-    [commands, hasQuery, sessions],
+  const globalCommands = useMemo(
+    () => commands.filter((command) => !isSessionCommand(command.id)),
+    [commands],
+  )
+  const sessionCommands = useMemo(
+    () => commands.filter((command) => isSessionCommand(command.id)),
+    [commands],
+  )
+  const sessionsToRender = useMemo(
+    () => (hasQuery ? sessions.slice(0, MAX_VISIBLE_SESSIONS) : []),
+    [hasQuery, sessions],
   )
 
   const handleValueChange = useCallback((value: string) => {
-    startTransition(() => {
-      setSearch(value)
-    })
+    setSearch(value)
   }, [])
 
   useEffect(() => {
@@ -85,6 +100,7 @@ export function CommandPalette({
     <Command.Dialog
       open={open}
       onOpenChange={onOpenChange}
+      filter={substringFilter}
       label="Command palette"
       loop={true}
       overlayClassName="fixed inset-0 z-40 bg-fd-overlay/95 backdrop-blur-[12px] animate-in fade-in-0 duration-150"
@@ -100,15 +116,7 @@ export function CommandPalette({
         {/* Search input */}
         <div className="relative flex items-center gap-3 border-b border-fd-border-subtle px-4 py-3">
           <div className="relative flex size-5 shrink-0 items-center justify-center">
-            <Search
-              className={cn(
-                'size-[15px] transition-colors duration-150',
-                isStale ? 'text-fd-ember-400' : 'text-fd-tertiary',
-              )}
-            />
-            {isStale && (
-              <div className="absolute inset-0 animate-ping rounded-full bg-fd-ember-400/20" />
-            )}
+            <Search className="size-[15px] text-fd-tertiary transition-colors duration-150" />
           </div>
           <Command.Input
             ref={inputRef}

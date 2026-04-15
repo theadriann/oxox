@@ -10,25 +10,6 @@ import {
 } from 'lucide-react'
 
 import type { CommandPaletteAction } from '../components/command-palette/CommandPalette'
-import type { SessionPreview } from '../stores/SessionStore'
-
-const MAX_VISIBLE_SESSIONS = 50
-
-const SESSION_COMMAND_IDS = new Set([
-  'attach-session',
-  'detach-session',
-  'copy-session-id',
-  'rename-session',
-  'rewind-session',
-  'fork-session',
-  'compact-session',
-])
-
-interface BuildCommandPaletteViewModelOptions {
-  commands: CommandPaletteAction[]
-  sessions: SessionPreview[]
-  hasQuery: boolean
-}
 
 interface BuildCommandPaletteActionsOptions {
   canAttachSelectedSession: boolean
@@ -46,22 +27,6 @@ interface BuildCommandPaletteActionsOptions {
   selectedLiveSession: unknown
   selectedSession: { status?: string } | undefined
   selectedSessionId: string
-}
-
-export function isSessionCommand(id: string): boolean {
-  return SESSION_COMMAND_IDS.has(id) || id.startsWith('plugin-capability:')
-}
-
-export function buildCommandPaletteViewModel({
-  commands,
-  sessions,
-  hasQuery,
-}: BuildCommandPaletteViewModelOptions) {
-  return {
-    globalCommands: commands.filter((command) => !isSessionCommand(command.id)),
-    sessionCommands: commands.filter((command) => isSessionCommand(command.id)),
-    sessionsToRender: hasQuery ? sessions.slice(0, MAX_VISIBLE_SESSIONS) : [],
-  }
 }
 
 export function buildCommandPaletteActions({
@@ -200,5 +165,3 @@ export function buildCommandPaletteActions({
     },
   ]
 }
-
-export { MAX_VISIBLE_SESSIONS }
