@@ -120,7 +120,7 @@ export function ModelSelector({
           aria-label="Model selector"
           type="button"
           disabled={disabled}
-          className="flex h-7 min-w-0 max-w-[200px] items-center gap-1 rounded-[min(var(--radius-md),10px)] border border-input bg-transparent px-2 text-[11px] text-fd-tertiary outline-none transition-colors select-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-transparent"
+          className="flex h-7 min-w-0 max-w-[320px] items-center gap-1 rounded-[min(var(--radius-md),10px)] border border-input bg-transparent px-2 text-[11px] text-fd-tertiary outline-none transition-colors select-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-transparent"
         >
           <span className="truncate font-mono">
             {selectedModel?.name ?? selectedModelId ?? 'Select model...'}
@@ -130,7 +130,7 @@ export function ModelSelector({
       </DialogTrigger>
       <DialogContent
         showCloseButton={false}
-        className="max-w-md gap-0 overflow-hidden p-0"
+        className="w-[min(94vw,820px)] max-w-[820px] gap-0 overflow-hidden p-0"
         onOpenAutoFocus={(e) => {
           e.preventDefault()
           inputRef.current?.focus()
@@ -161,7 +161,7 @@ export function ModelSelector({
           </div>
         </DialogHeader>
 
-        <div className="max-h-[360px] overflow-y-auto px-2 pt-2 pb-2">
+        <div className="max-h-[420px] overflow-y-auto px-3 pt-2 pb-3">
           {filteredGroups.length === 0 ? (
             <div className="py-8 text-center text-xs text-fd-tertiary">
               No models match your search
@@ -182,7 +182,7 @@ export function ModelSelector({
                       <button
                         key={model.id}
                         type="button"
-                        className={`flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors ${
+                        className={`flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors ${
                           isSelected
                             ? 'bg-fd-ember-400/10 text-fd-primary'
                             : 'text-fd-secondary hover:bg-fd-surface hover:text-fd-primary'
@@ -190,7 +190,9 @@ export function ModelSelector({
                         onClick={() => handleSelect(model.id)}
                       >
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="truncate text-[13px] leading-tight">{model.name}</span>
+                          <span className="text-[13px] leading-tight break-words">
+                            {model.name}
+                          </span>
                           <span className="truncate font-mono text-[10px] leading-tight text-fd-tertiary">
                             {model.id}
                           </span>
