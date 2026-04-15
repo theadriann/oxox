@@ -14,7 +14,7 @@ pnpm-debug.log*
 *.db-*
 *.sqlite
 *.sqlite3
-release/
+/release/
 tsconfig.web.tsbuildinfo
 tsconfig.node.tsbuildinfo
 package-mac-signed.sh

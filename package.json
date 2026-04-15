@@ -1,6 +1,6 @@
 {
   "name": "oxox",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
@@ -16,6 +16,11 @@
     "dist:mac:arm64": "pnpm run build && electron-builder --mac --arm64",
     "dist:mac:all": "pnpm run build && electron-builder --mac --x64 && electron-builder --mac --arm64",
     "release:version": "changeset version",
+    "release:validate": "pnpm lint && pnpm typecheck && pnpm test",
+    "release:metadata:mac": "node scripts/release/update-mac-release-metadata.mjs",
+    "release:artifacts": "./package-mac-signed.sh dist:mac:all && pnpm run release:metadata:mac",
+    "release:tag": "node scripts/release/create-version-tag.mjs",
+    "release:github": "node scripts/release/create-github-release.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "biome check .",
@@ -94,6 +99,7 @@
   },
   "build": {
     "appId": "com.theadriann.oxox",
+    "electronUpdaterCompatibility": ">=2.16",
     "productName": "OXOX",
     "directories": {
       "buildResources": "build",

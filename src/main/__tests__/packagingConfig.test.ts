@@ -9,6 +9,7 @@ type PackageJson = {
   devDependencies?: Record<string, string | undefined>
   build?: {
     appId?: string
+    electronUpdaterCompatibility?: string
     productName?: string
     directories?: {
       buildResources?: string
@@ -59,6 +60,19 @@ describe('packaging configuration', () => {
     expect(packageJson.scripts?.['dist:mac:all']).toBe(
       'pnpm run build && electron-builder --mac --x64 && electron-builder --mac --arm64',
     )
+    expect(packageJson.scripts?.['release:validate']).toBe(
+      'pnpm lint && pnpm typecheck && pnpm test',
+    )
+    expect(packageJson.scripts?.['release:metadata:mac']).toBe(
+      'node scripts/release/update-mac-release-metadata.mjs',
+    )
+    expect(packageJson.scripts?.['release:artifacts']).toBe(
+      './package-mac-signed.sh dist:mac:all && pnpm run release:metadata:mac',
+    )
+    expect(packageJson.scripts?.['release:tag']).toBe('node scripts/release/create-version-tag.mjs')
+    expect(packageJson.scripts?.['release:github']).toBe(
+      'node scripts/release/create-github-release.mjs',
+    )
     expect(packageJson.scripts?.package).not.toContain('--publish')
     expect(packageJson.scripts?.dist).not.toContain('--publish')
     expect(packageJson.scripts?.['dist:mac:all']).not.toContain('--publish')
@@ -67,6 +81,7 @@ describe('packaging configuration', () => {
   it('uses committed build resources, GitHub publish metadata, and hardened-runtime notarization settings', () => {
     expect(packageJson.build).toMatchObject({
       appId: 'com.theadriann.oxox',
+      electronUpdaterCompatibility: '>=2.16',
       productName: 'OXOX',
       directories: {
         buildResources: 'build',
