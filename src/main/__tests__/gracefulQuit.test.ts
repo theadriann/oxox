@@ -71,6 +71,25 @@ describe('createGracefulQuitController', () => {
     await Promise.resolve()
   })
 
+  it('marks the app as quitting before async cleanup finishes so explicit quits can close windows', () => {
+    const deferred = createDeferred()
+    const controller = createGracefulQuitController({
+      detachActiveSessions: vi.fn().mockReturnValue(deferred.promise),
+      persistOpenWindows: vi.fn(),
+      stopKernel: vi.fn().mockResolvedValue(undefined),
+      quitApp: vi.fn(),
+      onError: vi.fn(),
+    })
+    const event = {
+      preventDefault: vi.fn(),
+    }
+
+    controller.handleBeforeQuit(event)
+
+    expect(event.preventDefault).toHaveBeenCalledTimes(1)
+    expect(controller.isQuitting()).toBe(true)
+  })
+
   it('reports cleanup failures, resets in-flight state, and allows retry', async () => {
     const onError = vi.fn()
     const detachActiveSessions = vi

@@ -31,18 +31,18 @@ export function createGracefulQuitController({
       await detachActiveSessions()
       persistOpenWindows()
       await stopKernel()
-      quitting = true
       inFlight = false
       quitApp()
     } catch (error) {
       inFlight = false
+      quitting = false
       onError(error)
     }
   }
 
   return {
     handleBeforeQuit: (event) => {
-      if (quitting) {
+      if (quitting && !inFlight) {
         return
       }
 
@@ -52,6 +52,7 @@ export function createGracefulQuitController({
         return
       }
 
+      quitting = true
       inFlight = true
       void runGracefulQuit()
     },
