@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AppUpdateState } from '../../shared/ipc/contracts'
-import { createAppUpdater } from '../updater/appUpdater'
+import { createAppUpdater, resolveAutoUpdater } from '../updater/appUpdater'
 
 class MockAutoUpdater extends EventEmitter {
   autoDownload = false
@@ -12,6 +12,16 @@ class MockAutoUpdater extends EventEmitter {
 }
 
 describe('createAppUpdater', () => {
+  it('resolves autoUpdater from a CommonJS-style default export wrapper', () => {
+    const updater = new MockAutoUpdater()
+
+    expect(
+      resolveAutoUpdater({
+        default: { autoUpdater: updater },
+      }),
+    ).toBe(updater)
+  })
+
   it('marks automatic updates unsupported for unpackaged runs', async () => {
     const updater = new MockAutoUpdater()
     const states: AppUpdateState[] = []

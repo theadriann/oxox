@@ -255,6 +255,7 @@ describe('ComposerStore', () => {
     expect(composerStore.selectedPreferences).toEqual({
       modelId: 'claude-3.7',
       interactionMode: 'spec',
+      reasoningEffort: '',
       autonomyLevel: 'medium',
     })
     expect(composerStore.selectedAvailableModels.map((model) => model.id)).toEqual([
@@ -281,6 +282,7 @@ describe('ComposerStore', () => {
     expect(composerStore.selectedPreferences).toEqual({
       modelId: 'gpt-5.4-mini',
       interactionMode: 'auto',
+      reasoningEffort: '',
       autonomyLevel: 'medium',
     })
     expect(composerStore.selectedAvailableModels.map((model) => model.id)).toEqual([
@@ -370,6 +372,7 @@ describe('ComposerStore', () => {
       'session-alpha': {
         modelId: 'claude-3.7',
         interactionMode: 'spec',
+        reasoningEffort: '',
         autonomyLevel: 'medium',
       },
     })
@@ -380,6 +383,7 @@ describe('ComposerStore', () => {
       'session-alpha': {
         modelId: 'claude-3.7',
         interactionMode: 'auto',
+        reasoningEffort: '',
         autonomyLevel: 'medium',
       },
     })
@@ -401,6 +405,7 @@ describe('ComposerStore', () => {
       'session-alpha': {
         modelId: 'claude-3.7',
         interactionMode: 'spec',
+        reasoningEffort: '',
         autonomyLevel: 'medium',
       },
     })
@@ -411,6 +416,7 @@ describe('ComposerStore', () => {
       'session-alpha': {
         modelId: 'claude-3.7',
         interactionMode: 'auto',
+        reasoningEffort: '',
         autonomyLevel: 'medium',
       },
     })
@@ -473,7 +479,6 @@ describe('ComposerStore', () => {
     expect(updateSettings).toHaveBeenCalledWith('session-alpha', {
       modelId: 'gpt-5.4-mini',
       interactionMode: 'spec',
-      reasoningEffort: '',
       autonomyLevel: 'medium',
     })
     expect(addUserMessage).toHaveBeenCalledWith('session-alpha', 'Ship it')
@@ -484,6 +489,7 @@ describe('ComposerStore', () => {
     expect(composerStore.preferencesBySessionId['session-alpha']).toEqual({
       modelId: 'gpt-5.4-mini',
       interactionMode: 'spec',
+      reasoningEffort: '',
       autonomyLevel: 'medium',
     })
     expect(liveSessionStore.selectedSnapshot?.title).toBe('Refreshed session')

@@ -35,7 +35,7 @@ describe('RewindWorkflowStore', () => {
   it('opens and closes the rewind dialog, resetting state', () => {
     const store = new RewindWorkflowStore(
       () => 'session-alpha',
-      () => ({ title: 'Alpha' }) as any,
+      () => ({ title: 'Alpha' }),
       createSessionApi(),
     )
 
@@ -67,7 +67,7 @@ describe('RewindWorkflowStore', () => {
     const getRewindInfo = vi.fn().mockResolvedValue(createRewindInfo())
     const store = new RewindWorkflowStore(
       () => 'session-alpha',
-      () => ({ title: 'Alpha' }) as any,
+      () => ({ title: 'Alpha' }),
       createSessionApi({ getRewindInfo }),
     )
 
@@ -93,7 +93,7 @@ describe('RewindWorkflowStore', () => {
     const onRewound = vi.fn().mockResolvedValue(undefined)
     const store = new RewindWorkflowStore(
       () => 'session-alpha',
-      () => ({ title: 'Alpha' }) as any,
+      () => ({ title: 'Alpha' }),
       createSessionApi({ executeRewind }),
       onRewound,
     )
@@ -120,7 +120,7 @@ describe('RewindWorkflowStore', () => {
     const executeRewind = vi.fn().mockRejectedValue(new Error('Rewind failed'))
     const store = new RewindWorkflowStore(
       () => 'session-alpha',
-      () => ({ title: 'Alpha' }) as any,
+      () => ({ title: 'Alpha' }),
       createSessionApi({ executeRewind }),
     )
 
@@ -136,7 +136,7 @@ describe('RewindWorkflowStore', () => {
   it('toggles restore and delete file selections', () => {
     const store = new RewindWorkflowStore(
       () => 'session-alpha',
-      () => ({ title: 'Alpha' }) as any,
+      () => ({ title: 'Alpha' }),
       createSessionApi(),
     )
 

@@ -3,10 +3,7 @@
  * Used to display meaningful info in accordion titles (e.g. command, file path, skill name).
  */
 
-export function getToolContextLabel(
-  toolName: string,
-  inputMarkdown: string | null,
-): string | null {
+export function getToolContextLabel(toolName: string, inputMarkdown: string | null): string | null {
   if (!inputMarkdown) return null
 
   const parsed = parseInputJson(inputMarkdown)

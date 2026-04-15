@@ -27,7 +27,7 @@ describe('PermissionResolutionStore', () => {
     )
     const onRefreshSnapshot = vi.fn().mockResolvedValue(undefined)
     const store = new PermissionResolutionStore(
-      () => ({ sessionId: 'session-alpha' }) as any,
+      () => ({ sessionId: 'session-alpha' }),
       createSessionApi({ resolvePermissionRequest }),
       onRefreshSnapshot,
     )
@@ -36,7 +36,8 @@ describe('PermissionResolutionStore', () => {
 
     expect(store.pendingPermissionRequestIds).toEqual(['perm-1'])
 
-    resolveCall!()
+    expect(resolveCall).not.toBeNull()
+    resolveCall?.()
     await promise
 
     expect(resolvePermissionRequest).toHaveBeenCalledWith('session-alpha', 'perm-1', 'approve')
@@ -55,7 +56,7 @@ describe('PermissionResolutionStore', () => {
     const answers: LiveSessionAskUserAnswerRecord[] = [{ index: 0, question: 'Q?', answer: 'A' }]
     const onRefreshSnapshot = vi.fn().mockResolvedValue(undefined)
     const store = new PermissionResolutionStore(
-      () => ({ sessionId: 'session-alpha' }) as any,
+      () => ({ sessionId: 'session-alpha' }),
       createSessionApi({ resolveAskUser }),
       onRefreshSnapshot,
     )
@@ -64,7 +65,8 @@ describe('PermissionResolutionStore', () => {
 
     expect(store.pendingAskUserRequestIds).toEqual(['ask-1'])
 
-    resolveCall!()
+    expect(resolveCall).not.toBeNull()
+    resolveCall?.()
     await promise
 
     expect(resolveAskUser).toHaveBeenCalledWith('session-alpha', 'ask-1', answers)
@@ -74,7 +76,7 @@ describe('PermissionResolutionStore', () => {
   it('surfaces errors from permission resolution', async () => {
     const resolvePermissionRequest = vi.fn().mockRejectedValue(new Error('Denied'))
     const store = new PermissionResolutionStore(
-      () => ({ sessionId: 'session-alpha' }) as any,
+      () => ({ sessionId: 'session-alpha' }),
       createSessionApi({ resolvePermissionRequest }),
     )
 

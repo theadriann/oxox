@@ -288,7 +288,9 @@ export class ComposerStore {
         reasoningEffort: resolveReasoningEffort(
           nextPreferences.modelId,
           nextPreferences.reasoningEffort,
-          snapshot?.availableModels?.length ? snapshot.availableModels : this.foundationStore.factoryModels,
+          snapshot?.availableModels?.length
+            ? snapshot.availableModels
+            : this.foundationStore.factoryModels,
         ),
       },
     }

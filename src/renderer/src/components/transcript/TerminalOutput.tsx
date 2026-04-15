@@ -1,7 +1,10 @@
 import { Check, Copy, Terminal } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 
-const ANSI_REGEX = /\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[^[\]]/gu
+const ANSI_REGEX = new RegExp(
+  String.raw`\u001b\[[0-9;]*[A-Za-z]|\u001b\][^\u0007]*\u0007|\u001b[^[\]]`,
+  'gu',
+)
 
 export function stripAnsi(text: string): string {
   return text.replace(ANSI_REGEX, '')

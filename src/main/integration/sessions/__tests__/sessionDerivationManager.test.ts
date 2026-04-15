@@ -220,7 +220,8 @@ describe('SessionDerivationManager', () => {
     expect(snapshot.availableModels).toEqual([
       {
         id: 'gpt-5.4',
-        name: 'gpt-5.4',
+        name: 'GPT 5.4',
+        provider: 'openai',
       },
     ])
   })

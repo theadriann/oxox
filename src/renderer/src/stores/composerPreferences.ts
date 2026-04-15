@@ -143,10 +143,7 @@ export function resolveReasoningEffort(
     return reasoningEffort
   }
 
-  return firstNonEmptyString(
-    selectedModel?.defaultReasoningEffort,
-    supportedReasoningEfforts[0],
-  )
+  return firstNonEmptyString(selectedModel?.defaultReasoningEffort, supportedReasoningEfforts[0])
 }
 
 function mergeModelLists(

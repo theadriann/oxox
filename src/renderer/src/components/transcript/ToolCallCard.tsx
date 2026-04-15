@@ -4,8 +4,8 @@ import { memo, useMemo } from 'react'
 import type { TranscriptToolCallEntry } from '../../../../shared/ipc/contracts'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { TerminalOutput } from './TerminalOutput'
-import { EditDiffView, PatchDiffPreview } from './ToolCallDiffView'
 import { TodoWriteView } from './TodoWriteView'
+import { EditDiffView, PatchDiffPreview } from './ToolCallDiffView'
 import { getToolContextLabel } from './toolContextLabel'
 import { WebSearchView } from './WebSearchView'
 
@@ -171,13 +171,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-function DiffResultStatus({
-  isError,
-  hasResult,
-}: {
-  isError: boolean
-  hasResult: boolean
-}) {
+function DiffResultStatus({ isError, hasResult }: { isError: boolean; hasResult: boolean }) {
   if (!hasResult) return null
 
   if (isError) {

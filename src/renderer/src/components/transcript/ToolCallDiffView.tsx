@@ -1,6 +1,6 @@
-import { MultiFileDiff } from '@pierre/diffs/react'
 import type { FileContents } from '@pierre/diffs'
-import { FileCode2, Plus, Minus } from 'lucide-react'
+import { MultiFileDiff } from '@pierre/diffs/react'
+import { FileCode2, Minus, Plus } from 'lucide-react'
 import { useMemo } from 'react'
 
 interface EditDiffViewProps {
@@ -73,9 +73,7 @@ export function PatchDiffPreview({ patchText, summary, isError }: PatchDiffPrevi
       <div className="flex items-center gap-2 px-1">
         <span
           className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-            isError
-              ? 'bg-rose-500/10 text-rose-300'
-              : 'bg-emerald-500/10 text-emerald-300'
+            isError ? 'bg-rose-500/10 text-rose-300' : 'bg-emerald-500/10 text-emerald-300'
           }`}
         >
           {summary}

@@ -1,4 +1,4 @@
-import { autoUpdater } from 'electron-updater'
+import electronUpdater from 'electron-updater'
 
 import type { AppUpdateState } from '../../shared/ipc/contracts'
 
@@ -34,6 +34,13 @@ interface CreateAppUpdaterOptions {
   onStateChanged?: (state: AppUpdateState) => void
 }
 
+interface AutoUpdaterModuleLike {
+  autoUpdater?: AutoUpdaterLike
+  default?: {
+    autoUpdater?: AutoUpdaterLike
+  }
+}
+
 const CHECKING_MESSAGE = 'Checking for updates…'
 const DOWNLOADING_MESSAGE = 'Downloading update…'
 const READY_MESSAGE = 'Restart to install update.'
@@ -42,7 +49,7 @@ const UNSUPPORTED_MESSAGE = 'Automatic updates are only available in packaged bu
 
 export function createAppUpdater({
   appVersion,
-  autoUpdater: providedAutoUpdater = autoUpdater,
+  autoUpdater: providedAutoUpdater = resolveAutoUpdater(electronUpdater),
   isPackaged,
   onStateChanged,
 }: CreateAppUpdaterOptions): AppUpdater {
@@ -212,6 +219,16 @@ export function createAppUpdater({
       listenersRegistered = false
     },
   }
+}
+
+export function resolveAutoUpdater(module: AutoUpdaterModuleLike): AutoUpdaterLike {
+  const resolvedAutoUpdater = module.autoUpdater ?? module.default?.autoUpdater
+
+  if (!resolvedAutoUpdater) {
+    throw new Error('Unable to resolve electron-updater autoUpdater export.')
+  }
+
+  return resolvedAutoUpdater
 }
 
 function normalizePercent(value: number | null | undefined): number | null {

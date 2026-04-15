@@ -250,9 +250,7 @@ export function SessionComposer({
               <SelectContent position="popper" sideOffset={6} className="min-w-[110px]">
                 {reasoningEffortOptions.map((effort) => (
                   <SelectItem key={effort} value={effort}>
-                    <span className="text-xs">
-                      {REASONING_LABELS[effort] ?? effort}
-                    </span>
+                    <span className="text-xs">{REASONING_LABELS[effort] ?? effort}</span>
                   </SelectItem>
                 ))}
               </SelectContent>

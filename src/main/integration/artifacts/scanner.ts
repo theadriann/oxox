@@ -252,7 +252,10 @@ function deriveSnapshot(
       createdAt,
     ) ?? fallbackTimestamp
 
-  const parentId = firstDefinedString(startRecord.payload.callingSessionId, startRecord.payload.parent)
+  const parentId = firstDefinedString(
+    startRecord.payload.callingSessionId,
+    startRecord.payload.parent,
+  )
   const lineageRelationship = startRecord.payload.callingSessionId ? 'subagent' : 'fork'
 
   return {

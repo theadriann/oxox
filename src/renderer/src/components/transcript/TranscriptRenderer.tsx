@@ -258,12 +258,7 @@ function LiveTranscriptView({
   }, [scrollContextKey])
 
   useLayoutEffect(() => {
-    if (
-      !autoScrollRef.current ||
-      items.length === 0 ||
-      latestTimelineMarker.length === 0
-    )
-      return
+    if (!autoScrollRef.current || items.length === 0 || latestTimelineMarker.length === 0) return
 
     if (prevTimelineMarkerRef.current === latestTimelineMarker) return
     prevTimelineMarkerRef.current = latestTimelineMarker
@@ -275,12 +270,7 @@ function LiveTranscriptView({
     scrollTo(el, targetTop)
     virtualizer.scrollToIndex(Math.max(items.length - 1, 0))
     isAtBottomRef.current = isScrolledToBottom(el)
-  }, [
-    estimatedTotalHeight,
-    items.length,
-    latestTimelineMarker,
-    virtualizer,
-  ])
+  }, [estimatedTotalHeight, items.length, latestTimelineMarker, virtualizer])
 
   useLayoutEffect(() => {
     if (scrollToBottomSignal === 0) return
@@ -467,7 +457,8 @@ function HistoricalTranscriptView({
   }, [scrollContextKey])
 
   useLayoutEffect(() => {
-    if (!autoScrollRef.current || !hasTranscript) return
+    const latestRenderedRow = rowsToRender.at(-1)
+    if (!autoScrollRef.current || !hasTranscript || !latestRenderedRow) return
 
     // After initial scroll-to-bottom succeeds, stop re-scrolling on
     // virtualizer re-measurements so the user can scroll freely.
@@ -484,13 +475,7 @@ function HistoricalTranscriptView({
     if (el.scrollHeight > el.clientHeight) {
       initialScrollDoneRef.current = true
     }
-  }, [
-    estimatedTotalHeight,
-    hasTranscript,
-    items.length,
-    rowsToRender,
-    virtualizer,
-  ])
+  }, [estimatedTotalHeight, hasTranscript, items.length, rowsToRender, virtualizer])
 
   useLayoutEffect(() => {
     if (scrollToBottomSignal === 0) return
@@ -615,7 +600,10 @@ function HistoricalTranscriptView({
           </div>
         )}
       </div>
-      <JumpToLatestButton visible={showJumpButton && hasTranscript} onClick={handleScrollToLatest} />
+      <JumpToLatestButton
+        visible={showJumpButton && hasTranscript}
+        onClick={handleScrollToLatest}
+      />
     </section>
   )
 }

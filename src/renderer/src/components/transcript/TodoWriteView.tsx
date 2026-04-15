@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
 import { memo, useMemo } from 'react'
 
-import { type TodoItem, type TodoStatus, parseTodoItems } from './todoParser'
+import { parseTodoItems, type TodoItem, type TodoStatus } from './todoParser'
 
 interface TodoWriteViewProps {
   inputMarkdown: string | null
@@ -21,10 +21,7 @@ export const TodoWriteView = memo(function TodoWriteView({ inputMarkdown }: Todo
   return (
     <div className="flex flex-col py-1">
       {items.map((item) => (
-        <div
-          key={item.index}
-          className="flex items-start gap-2 px-3 py-1"
-        >
+        <div key={item.index} className="flex items-start gap-2 px-3 py-1">
           <span className="mt-px shrink-0">{statusIcon[item.status]}</span>
           <span
             className={`text-[12px] leading-snug ${

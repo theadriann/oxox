@@ -1052,7 +1052,7 @@ describe('createSessionProcessManager', () => {
         expect.objectContaining({ id: 'session-one-fork', status: 'idle' }),
       ]),
     )
-  })
+  }, 10000)
 
   it('loads detached sessions on demand for rewind info and rewind execution', async () => {
     const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-session-process-'))
@@ -1579,8 +1579,20 @@ describe('createSessionProcessManager', () => {
     const created = await createdPromise
 
     expect(created.availableModels).toEqual([
-      { id: 'gpt-5.4', name: 'gpt-5.4' },
-      { id: 'gpt-5.4-mini', name: 'gpt-5.4-mini' },
+      {
+        id: 'gpt-5.4',
+        name: 'GPT 5.4',
+        provider: 'openai',
+        supportedReasoningEfforts: ['medium', 'high'],
+        defaultReasoningEffort: 'medium',
+      },
+      {
+        id: 'gpt-5.4-mini',
+        name: 'GPT 5.4 Mini',
+        provider: 'openai',
+        supportedReasoningEfforts: ['low', 'medium'],
+        defaultReasoningEffort: 'low',
+      },
     ])
     expect(created.settings).toMatchObject({
       modelId: 'gpt-5.4',

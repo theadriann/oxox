@@ -19,7 +19,7 @@ describe('RenameWorkflowStore', () => {
   it('opens and closes the rename dialog', () => {
     const store = new RenameWorkflowStore(
       () => 'session-alpha',
-      () => ({ title: 'Alpha session' }) as any,
+      () => ({ title: 'Alpha session' }),
       createSessionApi(),
     )
 
@@ -51,7 +51,7 @@ describe('RenameWorkflowStore', () => {
     const onRenamed = vi.fn().mockResolvedValue(undefined)
     const store = new RenameWorkflowStore(
       () => 'session-alpha',
-      () => ({ title: 'Alpha session' }) as any,
+      () => ({ title: 'Alpha session' }),
       createSessionApi({ renameViaDaemon }),
       onRenamed,
     )
@@ -70,7 +70,7 @@ describe('RenameWorkflowStore', () => {
     const renameViaDaemon = vi.fn().mockRejectedValue(new Error('Rename failed'))
     const store = new RenameWorkflowStore(
       () => 'session-alpha',
-      () => ({ title: 'Alpha' }) as any,
+      () => ({ title: 'Alpha' }),
       createSessionApi({ renameViaDaemon }),
     )
 

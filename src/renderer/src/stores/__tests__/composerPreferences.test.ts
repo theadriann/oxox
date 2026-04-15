@@ -42,7 +42,12 @@ describe('readPersistedComposerPreferences', () => {
     })
 
     expect(readPersistedComposerPreferences(persistence)).toEqual({
-      'session-1': { modelId: 'claude-3.7', interactionMode: 'spec', autonomyLevel: 'medium' },
+      'session-1': {
+        modelId: 'claude-3.7',
+        interactionMode: 'spec',
+        reasoningEffort: '',
+        autonomyLevel: 'medium',
+      },
     })
   })
 
@@ -111,7 +116,15 @@ describe('deriveComposerPreferences', () => {
       null,
       persisted,
       createBootstrap().factoryDefaultSettings,
-      createBootstrap().factoryModels,
+      [
+        {
+          id: 'claude-3.7',
+          name: 'Claude 3.7 Sonnet',
+          supportedReasoningEfforts: ['medium', 'high'],
+          defaultReasoningEffort: 'medium',
+        },
+        ...createBootstrap().factoryModels,
+      ],
     )
 
     expect(prefs).toEqual({

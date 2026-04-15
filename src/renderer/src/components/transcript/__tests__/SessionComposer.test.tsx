@@ -35,7 +35,7 @@ function ControlledComposer({
     modelId: string
     interactionMode: string
     autonomyLevel: string
-      reasoningEffort?: string
+    reasoningEffort?: string
   }) => void
   composerContextUsage?: ComposerContextUsageState | null
   composerContextUsageDisplayMode?: 'percentage' | 'tokens'
@@ -107,12 +107,7 @@ describe('SessionComposer', () => {
     expect(screen.getByRole('combobox', { name: /Reasoning effort selector/i })).toBeTruthy()
 
     rerender(
-      <ControlledComposer
-        availableModels={[
-          { id: 'custom:model-1', name: 'Custom model' },
-          { id: 'gpt-5.4', name: 'GPT 5.4', supportedReasoningEfforts: ['medium', 'high'] },
-        ]}
-      />,
+      <ControlledComposer availableModels={[{ id: 'gpt-5.4-mini', name: 'GPT 5.4 Mini' }]} />,
     )
 
     expect(screen.queryByRole('combobox', { name: /Reasoning effort selector/i })).toBeNull()
