@@ -1,6 +1,7 @@
 import { Check, Copy, Terminal } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 
+// biome-ignore lint/complexity/useRegexLiterals: the escaped constructor form avoids control-character lint noise here
 const ANSI_REGEX = new RegExp(
   String.raw`\u001b\[[0-9;]*[A-Za-z]|\u001b\][^\u0007]*\u0007|\u001b[^[\]]`,
   'gu',

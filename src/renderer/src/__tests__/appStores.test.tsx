@@ -7,8 +7,18 @@ import App from '../App'
 import { ComposerStore } from '../stores/ComposerStore'
 import { FoundationStore } from '../stores/FoundationStore'
 import { LiveSessionStore } from '../stores/LiveSessionStore'
+import { RootStore } from '../stores/RootStore'
 import { SessionStore } from '../stores/SessionStore'
-import { StoreProvider, useStores } from '../stores/StoreProvider'
+import {
+  StoreProvider,
+  useComposerStore,
+  useFoundationStore,
+  useLiveSessionStore,
+  useRootStore,
+  useSessionStore,
+  useStores,
+  useUIStore,
+} from '../stores/StoreProvider'
 import { TranscriptStore } from '../stores/TranscriptStore'
 import { TransportStore } from '../stores/TransportStore'
 import { UIStore } from '../stores/UIStore'
@@ -41,6 +51,44 @@ function StoreProbe() {
       <div>
         <dt>transport</dt>
         <dd>{String(transportStore instanceof TransportStore)}</dd>
+      </div>
+      <div>
+        <dt>ui</dt>
+        <dd>{String(uiStore instanceof UIStore)}</dd>
+      </div>
+      <div>
+        <dt>foundation</dt>
+        <dd>{String(foundationStore instanceof FoundationStore)}</dd>
+      </div>
+      <div>
+        <dt>live-session</dt>
+        <dd>{String(liveSessionStore instanceof LiveSessionStore)}</dd>
+      </div>
+      <div>
+        <dt>composer</dt>
+        <dd>{String(composerStore instanceof ComposerStore)}</dd>
+      </div>
+    </dl>
+  )
+}
+
+function SpecificStoreHooksProbe() {
+  const rootStore = useRootStore()
+  const sessionStore = useSessionStore()
+  const uiStore = useUIStore()
+  const foundationStore = useFoundationStore()
+  const liveSessionStore = useLiveSessionStore()
+  const composerStore = useComposerStore()
+
+  return (
+    <dl>
+      <div>
+        <dt>root</dt>
+        <dd>{String(rootStore instanceof RootStore)}</dd>
+      </div>
+      <div>
+        <dt>session</dt>
+        <dd>{String(sessionStore instanceof SessionStore)}</dd>
       </div>
       <div>
         <dt>ui</dt>
@@ -191,6 +239,16 @@ describe('renderer store providers and sidebar shell', () => {
     )
 
     expect(screen.getAllByText('true', { selector: 'dd' })).toHaveLength(7)
+  })
+
+  it('exposes focused store hooks for leaf components that should avoid broad context destructuring', () => {
+    render(
+      <StoreProvider>
+        <SpecificStoreHooksProbe />
+      </StoreProvider>,
+    )
+
+    expect(screen.getAllByText('true', { selector: 'dd' })).toHaveLength(6)
   })
 
   it('renders project-grouped sessions with tooltips and sorted groups', async () => {

@@ -166,8 +166,8 @@ function parsePatchToFiles(patchText: string): PatchFilePreview[] {
   const flushContext = () => {
     if (!currentFile || contextLines.length === 0) return
     // Context lines belong to both old and new
-    currentFile.oldContent += contextLines.join('\n') + '\n'
-    currentFile.newContent += contextLines.join('\n') + '\n'
+    currentFile.oldContent += `${contextLines.join('\n')}\n`
+    currentFile.newContent += `${contextLines.join('\n')}\n`
     contextLines = []
   }
 
@@ -224,15 +224,15 @@ function parsePatchToFiles(patchText: string): PatchFilePreview[] {
     if (prefix === '+') {
       flushContext()
       currentFile.addedCount += 1
-      currentFile.newContent += content + '\n'
+      currentFile.newContent += `${content}\n`
     } else if (prefix === '-') {
       flushContext()
       currentFile.removedCount += 1
-      currentFile.oldContent += content + '\n'
+      currentFile.oldContent += `${content}\n`
     } else if (prefix === ' ') {
       flushContext()
-      currentFile.oldContent += content + '\n'
-      currentFile.newContent += content + '\n'
+      currentFile.oldContent += `${content}\n`
+      currentFile.newContent += `${content}\n`
     } else {
       // Treat as context
       contextLines.push(line)

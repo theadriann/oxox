@@ -1,9 +1,9 @@
 import { observer } from 'mobx-react-lite'
 
-import { useStores } from '../../stores/StoreProvider'
+import { useUIStore } from '../../stores/StoreProvider'
 
 export const GeneralSettings = observer(function GeneralSettings() {
-  const { uiStore } = useStores()
+  const uiStore = useUIStore()
 
   return (
     <div className="flex flex-col gap-6">

@@ -1,7 +1,12 @@
 import { observer } from 'mobx-react-lite'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 
-import { useStores } from '../../stores/StoreProvider'
+import {
+  useFoundationStore,
+  useLiveSessionStore,
+  useSessionStore,
+  useUIStore,
+} from '../../stores/StoreProvider'
 import { ContextPanel } from './ContextPanel'
 import { buildContextPanelProps } from './contextPanelSelectors'
 
@@ -16,7 +21,10 @@ export const ContextPanelConnected = observer(function ContextPanelConnected({
   onResizeStart,
   panelRef,
 }: ContextPanelConnectedProps) {
-  const { foundationStore, liveSessionStore, sessionStore, uiStore } = useStores()
+  const foundationStore = useFoundationStore()
+  const liveSessionStore = useLiveSessionStore()
+  const sessionStore = useSessionStore()
+  const uiStore = useUIStore()
   const props = buildContextPanelProps({
     foundationStore,
     liveSessionStore,

@@ -13,7 +13,7 @@ import {
   useState,
   useTransition,
 } from 'react'
-
+import { buildCommandPaletteViewModel } from '../../hooks/commandPaletteSelectors'
 import { cn } from '../../lib/utils'
 import type { SessionPreview } from '../../stores/SessionStore'
 
@@ -36,8 +36,6 @@ export interface CommandPaletteProps {
   onSelectSession: (sessionId: string) => void
 }
 
-const MAX_VISIBLE_SESSIONS = 50
-
 export function CommandPalette({
   open,
   commands,
@@ -52,13 +50,15 @@ export function CommandPalette({
   const hasQuery = deferredSearch.trim().length > 0
   const isStale = search !== deferredSearch
 
-  const sessionsToRender = useMemo(
-    () => (hasQuery ? sessions.slice(0, MAX_VISIBLE_SESSIONS) : []),
-    [hasQuery, sessions],
+  const { globalCommands, sessionCommands, sessionsToRender } = useMemo(
+    () =>
+      buildCommandPaletteViewModel({
+        commands,
+        sessions,
+        hasQuery,
+      }),
+    [commands, hasQuery, sessions],
   )
-
-  const globalCommands = useMemo(() => commands.filter((c) => !isSessionCommand(c.id)), [commands])
-  const sessionCommands = useMemo(() => commands.filter((c) => isSessionCommand(c.id)), [commands])
 
   const handleValueChange = useCallback((value: string) => {
     startTransition(() => {
@@ -134,67 +134,17 @@ export function CommandPalette({
             </div>
           </Command.Empty>
 
-          {/* Global commands */}
-          {globalCommands.length > 0 && (
-            <Command.Group heading={<GroupLabel icon={Zap}>Quick actions</GroupLabel>}>
-              {globalCommands.map((command) => (
-                <PaletteItem
-                  key={command.id}
-                  value={command.label}
-                  keywords={command.keywords}
-                  disabled={command.disabled}
-                  onSelect={() => {
-                    if (command.disabled) return
-                    command.onSelect()
-                    if (command.closeOnSelect !== false) onOpenChange(false)
-                  }}
-                >
-                  <CommandItemIcon icon={command.icon} />
-                  <ItemContent label={command.label} hint={command.description} />
-                  <ItemTrail />
-                </PaletteItem>
-              ))}
-            </Command.Group>
-          )}
-
-          {/* Session commands */}
-          {sessionCommands.length > 0 && (
-            <Command.Group heading={<GroupLabel icon={Hash}>Session</GroupLabel>}>
-              {sessionCommands.map((command) => (
-                <PaletteItem
-                  key={command.id}
-                  value={command.label}
-                  keywords={command.keywords}
-                  disabled={command.disabled}
-                  onSelect={() => {
-                    if (command.disabled) return
-                    command.onSelect()
-                    if (command.closeOnSelect !== false) onOpenChange(false)
-                  }}
-                >
-                  <CommandItemIcon icon={command.icon} />
-                  <ItemContent label={command.label} hint={command.description} />
-                  <ItemTrail />
-                </PaletteItem>
-              ))}
-            </Command.Group>
-          )}
-
-          {/* Sessions */}
-          {sessionsToRender.length > 0 && (
-            <Command.Group heading={<GroupLabel icon={FolderSearch}>Sessions</GroupLabel>}>
-              {sessionsToRender.map((session) => (
-                <SessionItem
-                  key={session.id}
-                  session={session}
-                  onSelect={() => {
-                    onSelectSession(session.id)
-                    onOpenChange(false)
-                  }}
-                />
-              ))}
-            </Command.Group>
-          )}
+          <CommandPaletteCommandGroups commands={globalCommands} onOpenChange={onOpenChange} />
+          <CommandPaletteCommandGroups
+            commands={sessionCommands}
+            heading={<GroupLabel icon={Hash}>Session</GroupLabel>}
+            onOpenChange={onOpenChange}
+          />
+          <CommandPaletteSessionResults
+            sessions={sessionsToRender}
+            onOpenChange={onOpenChange}
+            onSelectSession={onSelectSession}
+          />
         </Command.List>
 
         {/* Footer */}
@@ -216,6 +166,71 @@ export function CommandPalette({
     </Command.Dialog>
   )
 }
+
+const CommandPaletteCommandGroups = memo(function CommandPaletteCommandGroups({
+  commands,
+  heading = <GroupLabel icon={Zap}>Quick actions</GroupLabel>,
+  onOpenChange,
+}: {
+  commands: CommandPaletteAction[]
+  heading?: ReactNode
+  onOpenChange: (open: boolean) => void
+}) {
+  if (commands.length === 0) {
+    return null
+  }
+
+  return (
+    <Command.Group heading={heading}>
+      {commands.map((command) => (
+        <PaletteItem
+          key={command.id}
+          value={command.label}
+          keywords={command.keywords}
+          disabled={command.disabled}
+          onSelect={() => {
+            if (command.disabled) return
+            command.onSelect()
+            if (command.closeOnSelect !== false) onOpenChange(false)
+          }}
+        >
+          <CommandItemIcon icon={command.icon} />
+          <ItemContent label={command.label} hint={command.description} />
+          <ItemTrail />
+        </PaletteItem>
+      ))}
+    </Command.Group>
+  )
+})
+
+const CommandPaletteSessionResults = memo(function CommandPaletteSessionResults({
+  onOpenChange,
+  onSelectSession,
+  sessions,
+}: {
+  onOpenChange: (open: boolean) => void
+  onSelectSession: (sessionId: string) => void
+  sessions: SessionPreview[]
+}) {
+  if (sessions.length === 0) {
+    return null
+  }
+
+  return (
+    <Command.Group heading={<GroupLabel icon={FolderSearch}>Sessions</GroupLabel>}>
+      {sessions.map((session) => (
+        <SessionItem
+          key={session.id}
+          session={session}
+          onSelect={() => {
+            onSelectSession(session.id)
+            onOpenChange(false)
+          }}
+        />
+      ))}
+    </Command.Group>
+  )
+})
 
 function GroupLabel({ children, icon: Icon }: { children: string; icon: LucideIcon }) {
   return (
@@ -330,17 +345,4 @@ function Kbd({ children }: { children: ReactNode }) {
       {children}
     </kbd>
   )
-}
-
-const SESSION_COMMAND_IDS = new Set([
-  'attach-session',
-  'detach-session',
-  'copy-session-id',
-  'rename-session',
-  'rewind-session',
-  'fork-session',
-])
-
-function isSessionCommand(id: string): boolean {
-  return SESSION_COMMAND_IDS.has(id) || id.startsWith('plugin-capability:')
 }

@@ -47,7 +47,7 @@ export function StoreProvider({ children, rootStore }: StoreProviderProps) {
   return <StoreContext.Provider value={stores}>{children}</StoreContext.Provider>
 }
 
-export function useStores(): StoreContextValue {
+function useStoreContext(): StoreContextValue {
   const stores = useContext(StoreContext)
 
   if (!stores) {
@@ -55,4 +55,52 @@ export function useStores(): StoreContextValue {
   }
 
   return stores
+}
+
+export function useStores(): StoreContextValue {
+  return useStoreContext()
+}
+
+export function useRootStore(): StoreContextValue['rootStore'] {
+  return useStoreContext().rootStore
+}
+
+export function useComposerStore(): StoreContextValue['composerStore'] {
+  return useStoreContext().composerStore
+}
+
+export function useFoundationStore(): StoreContextValue['foundationStore'] {
+  return useStoreContext().foundationStore
+}
+
+export function useLiveSessionStore(): StoreContextValue['liveSessionStore'] {
+  return useStoreContext().liveSessionStore
+}
+
+export function usePluginCapabilityStore(): StoreContextValue['pluginCapabilityStore'] {
+  return useStoreContext().pluginCapabilityStore
+}
+
+export function usePluginHostStore(): StoreContextValue['pluginHostStore'] {
+  return useStoreContext().pluginHostStore
+}
+
+export function useSessionStore(): StoreContextValue['sessionStore'] {
+  return useStoreContext().sessionStore
+}
+
+export function useTranscriptStore(): StoreContextValue['transcriptStore'] {
+  return useStoreContext().transcriptStore
+}
+
+export function useTransportStore(): StoreContextValue['transportStore'] {
+  return useStoreContext().transportStore
+}
+
+export function useUIStore(): StoreContextValue['uiStore'] {
+  return useStoreContext().uiStore
+}
+
+export function useUpdateStore(): StoreContextValue['updateStore'] {
+  return useStoreContext().updateStore
 }

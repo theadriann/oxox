@@ -1,37 +1,43 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { observer } from 'mobx-react-lite'
-import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useCallback } from 'react'
 
 import { createPanelVariants } from '../../lib/motion'
-import { useStores } from '../../stores/StoreProvider'
+import {
+  useComposerStore,
+  useFoundationStore,
+  useLiveSessionStore,
+  useSessionStore,
+  useUIStore,
+} from '../../stores/StoreProvider'
 import { SettingsSidebar } from '../settings/SettingsSidebar'
 import { SessionSidebarConnected } from '../sidebar/SessionSidebarConnected'
+import { useAppShellControllerContext } from './AppShellControllerContext'
 import { buildAppShellSidebarProps } from './connectedSelectors'
+import { useAppShellViewModel } from './useAppShellViewModel'
 
 interface AppShellSidebarProps {
-  errorState?:
-    | {
-        title: string
-        description: string
-        actionLabel: string
-        onAction: () => void
-      }
-    | undefined
   prefersReducedMotion: boolean
   shouldAnimate: boolean
-  onNewSession: (workspacePath?: string) => void
-  onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void
 }
 
 export const AppShellSidebar = observer(function AppShellSidebar({
-  errorState,
   prefersReducedMotion,
   shouldAnimate,
-  onNewSession,
-  onResizeStart,
 }: AppShellSidebarProps) {
-  const { composerStore, foundationStore, sessionStore, uiStore } = useStores()
+  const composerStore = useComposerStore()
+  const foundationStore = useFoundationStore()
+  const liveSessionStore = useLiveSessionStore()
+  const sessionStore = useSessionStore()
+  const uiStore = useUIStore()
+  const { newSessionForm, startSidebarResize } = useAppShellControllerContext()
+  const { sidebarErrorState } = useAppShellViewModel({
+    foundationStore,
+    liveSessionStore,
+    newSessionForm,
+    prefersReducedMotion,
+    sessionStore,
+  })
 
   const handleCopySessionId = useCallback(
     (sessionId: string) => {
@@ -75,14 +81,14 @@ export const AppShellSidebar = observer(function AppShellSidebar({
 
   const isSettingsView = uiStore.isSettingsOpen
   const sidebarState = buildAppShellSidebarProps({
-    errorState,
+    errorState: sidebarErrorState,
     foundationStore,
     onCompactSession: handleCompactSession,
     onCopySessionId: handleCopySessionId,
     onForkSession: handleForkSession,
-    onNewSession,
+    onNewSession: newSessionForm.openDraft,
     onRenameSession: handleRenameSession,
-    onResizeStart,
+    onResizeStart: startSidebarResize,
     onRewindSession: handleRewindSession,
     prefersReducedMotion,
     sessionStore,

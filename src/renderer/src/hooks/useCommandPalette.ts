@@ -1,13 +1,4 @@
-import {
-  Copy,
-  GitBranch,
-  Minimize2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  RotateCcw,
-  Search,
-  Sparkles,
-} from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { useCallback, useMemo, useRef } from 'react'
 
 import type { CommandPaletteAction } from '../components/command-palette/CommandPalette'
@@ -16,6 +7,7 @@ import type { PluginCapabilityStore } from '../stores/PluginCapabilityStore'
 import type { PluginHostStore } from '../stores/PluginHostStore'
 import type { SessionStore } from '../stores/SessionStore'
 import type { UIStore } from '../stores/UIStore'
+import { buildCommandPaletteActions } from './commandPaletteSelectors'
 
 interface UseCommandPaletteOptions {
   sessionStore: SessionStore
@@ -123,39 +115,7 @@ export function useCommandPalette({
   )
 
   const commands = useMemo<CommandPaletteAction[]>(() => {
-    const globalCommands: CommandPaletteAction[] = [
-      {
-        id: 'new-session',
-        label: 'New Session',
-        description: 'Pick a workspace and draft the first message in the composer.',
-        keywords: ['create', 'new sess', 'workspace'],
-        icon: Sparkles,
-        onSelect: () => {
-          void onPickDirectory()
-        },
-      },
-      {
-        id: 'search-sessions',
-        label: 'Search Sessions',
-        description: 'Start typing to jump to an indexed session transcript.',
-        keywords: ['find', 'jump', 'lookup'],
-        icon: Search,
-        closeOnSelect: false,
-        onSelect: () => undefined,
-      },
-      {
-        id: 'open-new-window',
-        label: 'Open New Window',
-        description: 'Open a full independent OXOX window with its own sidebar and content area.',
-        keywords: ['window', 'cmd+n', 'multi-window'],
-        icon: PanelLeftOpen,
-        onSelect: () => {
-          void onOpenNewWindow()
-        },
-      },
-    ]
-
-    const pluginCommands: CommandPaletteAction[] = pluginCapabilityStore.appActions.map(
+    const pluginAppCommands: CommandPaletteAction[] = pluginCapabilityStore.appActions.map(
       (capability) => ({
         id: `plugin-capability:${capability.qualifiedId}`,
         label: capability.displayName,
@@ -169,38 +129,8 @@ export function useCommandPalette({
       }),
     )
 
-    if (!selectedSessionId || (!selectedSession && !selectedLiveSession)) {
-      return [...globalCommands, ...pluginCommands]
-    }
-
-    const sessionCommands: CommandPaletteAction[] = []
-
-    if (selectedLiveSession) {
-      sessionCommands.push({
-        id: 'detach-session',
-        label: 'Detach from Session',
-        description: 'Disconnect this window while leaving the droid process running.',
-        keywords: ['disconnect', 'detach', 'session'],
-        icon: PanelLeftClose,
-        onSelect: () => {
-          void onDetachSelectedSession()
-        },
-      })
-    } else if (canAttachSelectedSession) {
-      sessionCommands.push({
-        id: 'attach-session',
-        label: 'Attach to Session',
-        description: 'Reconnect to the selected session and resume live controls.',
-        keywords: ['attach', 'reconnect', 'session'],
-        icon: Sparkles,
-        onSelect: () => {
-          void onAttachSelectedSession()
-        },
-      })
-    }
-
-    sessionCommands.push(
-      ...pluginCapabilityStore.sessionActions.map((capability) => ({
+    const pluginSessionCommands: CommandPaletteAction[] = pluginCapabilityStore.sessionActions.map(
+      (capability) => ({
         id: `plugin-capability:${capability.qualifiedId}`,
         label: capability.displayName,
         description: `Run the ${capability.pluginId} plugin action for the selected session.`,
@@ -212,60 +142,26 @@ export function useCommandPalette({
             sessionId: selectedSessionId,
           })
         },
-      })),
-      {
-        id: 'copy-session-id',
-        label: 'Copy Session ID',
-        description: `Copy ${selectedSessionId} to the clipboard.`,
-        keywords: ['copy', 'clipboard', 'identifier'],
-        icon: Copy,
-        onSelect: () => {
-          void onCopySelectedSessionId()
-        },
-      },
-      {
-        id: 'rename-session',
-        label: 'Rename Session',
-        description: 'Rename the selected session through the Factory daemon.',
-        keywords: ['rename', 'title', 'session'],
-        icon: Sparkles,
-        onSelect: () => {
-          void onRenameSelectedSession()
-        },
-      },
-      {
-        id: 'compact-session',
-        label: 'Compact Session',
-        description: 'Manually compact the selected session into a new live session.',
-        keywords: ['compact', 'compress', 'summarize', 'session'],
-        icon: Minimize2,
-        onSelect: () => {
-          void onCompactSelectedSession()
-        },
-      },
-      {
-        id: 'rewind-session',
-        label: 'Rewind Session',
-        description: 'Choose a message, review affected files, and create a rewind fork.',
-        keywords: ['rewind', 'restore', 'files', 'branch'],
-        icon: RotateCcw,
-        onSelect: () => {
-          void onRewindSelectedSession()
-        },
-      },
-      {
-        id: 'fork-session',
-        label: 'Fork Session',
-        description: 'Create a new live session with the current transcript history.',
-        keywords: ['fork', 'duplicate', 'branch'],
-        icon: GitBranch,
-        onSelect: () => {
-          void onForkSelectedSession()
-        },
-      },
+      }),
     )
 
-    return [...globalCommands, ...pluginCommands, ...sessionCommands]
+    return buildCommandPaletteActions({
+      canAttachSelectedSession,
+      onAttachSelectedSession,
+      onCompactSelectedSession,
+      onCopySelectedSessionId,
+      onDetachSelectedSession,
+      onForkSelectedSession,
+      onOpenNewWindow,
+      onPickDirectory,
+      onRenameSelectedSession,
+      onRewindSelectedSession,
+      pluginAppCommands,
+      pluginSessionCommands,
+      selectedLiveSession,
+      selectedSession,
+      selectedSessionId,
+    })
   }, [
     canAttachSelectedSession,
     onAttachSelectedSession,

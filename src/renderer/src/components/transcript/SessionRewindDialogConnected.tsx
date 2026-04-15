@@ -1,12 +1,24 @@
 import { observer } from 'mobx-react-lite'
 import { useCallback, useMemo } from 'react'
 
-import { useStores } from '../../stores/StoreProvider'
+import {
+  useComposerStore,
+  useLiveSessionStore,
+  useSessionStore,
+  useTranscriptStore,
+} from '../../stores/StoreProvider'
 import { buildHistoricalTimeline } from './buildHistoricalTimeline'
 import { SessionRewindDialog, type SessionRewindMessageOption } from './SessionRewindDialog'
+import {
+  buildSessionRewindMessageOptions,
+  resolveSessionRewindTimelineItems,
+} from './sessionRewindSelectors'
 
 export const SessionRewindDialogConnected = observer(function SessionRewindDialogConnected() {
-  const { composerStore, liveSessionStore, sessionStore, transcriptStore } = useStores()
+  const composerStore = useComposerStore()
+  const liveSessionStore = useLiveSessionStore()
+  const sessionStore = useSessionStore()
+  const transcriptStore = useTranscriptStore()
   const rewindWorkflow = composerStore.rewindWorkflow
   const selectedSessionId = sessionStore.selectedSessionId
   const transcript = selectedSessionId
@@ -16,28 +28,16 @@ export const SessionRewindDialogConnected = observer(function SessionRewindDialo
     () => buildHistoricalTimeline(transcript?.entries ?? []),
     [transcript],
   )
-  const timelineItems =
-    liveSessionStore.selectedTimelineItems.length > 0
-      ? liveSessionStore.selectedTimelineItems
-      : historicalTimeline
-  const messageOptions = useMemo<SessionRewindMessageOption[]>(
+  const timelineItems = useMemo(
     () =>
-      timelineItems.flatMap((item) => {
-        if (item.kind !== 'message') {
-          return []
-        }
-
-        const preview = item.content.replace(/\s+/gu, ' ').trim()
-        const clippedPreview =
-          preview.length > 64 ? `${preview.slice(0, 61).trimEnd()}…` : preview || '(empty message)'
-
-        return [
-          {
-            value: item.messageId,
-            label: `${capitalizeRole(item.role)} · ${clippedPreview}`,
-          },
-        ]
+      resolveSessionRewindTimelineItems({
+        historicalTimeline,
+        selectedTimelineItems: liveSessionStore.selectedTimelineItems,
       }),
+    [historicalTimeline, liveSessionStore.selectedTimelineItems],
+  )
+  const messageOptions = useMemo<SessionRewindMessageOption[]>(
+    () => buildSessionRewindMessageOptions(timelineItems),
     [timelineItems],
   )
 
@@ -85,7 +85,3 @@ export const SessionRewindDialogConnected = observer(function SessionRewindDialo
     />
   )
 })
-
-function capitalizeRole(value: string): string {
-  return value.length > 0 ? `${value[0]?.toUpperCase() ?? ''}${value.slice(1)}` : 'Message'
-}

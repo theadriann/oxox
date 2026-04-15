@@ -1,7 +1,16 @@
 import { observer } from 'mobx-react-lite'
 import { type RefObject, useCallback } from 'react'
 
-import { useStores } from '../../stores/StoreProvider'
+import {
+  useComposerStore,
+  useFoundationStore,
+  useLiveSessionStore,
+  useSessionStore,
+  useTranscriptStore,
+  useTransportStore,
+  useUIStore,
+} from '../../stores/StoreProvider'
+import { useOptionalAppShellControllerContext } from './AppShellControllerContext'
 import { buildDetailPanelConnectedProps } from './connectedSelectors'
 import { DetailPanel } from './DetailPanel'
 
@@ -13,10 +22,10 @@ interface NewSessionFormState {
 }
 
 interface DetailPanelConnectedProps {
-  newSessionForm: NewSessionFormState
-  transcriptScrollSignal: number
-  transcriptPrimaryActionRef: RefObject<HTMLElement | null>
-  onBrowseSessions: () => void
+  newSessionForm?: NewSessionFormState
+  transcriptScrollSignal?: number
+  transcriptPrimaryActionRef?: RefObject<HTMLElement | null>
+  onBrowseSessions?: () => void
 }
 
 export const DetailPanelConnected = observer(function DetailPanelConnected({
@@ -25,24 +34,41 @@ export const DetailPanelConnected = observer(function DetailPanelConnected({
   transcriptPrimaryActionRef,
   onBrowseSessions,
 }: DetailPanelConnectedProps) {
-  const {
-    composerStore,
-    foundationStore,
-    liveSessionStore,
-    sessionStore,
-    transcriptStore,
-    transportStore,
-    uiStore,
-  } = useStores()
+  const composerStore = useComposerStore()
+  const foundationStore = useFoundationStore()
+  const liveSessionStore = useLiveSessionStore()
+  const sessionStore = useSessionStore()
+  const transcriptStore = useTranscriptStore()
+  const transportStore = useTransportStore()
+  const uiStore = useUIStore()
+  const controller = useOptionalAppShellControllerContext()
+  const resolvedNewSessionForm = newSessionForm ?? controller?.newSessionForm
+  const resolvedTranscriptScrollSignal =
+    transcriptScrollSignal ?? controller?.transcriptScrollSignal
+  const resolvedTranscriptPrimaryActionRef =
+    transcriptPrimaryActionRef ?? controller?.transcriptPrimaryActionRef
+  const resolvedOnBrowseSessions = onBrowseSessions ?? controller?.handleBrowseSessions
+
+  if (
+    !resolvedNewSessionForm ||
+    resolvedTranscriptScrollSignal === undefined ||
+    !resolvedTranscriptPrimaryActionRef ||
+    !resolvedOnBrowseSessions
+  ) {
+    throw new Error(
+      'DetailPanelConnected requires controller props when no AppShellControllerProvider is present',
+    )
+  }
+
   const props = buildDetailPanelConnectedProps({
     composerStore,
     foundationStore,
     liveSessionStore,
-    newSessionForm,
-    onBrowseSessions,
+    newSessionForm: resolvedNewSessionForm,
+    onBrowseSessions: resolvedOnBrowseSessions,
     sessionStore,
-    transcriptPrimaryActionRef,
-    transcriptScrollSignal,
+    transcriptPrimaryActionRef: resolvedTranscriptPrimaryActionRef,
+    transcriptScrollSignal: resolvedTranscriptScrollSignal,
     transcriptStore,
     transportStore,
     uiStore,

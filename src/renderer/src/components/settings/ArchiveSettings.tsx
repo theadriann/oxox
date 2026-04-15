@@ -4,12 +4,12 @@ import { memo, useCallback } from 'react'
 
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
 import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
-import { useStores } from '../../stores/StoreProvider'
+import { useSessionStore } from '../../stores/StoreProvider'
 import { Button } from '../ui/button'
 import { StateCard } from '../ui/state-card'
 
 export const ArchiveSettings = observer(function ArchiveSettings() {
-  const { sessionStore } = useStores()
+  const sessionStore = useSessionStore()
   const archivedProjects = sessionStore.archivedProjects
   const archivedSessions = sessionStore.archivedSessions
   const hasArchived = archivedProjects.length > 0 || archivedSessions.length > 0

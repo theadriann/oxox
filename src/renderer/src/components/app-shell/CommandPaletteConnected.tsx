@@ -1,12 +1,13 @@
 import { observer } from 'mobx-react-lite'
 import { useMemo } from 'react'
 
-import { useStores } from '../../stores/StoreProvider'
+import { useSessionStore, useUIStore } from '../../stores/StoreProvider'
 import type { CommandPaletteAction } from '../command-palette/CommandPalette'
 import { CommandPalette } from '../command-palette/CommandPalette'
+import { useOptionalAppShellControllerContext } from './AppShellControllerContext'
 
 interface CommandPaletteConnectedProps {
-  commandPalette: {
+  commandPalette?: {
     closePalette: () => void
     commands: CommandPaletteAction[]
     handleSessionSelection: (sessionId: string) => void
@@ -17,17 +18,28 @@ interface CommandPaletteConnectedProps {
 export const CommandPaletteConnected = observer(function CommandPaletteConnected({
   commandPalette,
 }: CommandPaletteConnectedProps) {
-  const { sessionStore, uiStore } = useStores()
+  const sessionStore = useSessionStore()
+  const uiStore = useUIStore()
+  const controller = useOptionalAppShellControllerContext()
+  const resolvedCommandPalette = commandPalette ?? controller?.commandPalette
+
+  if (!resolvedCommandPalette) {
+    throw new Error(
+      'CommandPaletteConnected requires a commandPalette prop when no AppShellControllerProvider is present',
+    )
+  }
 
   const sessions = useMemo(() => sessionStore.sessions.slice(), [sessionStore.sessions])
 
   return (
     <CommandPalette
       open={uiStore.isCommandPaletteOpen}
-      commands={commandPalette.commands}
+      commands={resolvedCommandPalette.commands}
       sessions={sessions}
-      onOpenChange={(open) => (open ? commandPalette.openPalette() : commandPalette.closePalette())}
-      onSelectSession={commandPalette.handleSessionSelection}
+      onOpenChange={(open) =>
+        open ? resolvedCommandPalette.openPalette() : resolvedCommandPalette.closePalette()
+      }
+      onSelectSession={resolvedCommandPalette.handleSessionSelection}
     />
   )
 })

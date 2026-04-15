@@ -1,6 +1,12 @@
 import { observer } from 'mobx-react-lite'
 
-import { useStores } from '../../stores/StoreProvider'
+import {
+  useComposerStore,
+  useLiveSessionStore,
+  useSessionStore,
+  useUIStore,
+} from '../../stores/StoreProvider'
+import { useOptionalAppShellControllerContext } from '../app-shell/AppShellControllerContext'
 import { SessionComposerContainer } from '../app-shell/SessionComposerContainer'
 import { SessionComposer } from './SessionComposer'
 import { buildSessionComposerProps } from './sessionComposerSelectors'
@@ -19,18 +25,43 @@ interface SessionComposerConnectedProps {
 
 export const SessionComposerConnected = observer(function SessionComposerConnected({
   onAttach,
-  canComposeDetached = false,
-  isSubmittingDetached = false,
+  canComposeDetached,
+  isSubmittingDetached,
   onSubmitDetached,
 }: SessionComposerConnectedProps) {
-  const { composerStore, liveSessionStore, sessionStore, uiStore } = useStores()
+  const composerStore = useComposerStore()
+  const liveSessionStore = useLiveSessionStore()
+  const sessionStore = useSessionStore()
+  const uiStore = useUIStore()
+  const controller = useOptionalAppShellControllerContext()
+  const resolvedCanComposeDetached =
+    canComposeDetached ?? Boolean(controller?.newSessionForm.path.trim())
+  const resolvedIsSubmittingDetached =
+    isSubmittingDetached ?? controller?.newSessionForm.isSubmitting ?? false
+  const resolvedOnAttach =
+    onAttach ??
+    (controller
+      ? () => {
+          void controller.handleAttachSelectedSession()
+        }
+      : undefined)
+  const resolvedOnSubmitDetached =
+    onSubmitDetached ??
+    (controller
+      ? (payload: {
+          text: string
+          modelId: string
+          interactionMode: string
+          autonomyLevel: string
+        }) => controller.newSessionForm.submitNewSession(payload)
+      : undefined)
   const { composer, error } = buildSessionComposerProps({
-    canComposeDetached,
+    canComposeDetached: resolvedCanComposeDetached,
     composerStore,
-    isSubmittingDetached,
+    isSubmittingDetached: resolvedIsSubmittingDetached,
     liveSessionStore,
-    onAttach,
-    onSubmitDetached,
+    onAttach: resolvedOnAttach,
+    onSubmitDetached: resolvedOnSubmitDetached,
     sessionStore,
     uiStore,
   })

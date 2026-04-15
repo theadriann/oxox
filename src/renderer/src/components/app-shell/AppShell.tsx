@@ -1,14 +1,13 @@
 import { useReducedMotion } from 'framer-motion'
 import { observer } from 'mobx-react-lite'
-import { useMemo } from 'react'
 import { useStores } from '../../stores/StoreProvider'
 import { SessionRenameDialogConnected } from '../transcript/SessionRenameDialogConnected'
 import { SessionRewindDialogConnected } from '../transcript/SessionRewindDialogConnected'
+import { AppShellControllerProvider } from './AppShellControllerContext'
 import { AppShellView } from './AppShellView'
 import { useAppShellController } from './useAppShellController'
-import { useAppShellViewModel } from './useAppShellViewModel'
 
-export const AppShell = observer(() => {
+export const AppShell = observer(function AppShell() {
   const {
     composerStore,
     foundationStore,
@@ -22,19 +21,7 @@ export const AppShell = observer(() => {
     updateStore,
   } = useStores()
   const prefersReducedMotion = useReducedMotion()
-  const {
-    commandPalette,
-    contextPanelRef,
-    contextPanelToggleButtonRef,
-    detailPanelRef,
-    handleAttachSelectedSession,
-    handleBrowseSessions,
-    newSessionForm,
-    startContextPanelResize,
-    startSidebarResize,
-    transcriptPrimaryActionRef,
-    transcriptScrollSignal,
-  } = useAppShellController({
+  const controller = useAppShellController({
     composerStore,
     foundationStore,
     liveSessionStore,
@@ -46,99 +33,12 @@ export const AppShell = observer(() => {
     uiStore,
     updateStore,
   })
-  const {
-    canComposeDetached,
-    detailViewKey,
-    sessionProjectLabel,
-    sessionTitle,
-    shouldAnimate,
-    shouldRenderComposer,
-    sidebarErrorState,
-  } = useAppShellViewModel({
-    foundationStore,
-    liveSessionStore,
-    newSessionForm,
-    prefersReducedMotion,
-    sessionStore,
-  })
-  const controller = useMemo(
-    () => ({
-      contextPanelRef,
-      contextPanelToggleButtonRef,
-      detailPanelRef,
-      handleAttachSelectedSession,
-      handleBrowseSessions,
-      newSessionForm,
-      startContextPanelResize,
-      startSidebarResize,
-      transcriptPrimaryActionRef,
-      transcriptScrollSignal,
-    }),
-    [
-      contextPanelRef,
-      contextPanelToggleButtonRef,
-      detailPanelRef,
-      handleAttachSelectedSession,
-      handleBrowseSessions,
-      newSessionForm,
-      startContextPanelResize,
-      startSidebarResize,
-      transcriptPrimaryActionRef,
-      transcriptScrollSignal,
-    ],
-  )
-  const uiState = useMemo(
-    () => ({
-      contentLayout: uiStore.contentLayout,
-      isContextPanelHidden: uiStore.isContextPanelHidden,
-      isSidebarHidden: uiStore.isSidebarHidden,
-      isSettingsOpen: uiStore.isSettingsOpen,
-      settingsSection: uiStore.settingsSection,
-      toggleContextPanel: uiStore.toggleContextPanel,
-      toggleSidebar: uiStore.toggleSidebar,
-    }),
-    [
-      uiStore.contentLayout,
-      uiStore.isContextPanelHidden,
-      uiStore.isSidebarHidden,
-      uiStore.isSettingsOpen,
-      uiStore.settingsSection,
-      uiStore.toggleContextPanel,
-      uiStore.toggleSidebar,
-    ],
-  )
-  const viewModel = useMemo(
-    () => ({
-      canComposeDetached,
-      detailViewKey,
-      sessionProjectLabel,
-      sessionTitle,
-      shouldAnimate,
-      shouldRenderComposer,
-      sidebarErrorState,
-    }),
-    [
-      canComposeDetached,
-      detailViewKey,
-      sessionProjectLabel,
-      sessionTitle,
-      shouldAnimate,
-      shouldRenderComposer,
-      sidebarErrorState,
-    ],
-  )
 
   return (
-    <>
+    <AppShellControllerProvider value={controller}>
       <SessionRenameDialogConnected />
       <SessionRewindDialogConnected />
-      <AppShellView
-        commandPalette={commandPalette}
-        controller={controller}
-        prefersReducedMotion={prefersReducedMotion}
-        uiState={uiState}
-        viewModel={viewModel}
-      />
-    </>
+      <AppShellView prefersReducedMotion={prefersReducedMotion ?? false} />
+    </AppShellControllerProvider>
   )
 })

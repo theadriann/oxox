@@ -1,10 +1,10 @@
 import { observer } from 'mobx-react-lite'
 
-import { useStores } from '../../stores/StoreProvider'
+import { useComposerStore } from '../../stores/StoreProvider'
 import { SessionRenameDialog } from './SessionRenameDialog'
 
 export const SessionRenameDialogConnected = observer(function SessionRenameDialogConnected() {
-  const { composerStore } = useStores()
+  const composerStore = useComposerStore()
   const renameWorkflow = composerStore.renameWorkflow
 
   return (
