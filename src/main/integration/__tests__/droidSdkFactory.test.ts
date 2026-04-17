@@ -87,7 +87,7 @@ describe('buildDroidSdkProcessTransportOptions', () => {
     const spawnSyncFn = vi.fn(() => ({
       status: 0,
       stdout:
-        'noise before __OXOX_PATH_START__/Users/tester/.local/state/fnm_multishells/2495_1775840110637/bin:/opt/homebrew/bin:/usr/bin:/bin__OXOX_PATH_END__ noise after',
+        'noise before __OXOX_SHELL_ENV_START__PATH=/Users/tester/.local/state/fnm_multishells/2495_1775840110637/bin:/opt/homebrew/bin:/usr/bin:/bin\0KUBECONFIG=/Users/tester/.kube/config\0__OXOX_SHELL_ENV_END__ noise after',
       stderr: '',
     }))
 
@@ -108,6 +108,7 @@ describe('buildDroidSdkProcessTransportOptions', () => {
       cwd: '/tmp/workspace',
       env: {
         FOO: 'bar',
+        KUBECONFIG: '/Users/tester/.kube/config',
         PATH: [
           '/Users/tester/.factory/bin',
           '/usr/bin',
@@ -130,7 +131,7 @@ describe('buildDroidSdkProcessTransportOptions', () => {
 
     expect(spawnSyncFn).toHaveBeenCalledWith(
       '/bin/zsh',
-      ['-lic', `printf '__OXOX_PATH_START__%s__OXOX_PATH_END__' "$PATH"`],
+      ['-lic', `printf '__OXOX_SHELL_ENV_START__'; env -0; printf '__OXOX_SHELL_ENV_END__'`],
       expect.objectContaining({
         env: {
           PATH: '/Users/tester/.factory/bin:/usr/bin:/bin:/usr/sbin:/sbin',

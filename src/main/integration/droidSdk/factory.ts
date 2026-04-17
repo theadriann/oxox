@@ -37,8 +37,8 @@ const DEFAULT_STREAM_JSONRPC_ARGS = [
   '--output-format',
   'stream-jsonrpc',
 ] as const
-const PATH_MARKER_START = '__OXOX_PATH_START__'
-const PATH_MARKER_END = '__OXOX_PATH_END__'
+const SHELL_ENV_MARKER_START = '__OXOX_SHELL_ENV_START__'
+const SHELL_ENV_MARKER_END = '__OXOX_SHELL_ENV_END__'
 
 export function buildDroidSdkProcessTransportOptions({
   cwd,
@@ -75,15 +75,20 @@ export function buildDroidExecEnv({
   shellPath: string
   spawnSyncFn: typeof spawnSync
 }): NodeJS.ProcessEnv | undefined {
-  const shellPathEnvironment = resolveShellPathEnvironment({
+  const shellEnv = resolveShellEnvironment({
     processEnv,
     shellPath,
     spawnSyncFn,
   })
 
-  return {
+  const mergedEnv = {
     ...processEnv,
-    PATH: mergePathEntries(processEnv.PATH ?? '', shellPathEnvironment ?? '', [
+    ...(shellEnv ?? {}),
+  }
+
+  return {
+    ...mergedEnv,
+    PATH: mergePathEntries(processEnv.PATH ?? '', shellEnv?.PATH ?? '', [
       '/opt/homebrew/bin',
       '/opt/homebrew/sbin',
       '/usr/local/bin',
@@ -95,7 +100,7 @@ export function buildDroidExecEnv({
   }
 }
 
-function resolveShellPathEnvironment({
+function resolveShellEnvironment({
   processEnv,
   shellPath,
   spawnSyncFn,
@@ -103,7 +108,7 @@ function resolveShellPathEnvironment({
   processEnv: NodeJS.ProcessEnv
   shellPath: string
   spawnSyncFn: typeof spawnSync
-}): string | null {
+}): NodeJS.ProcessEnv | null {
   const shellName = shellPath.split('/').at(-1) ?? ''
 
   if (shellName !== 'zsh' && shellName !== 'bash') {
@@ -112,7 +117,7 @@ function resolveShellPathEnvironment({
 
   const result = spawnSyncFn(
     shellPath,
-    ['-lic', `printf '${PATH_MARKER_START}%s${PATH_MARKER_END}' "$PATH"`],
+    ['-lic', `printf '${SHELL_ENV_MARKER_START}'; env -0; printf '${SHELL_ENV_MARKER_END}'`],
     {
       encoding: 'utf8',
       env: processEnv,
@@ -125,14 +130,26 @@ function resolveShellPathEnvironment({
   }
 
   const output = `${result.stdout ?? ''}`
-  const startIndex = output.indexOf(PATH_MARKER_START)
-  const endIndex = output.indexOf(PATH_MARKER_END)
+  const startIndex = output.indexOf(SHELL_ENV_MARKER_START)
+  const endIndex = output.indexOf(SHELL_ENV_MARKER_END)
 
   if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex) {
     return null
   }
 
-  return output.slice(startIndex + PATH_MARKER_START.length, endIndex).trim() || null
+  const payload = output.slice(startIndex + SHELL_ENV_MARKER_START.length, endIndex)
+
+  const env: NodeJS.ProcessEnv = {}
+  for (const entry of payload.split('\0')) {
+    if (!entry) continue
+    const index = entry.indexOf('=')
+    if (index <= 0) continue
+    const key = entry.slice(0, index)
+    const value = entry.slice(index + 1)
+    env[key] = value
+  }
+
+  return Object.keys(env).length > 0 ? env : null
 }
 
 function mergePathEntries(...sources: Array<string | readonly string[]>): string {
