@@ -97,7 +97,13 @@ export function normalizeSessionSettings(
 
 export function filterDefinedSettings(settings: Partial<LiveSessionSettings>): LiveSessionSettings {
   return Object.fromEntries(
-    Object.entries(settings).filter((entry) => typeof entry[1] === 'string' && entry[1].length > 0),
+    Object.entries(settings).filter((entry) => {
+      if (typeof entry[1] === 'string') {
+        return entry[1].length > 0
+      }
+
+      return Array.isArray(entry[1]) && entry[1].every((value) => typeof value === 'string')
+    }),
   ) as LiveSessionSettings
 }
 

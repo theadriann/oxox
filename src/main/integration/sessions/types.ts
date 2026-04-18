@@ -4,7 +4,10 @@ import type {
   LiveSessionCompactResult,
   LiveSessionExecuteRewindParams,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpServerInfo,
   LiveSessionRewindInfo,
+  LiveSessionSkillInfo,
+  LiveSessionToolInfo,
   TranscriptMessageContentBlock,
 } from '../../../shared/ipc/contracts'
 
@@ -54,6 +57,11 @@ export interface LiveSessionSettings {
   interactionMode?: string
   reasoningEffort?: string
   autonomyLevel?: string
+  autonomyMode?: string
+  specModeModelId?: string
+  specModeReasoningEffort?: string
+  enabledToolIds?: string[]
+  disabledToolIds?: string[]
 }
 
 export type StreamJsonRpcLoadResult = {
@@ -220,6 +228,9 @@ export interface StreamJsonRpcProcessTransportLike {
     customInstructions?: string,
   ): Promise<Omit<LiveSessionCompactResult, 'snapshot'>>
   renameSession?(requestId: RequestId, title: string): Promise<void>
+  listTools?(requestId: RequestId): Promise<LiveSessionToolInfo[]>
+  listSkills?(requestId: RequestId): Promise<LiveSessionSkillInfo[]>
+  listMcpServers?(requestId: RequestId): Promise<LiveSessionMcpServerInfo[]>
   updateSessionSettings(requestId: RequestId, settings: Partial<LiveSessionSettings>): Promise<void>
   resolvePermissionRequest(requestId: RequestId, selectedOption: string): Promise<void>
   resolveAskUserRequest(

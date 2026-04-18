@@ -1,4 +1,9 @@
-import { type DroidClient, type DroidClientTransport, ProcessExitError } from '@factory/droid-sdk'
+import {
+  type DroidClient,
+  type DroidClientTransport,
+  ProcessExitError,
+  SDK_TAG,
+} from '@factory/droid-sdk'
 import { describe, expect, it } from 'vitest'
 
 import type { DroidSdkSessionFactory } from '../droidSdk/factory'
@@ -80,6 +85,10 @@ class FakeDroidClient {
   readonly getRewindInfoCalls: Array<Record<string, unknown>> = []
   readonly executeRewindCalls: Array<Record<string, unknown>> = []
   readonly compactSessionCalls: Array<Record<string, unknown>> = []
+  readonly renameSessionCalls: Array<Record<string, unknown>> = []
+  listMcpServersCalls = 0
+  listSkillsCalls = 0
+  listToolsCalls = 0
   forkSessionCalls = 0
   interruptSessionCalls = 0
   closeCalls = 0
@@ -192,6 +201,63 @@ class FakeDroidClient {
     }
   }
 
+  async renameSession(params: Record<string, unknown>) {
+    this.renameSessionCalls.push(params)
+    return {
+      success: true,
+    }
+  }
+
+  async listTools() {
+    this.listToolsCalls += 1
+    return {
+      tools: [
+        {
+          id: 'tool-read',
+          llmId: 'Read',
+          displayName: 'Read',
+          description: 'Read a file',
+          category: 'read',
+          defaultAllowed: true,
+          currentlyAllowed: true,
+        },
+      ],
+    }
+  }
+
+  async listSkills() {
+    this.listSkillsCalls += 1
+    return {
+      skills: [
+        {
+          name: 'vault-knowledge',
+          description: 'Search the project vault',
+          location: 'personal',
+          filePath: '/Users/test/.factory/skills/vault-knowledge/SKILL.md',
+          enabled: true,
+          userInvocable: true,
+        },
+      ],
+    }
+  }
+
+  async listMcpServers() {
+    this.listMcpServersCalls += 1
+    return {
+      servers: [
+        {
+          name: 'figma',
+          status: 'connected',
+          source: 'user',
+          isManaged: false,
+          toolCount: 12,
+          serverType: 'http',
+          hasAuthTokens: true,
+        },
+      ],
+    }
+  }
+
   async forkSession() {
     this.forkSessionCalls += 1
     return {
@@ -299,6 +365,7 @@ describe('DroidSdkSessionTransport', () => {
       {
         machineId: 'oxox-electron',
         cwd: '/tmp/session-1',
+        tags: [SDK_TAG],
       },
     ])
 
@@ -621,6 +688,56 @@ describe('DroidSdkSessionTransport', () => {
     ])
   })
 
+  it('emits a completion event when the SDK stream returns to idle', async () => {
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+        droidPath: '/opt/factory/bin/droid',
+        sessionId: 'session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    const events: Array<{ type: string }> = []
+    sessionTransport.subscribe((event) => {
+      events.push(event as { type: string })
+    })
+
+    client.emitNotification({
+      params: {
+        notification: {
+          type: 'droid_working_state_changed',
+          newState: 'executing_tool',
+        },
+      },
+    })
+    client.emitNotification({
+      params: {
+        notification: {
+          type: 'droid_working_state_changed',
+          newState: 'idle',
+        },
+      },
+    })
+
+    await waitFor(() => events.some((event) => event.type === 'stream.completed'))
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'session.statusChanged',
+          status: 'executing_tool',
+        }),
+        expect.objectContaining({
+          type: 'stream.completed',
+          reason: 'completed',
+        }),
+      ]),
+    )
+  })
+
   it('delegates rewind, compact, and fork operations to the SDK client', async () => {
     const transport = new FakeDroidClientTransport()
     const client = new FakeDroidClient()
@@ -705,5 +822,72 @@ describe('DroidSdkSessionTransport', () => {
       newSessionId: 'session-1-fork',
     })
     expect(transport.sentMessages).toEqual([])
+  })
+
+  it('delegates rename operations to the SDK client', async () => {
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+        droidPath: '/opt/factory/bin/droid',
+        sessionId: 'session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    await sessionTransport.renameSession('rename:1', 'Renamed from OXOX')
+
+    expect(client.renameSessionCalls).toEqual([{ title: 'Renamed from OXOX' }])
+  })
+
+  it('lists tool, skill, and MCP catalogs through the SDK client', async () => {
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+        droidPath: '/opt/factory/bin/droid',
+        sessionId: 'session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    await expect(sessionTransport.listTools('tools:1')).resolves.toEqual([
+      {
+        id: 'tool-read',
+        llmId: 'Read',
+        displayName: 'Read',
+        description: 'Read a file',
+        category: 'read',
+        defaultAllowed: true,
+        currentlyAllowed: true,
+      },
+    ])
+    await expect(sessionTransport.listSkills('skills:1')).resolves.toEqual([
+      {
+        name: 'vault-knowledge',
+        description: 'Search the project vault',
+        location: 'personal',
+        filePath: '/Users/test/.factory/skills/vault-knowledge/SKILL.md',
+        enabled: true,
+        userInvocable: true,
+      },
+    ])
+    await expect(sessionTransport.listMcpServers('mcp:1')).resolves.toEqual([
+      {
+        name: 'figma',
+        status: 'connected',
+        source: 'user',
+        isManaged: false,
+        toolCount: 12,
+        serverType: 'http',
+        hasAuthTokens: true,
+      },
+    ])
+
+    expect(client.listToolsCalls).toBe(1)
+    expect(client.listSkillsCalls).toBe(1)
+    expect(client.listMcpServersCalls).toBe(1)
   })
 })

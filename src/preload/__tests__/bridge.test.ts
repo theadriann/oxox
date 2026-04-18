@@ -143,10 +143,37 @@ describe('createOxoxBridge', () => {
         case IPC_CHANNELS.dialogSelectDirectory:
           return Promise.resolve('/tmp/live-session')
         case IPC_CHANNELS.sessionAddUserMessage:
+        case IPC_CHANNELS.sessionRename:
         case IPC_CHANNELS.sessionUpdateSettings:
         case IPC_CHANNELS.sessionRenameViaDaemon:
         case IPC_CHANNELS.appInstallUpdate:
           return Promise.resolve(undefined)
+        case IPC_CHANNELS.sessionListTools:
+          return Promise.resolve([
+            {
+              id: 'tool-read',
+              llmId: 'Read',
+              displayName: 'Read',
+              currentlyAllowed: true,
+            },
+          ])
+        case IPC_CHANNELS.sessionListSkills:
+          return Promise.resolve([
+            {
+              name: 'vault-knowledge',
+              location: 'personal',
+              filePath: '/Users/test/.factory/skills/vault-knowledge/SKILL.md',
+            },
+          ])
+        case IPC_CHANNELS.sessionListMcpServers:
+          return Promise.resolve([
+            {
+              name: 'figma',
+              status: 'connected',
+              source: 'user',
+              isManaged: false,
+            },
+          ])
         case IPC_CHANNELS.sessionInterrupt:
         case IPC_CHANNELS.appOpenWindow:
           return Promise.resolve(undefined)
@@ -237,6 +264,32 @@ describe('createOxoxBridge', () => {
     })
     await expect(bridge.session.addUserMessage('session-live-1', 'hello')).resolves.toBeUndefined()
     await expect(
+      bridge.session.rename('session-live-1', 'Renamed live session'),
+    ).resolves.toBeUndefined()
+    await expect(bridge.session.listTools('session-live-1')).resolves.toEqual([
+      {
+        id: 'tool-read',
+        llmId: 'Read',
+        displayName: 'Read',
+        currentlyAllowed: true,
+      },
+    ])
+    await expect(bridge.session.listSkills('session-live-1')).resolves.toEqual([
+      {
+        name: 'vault-knowledge',
+        location: 'personal',
+        filePath: '/Users/test/.factory/skills/vault-knowledge/SKILL.md',
+      },
+    ])
+    await expect(bridge.session.listMcpServers('session-live-1')).resolves.toEqual([
+      {
+        name: 'figma',
+        status: 'connected',
+        source: 'user',
+        isManaged: false,
+      },
+    ])
+    await expect(
       bridge.session.updateSettings('session-live-1', {
         modelId: 'gpt-5.4-mini',
         interactionMode: 'spec',
@@ -281,6 +334,14 @@ describe('createOxoxBridge', () => {
       'session-live-1',
       'hello',
     )
+    expect(invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.sessionRename,
+      'session-live-1',
+      'Renamed live session',
+    )
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionListTools, 'session-live-1')
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionListSkills, 'session-live-1')
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionListMcpServers, 'session-live-1')
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionUpdateSettings, 'session-live-1', {
       modelId: 'gpt-5.4-mini',
       interactionMode: 'spec',

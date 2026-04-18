@@ -110,6 +110,11 @@ export interface SessionSettingsPatch {
   readonly interactionMode?: string
   readonly reasoningEffort?: string
   readonly autonomyLevel?: string
+  readonly autonomyMode?: string
+  readonly specModeModelId?: string
+  readonly specModeReasoningEffort?: string
+  readonly enabledToolIds?: readonly string[]
+  readonly disabledToolIds?: readonly string[]
 }
 
 export interface SessionSettingsChangedEvent extends BaseSessionEvent {

@@ -29,6 +29,10 @@ export const IPC_CHANNELS = {
   sessionAttach: 'session:attach',
   sessionDetach: 'session:detach',
   sessionAddUserMessage: 'session:add-user-message',
+  sessionRename: 'session:rename',
+  sessionListTools: 'session:list-tools',
+  sessionListSkills: 'session:list-skills',
+  sessionListMcpServers: 'session:list-mcp-servers',
   sessionUpdateSettings: 'session:update-settings',
   sessionInterrupt: 'session:interrupt',
   sessionFork: 'session:fork',
@@ -106,6 +110,37 @@ export interface SyncMetadataRecord {
   lastMtimeMs: number
   lastSyncedAt: string
   checksum: string | null
+}
+
+export interface LiveSessionToolInfo {
+  id: string
+  llmId: string
+  displayName: string
+  description?: string
+  category?: string
+  defaultAllowed: boolean
+  currentlyAllowed: boolean
+}
+
+export interface LiveSessionSkillInfo {
+  name: string
+  description?: string
+  location: string
+  filePath: string
+  enabled?: boolean
+  userInvocable?: boolean
+  version?: string
+}
+
+export interface LiveSessionMcpServerInfo {
+  name: string
+  status: string
+  source: string
+  isManaged: boolean
+  error?: string
+  toolCount?: number
+  serverType?: string
+  hasAuthTokens?: boolean
 }
 
 export type TranscriptMessageRole = 'assistant' | 'system' | 'user'
@@ -191,6 +226,11 @@ export interface FoundationBootstrap {
     model?: string
     interactionMode?: string
     reasoningEffort?: string
+    autonomyMode?: string
+    specModeModelId?: string
+    specModeReasoningEffort?: string
+    enabledToolIds?: string[]
+    disabledToolIds?: string[]
     compactionTokenLimit?: number
   }
 }
@@ -301,6 +341,11 @@ export interface LiveSessionSettings {
   interactionMode?: string
   reasoningEffort?: string
   autonomyLevel?: string
+  autonomyMode?: string
+  specModeModelId?: string
+  specModeReasoningEffort?: string
+  enabledToolIds?: string[]
+  disabledToolIds?: string[]
 }
 
 export interface LiveSessionMessage {
@@ -527,6 +572,10 @@ export interface OxoxBridge {
     attach: (sessionId: string) => Promise<LiveSessionSnapshot>
     detach: (sessionId: string) => Promise<LiveSessionSnapshot>
     addUserMessage: (sessionId: string, text: string) => Promise<void>
+    rename: (sessionId: string, title: string) => Promise<void>
+    listTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
+    listSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
+    listMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
     updateSettings: (sessionId: string, settings: Partial<LiveSessionSettings>) => Promise<void>
     interrupt: (sessionId: string) => Promise<void>
     fork: (sessionId: string) => Promise<LiveSessionSnapshot>

@@ -8,6 +8,7 @@ export function buildContextPanelProps({
   onBrowseSessions,
   onResizeStart,
   panelRef,
+  sessionRuntimeCatalogStore,
   sessionStore,
   uiStore,
 }: {
@@ -22,6 +23,7 @@ export function buildContextPanelProps({
   onBrowseSessions: () => void
   onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void
   panelRef: RefObject<HTMLElement | null>
+  sessionRuntimeCatalogStore: ContextPanelProps['runtimeCatalog']
   sessionStore: {
     selectedSession: ContextPanelProps['selectedSession']
   }
@@ -43,6 +45,7 @@ export function buildContextPanelProps({
     onBrowseSessions,
     onResizeStart,
     panelRef,
+    runtimeCatalog: sessionRuntimeCatalogStore,
     selectedSession: sessionStore.selectedSession,
     width: uiStore.contextPanelWidth,
   }

@@ -2,7 +2,10 @@ import type {
   LiveSessionAskUserAnswerRecord,
   LiveSessionCompactResult,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpServerInfo,
   LiveSessionRewindInfo,
+  LiveSessionSkillInfo,
+  LiveSessionToolInfo,
 } from '../../../shared/ipc/contracts'
 import { DroidSdkSessionTransport } from '../droidSdk/transport'
 import type { SessionEvent } from '../protocol/sessionEvents'
@@ -343,15 +346,33 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
     },
 
     async renameSession(sessionId: string, title: string): Promise<void> {
-      const session = tracker.get(sessionId)
-
-      if (!session) {
-        return
-      }
-
+      const session = await ensureLoadedSession(sessionId)
+      await requireManagedTransport(session).renameSession?.(nextRequestId('session:rename'), title)
       session.title = title
       session.updatedAt = now()
       persistManagedSession(session)
+    },
+
+    async listSessionTools(sessionId: string): Promise<LiveSessionToolInfo[]> {
+      const session = requireTrackedSession(sessionId)
+      return (
+        (await requireManagedTransport(session).listTools?.(nextRequestId('session:tools'))) ?? []
+      )
+    },
+
+    async listSessionSkills(sessionId: string): Promise<LiveSessionSkillInfo[]> {
+      const session = requireTrackedSession(sessionId)
+      return (
+        (await requireManagedTransport(session).listSkills?.(nextRequestId('session:skills'))) ?? []
+      )
+    },
+
+    async listSessionMcpServers(sessionId: string): Promise<LiveSessionMcpServerInfo[]> {
+      const session = requireTrackedSession(sessionId)
+      return (
+        (await requireManagedTransport(session).listMcpServers?.(nextRequestId('session:mcp'))) ??
+        []
+      )
     },
 
     async updateSessionSettings(

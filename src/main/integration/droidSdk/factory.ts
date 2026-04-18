@@ -45,7 +45,7 @@ export function buildDroidSdkProcessTransportOptions({
   droidPath = DEFAULT_DROID_PATH,
   homeDirectory = homedir(),
   processEnv = process.env,
-  sessionId,
+  sessionId: _sessionId,
   shellPath = processEnv.SHELL ?? '/bin/zsh',
   spawnSyncFn = spawnSync,
 }: DroidSdkProcessTransportConfig): ProcessTransportOptions {
@@ -57,9 +57,7 @@ export function buildDroidSdkProcessTransportOptions({
       shellPath,
       spawnSyncFn,
     }),
-    execArgs: sessionId
-      ? [...DEFAULT_STREAM_JSONRPC_ARGS, '--session-id', sessionId]
-      : [...DEFAULT_STREAM_JSONRPC_ARGS],
+    execArgs: [...DEFAULT_STREAM_JSONRPC_ARGS],
     execPath: droidPath,
   }
 }

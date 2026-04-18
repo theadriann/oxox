@@ -10,6 +10,7 @@ export interface StoreContextValue {
   liveSessionStore: RootStore['liveSessionStore']
   pluginCapabilityStore: RootStore['pluginCapabilityStore']
   pluginHostStore: RootStore['pluginHostStore']
+  sessionRuntimeCatalogStore: RootStore['sessionRuntimeCatalogStore']
   sessionStore: RootStore['sessionStore']
   transcriptStore: RootStore['transcriptStore']
   transportStore: RootStore['transportStore']
@@ -27,6 +28,7 @@ function createStores(
     liveSessionStore: rootStore.liveSessionStore,
     pluginCapabilityStore: rootStore.pluginCapabilityStore,
     pluginHostStore: rootStore.pluginHostStore,
+    sessionRuntimeCatalogStore: rootStore.sessionRuntimeCatalogStore,
     sessionStore: rootStore.sessionStore,
     transcriptStore: rootStore.transcriptStore,
     transportStore: rootStore.transportStore,
@@ -87,6 +89,10 @@ export function usePluginHostStore(): StoreContextValue['pluginHostStore'] {
 
 export function useSessionStore(): StoreContextValue['sessionStore'] {
   return useStoreContext().sessionStore
+}
+
+export function useSessionRuntimeCatalogStore(): StoreContextValue['sessionRuntimeCatalogStore'] {
+  return useStoreContext().sessionRuntimeCatalogStore
 }
 
 export function useTranscriptStore(): StoreContextValue['transcriptStore'] {

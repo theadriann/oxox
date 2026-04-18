@@ -31,7 +31,15 @@ describe('registerAppIpcHandlers', () => {
       attachSession: vi.fn(),
       detachSession: vi.fn(),
       addUserMessage: vi.fn(),
+      renameSession: vi.fn().mockResolvedValue(undefined),
       updateSessionSettings: vi.fn(),
+      listSessionTools: vi
+        .fn()
+        .mockResolvedValue([{ id: 'tool-read', llmId: 'Read', currentlyAllowed: true }]),
+      listSessionSkills: vi
+        .fn()
+        .mockResolvedValue([{ name: 'vault-knowledge', location: 'personal' }]),
+      listSessionMcpServers: vi.fn().mockResolvedValue([{ name: 'figma', status: 'connected' }]),
       interruptSession: vi.fn(),
       forkSession: vi.fn(),
       forkSessionViaDaemon: vi.fn().mockResolvedValue({ sessionId: 'session-daemon-fork' }),
@@ -158,6 +166,20 @@ describe('registerAppIpcHandlers', () => {
     expect(await ipcMain.handlers.get(IPC_CHANNELS.databaseListProjects)?.()).toEqual([
       { id: 'project-1' },
     ])
+    await ipcMain.handlers.get(IPC_CHANNELS.sessionRename)?.(undefined, 'session-1', 'Renamed live')
+    expect(service.renameSession).toHaveBeenCalledWith('session-1', 'Renamed live')
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.sessionListTools)?.(undefined, 'session-1'),
+    ).toEqual([{ id: 'tool-read', llmId: 'Read', currentlyAllowed: true }])
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.sessionListSkills)?.(undefined, 'session-1'),
+    ).toEqual([{ name: 'vault-knowledge', location: 'personal' }])
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.sessionListMcpServers)?.(undefined, 'session-1'),
+    ).toEqual([{ name: 'figma', status: 'connected' }])
+    expect(service.listSessionTools).toHaveBeenCalledWith('session-1')
+    expect(service.listSessionSkills).toHaveBeenCalledWith('session-1')
+    expect(service.listSessionMcpServers).toHaveBeenCalledWith('session-1')
     expect(
       await ipcMain.handlers.get(IPC_CHANNELS.sessionForkViaDaemon)?.(
         { sender: { id: 42, once: vi.fn() } },
@@ -203,7 +225,11 @@ describe('registerAppIpcHandlers', () => {
       attachSession: vi.fn().mockResolvedValue(snapshot),
       detachSession: vi.fn().mockResolvedValue(snapshot),
       addUserMessage: vi.fn(),
+      renameSession: vi.fn(),
       updateSessionSettings: vi.fn(),
+      listSessionTools: vi.fn(),
+      listSessionSkills: vi.fn(),
+      listSessionMcpServers: vi.fn(),
       interruptSession: vi.fn(),
       forkSession: vi.fn(),
       forkSessionViaDaemon: vi.fn(),
@@ -261,7 +287,11 @@ describe('registerAppIpcHandlers', () => {
       attachSession: vi.fn(),
       detachSession: vi.fn(),
       addUserMessage: vi.fn(),
+      renameSession: vi.fn(),
       updateSessionSettings: vi.fn(),
+      listSessionTools: vi.fn(),
+      listSessionSkills: vi.fn(),
+      listSessionMcpServers: vi.fn(),
       interruptSession: vi.fn(),
       forkSession: vi.fn(),
       forkSessionViaDaemon: vi.fn(),

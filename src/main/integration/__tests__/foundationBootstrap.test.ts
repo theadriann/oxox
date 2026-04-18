@@ -50,6 +50,10 @@ describe('foundation bootstrap', () => {
         sessionDefaultSettings: {
           model: 'claude-3.7',
           interactionMode: 'spec',
+          specModeModelId: 'claude-opus-4.1',
+          specModeReasoningEffort: 'high',
+          enabledToolIds: ['Read', 'Glob'],
+          disabledToolIds: ['Execute'],
           apiKey: 'still-secret',
         },
         compactionTokenLimit: 300000,
@@ -70,6 +74,10 @@ describe('foundation bootstrap', () => {
       factoryDefaultSettings: {
         model: 'claude-3.7',
         interactionMode: 'spec',
+        specModeModelId: 'claude-opus-4.1',
+        specModeReasoningEffort: 'high',
+        enabledToolIds: ['Read', 'Glob'],
+        disabledToolIds: ['Execute'],
         compactionTokenLimit: 300000,
       },
     })

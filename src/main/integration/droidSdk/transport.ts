@@ -7,7 +7,14 @@ import {
   type LiveSessionAskUserQuestionRecord,
   ProcessExitError,
   type RequestPermissionRequestParams,
+  SDK_TAG,
+  StreamStateTracker,
 } from '@factory/droid-sdk'
+import type {
+  LiveSessionMcpServerInfo,
+  LiveSessionSkillInfo,
+  LiveSessionToolInfo,
+} from '../../../shared/ipc/contracts'
 
 import type {
   LiveSessionCompactResult,
@@ -123,9 +130,10 @@ class ObservedDroidClientTransport implements DroidClientTransport {
 export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLike {
   private readonly client: DroidClient
   private readonly observedTransport: ObservedDroidClientTransport
+  private readonly streamStateTracker = new StreamStateTracker()
   private readonly sinks = new Set<SessionEventSink>()
-  private readonly permissionRequestIds = new WeakMap<object, string>()
-  private readonly askUserRequestIds = new WeakMap<object, string>()
+  private readonly permissionRequestIdQueue: string[] = []
+  private readonly askUserRequestIdQueue: string[] = []
   private readonly pendingPermissions = new Map<
     string,
     {
@@ -193,6 +201,7 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
     const result = await this.client.initializeSession({
       machineId: 'oxox-electron',
       cwd,
+      tags: [SDK_TAG],
     })
 
     this.currentSessionId = result.sessionId
@@ -262,6 +271,29 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
   ): Promise<Omit<LiveSessionCompactResult, 'snapshot'>> {
     await this.ready
     return this.client.compactSession(customInstructions ? { customInstructions } : {})
+  }
+
+  async renameSession(_requestId: RequestId, title: string): Promise<void> {
+    await this.ready
+    await this.client.renameSession({ title })
+  }
+
+  async listTools(_requestId: RequestId): Promise<LiveSessionToolInfo[]> {
+    await this.ready
+    const result = await this.client.listTools()
+    return result.tools
+  }
+
+  async listSkills(_requestId: RequestId): Promise<LiveSessionSkillInfo[]> {
+    await this.ready
+    const result = await this.client.listSkills()
+    return result.skills
+  }
+
+  async listMcpServers(_requestId: RequestId): Promise<LiveSessionMcpServerInfo[]> {
+    await this.ready
+    const result = await this.client.listMcpServers()
+    return result.servers
   }
 
   async updateSessionSettings(
@@ -351,11 +383,11 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
     }
 
     if (message.method === 'droid.request_permission' && isRecord(message.params)) {
-      this.permissionRequestIds.set(message.params, message.id)
+      this.permissionRequestIdQueue.push(message.id)
     }
 
     if (message.method === 'droid.ask_user' && isRecord(message.params)) {
-      this.askUserRequestIds.set(message.params, message.id)
+      this.askUserRequestIdQueue.push(message.id)
     }
   }
 
@@ -382,29 +414,33 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
     const messages = toDroidMessages(convertNotificationToStreamMessage(payload))
 
     for (const message of messages) {
-      const embeddedEvents = extractEmbeddedSessionEventsFromDroidMessage(
-        message,
-        this.currentSessionId ?? this.client.sessionId ?? undefined,
-      )
+      const trackedMessages = this.streamStateTracker.processMessage(message)
 
-      for (const event of embeddedEvents) {
-        await this.emit(this.reconcileToolEvent(event))
-      }
+      for (const trackedMessage of [trackedMessages.message, ...trackedMessages.additional]) {
+        const embeddedEvents = extractEmbeddedSessionEventsFromDroidMessage(
+          trackedMessage,
+          this.currentSessionId ?? this.client.sessionId ?? undefined,
+        )
 
-      const event = mapDroidMessageToSessionEvent(
-        message,
-        this.currentSessionId ?? this.client.sessionId ?? undefined,
-      )
+        for (const event of embeddedEvents) {
+          await this.emit(this.reconcileToolEvent(event))
+        }
 
-      if (event) {
-        await this.emit(this.reconcileToolEvent(event))
+        const event = mapDroidMessageToSessionEvent(
+          trackedMessage,
+          this.currentSessionId ?? this.client.sessionId ?? undefined,
+        )
+
+        if (event) {
+          await this.emit(this.reconcileToolEvent(event))
+        }
       }
     }
   }
 
   private async handlePermissionRequest(params: Record<string, unknown>): Promise<string> {
     const requestId =
-      this.permissionRequestIds.get(params) ?? `permission:${this.pendingPermissions.size + 1}`
+      this.permissionRequestIdQueue.shift() ?? `permission:${this.pendingPermissions.size + 1}`
     const deferred = createDeferred<string>()
     const toolUseIds = ((params.toolUses as Array<Record<string, unknown>> | undefined) ?? [])
       .map((toolUse) => toolUse.toolUse)
@@ -429,7 +465,7 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
 
   private async handleAskUserRequest(params: Record<string, unknown>): Promise<AskUserResult> {
     const requestId =
-      this.askUserRequestIds.get(params) ?? `ask-user:${this.pendingAskUser.size + 1}`
+      this.askUserRequestIdQueue.shift() ?? `ask-user:${this.pendingAskUser.size + 1}`
     const deferred = createDeferred<AskUserResult>()
     const questions = extractAskUserQuestions(params.questions)
 
@@ -503,6 +539,9 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
   }
 
   private async resolvePendingRequestsOnDispose(): Promise<void> {
+    this.permissionRequestIdQueue.length = 0
+    this.askUserRequestIdQueue.length = 0
+
     for (const [requestId, pending] of this.pendingPermissions) {
       pending.deferred.resolve('cancel')
       this.pendingPermissions.delete(requestId)

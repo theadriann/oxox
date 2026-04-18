@@ -158,6 +158,16 @@ function snapshotChanged(
     (previousSnapshot.transcriptRevision ?? 0) !== (nextSnapshot.transcriptRevision ?? 0) ||
     previousSnapshot.settings.modelId !== nextSnapshot.settings.modelId ||
     previousSnapshot.settings.interactionMode !== nextSnapshot.settings.interactionMode ||
+    previousSnapshot.settings.reasoningEffort !== nextSnapshot.settings.reasoningEffort ||
+    previousSnapshot.settings.autonomyLevel !== nextSnapshot.settings.autonomyLevel ||
+    previousSnapshot.settings.autonomyMode !== nextSnapshot.settings.autonomyMode ||
+    previousSnapshot.settings.specModeModelId !== nextSnapshot.settings.specModeModelId ||
+    previousSnapshot.settings.specModeReasoningEffort !==
+      nextSnapshot.settings.specModeReasoningEffort ||
+    JSON.stringify(previousSnapshot.settings.enabledToolIds ?? []) !==
+      JSON.stringify(nextSnapshot.settings.enabledToolIds ?? []) ||
+    JSON.stringify(previousSnapshot.settings.disabledToolIds ?? []) !==
+      JSON.stringify(nextSnapshot.settings.disabledToolIds ?? []) ||
     previousSnapshot.viewerCount !== nextSnapshot.viewerCount ||
     availableModelsSignature(previousSnapshot.availableModels) !==
       availableModelsSignature(nextSnapshot.availableModels)

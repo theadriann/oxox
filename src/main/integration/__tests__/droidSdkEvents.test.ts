@@ -128,6 +128,11 @@ describe('mapDroidMessageToSessionEvent', () => {
           interactionMode: 'plan',
           modelId: 'claude-sonnet-4',
           autonomyLevel: 'high',
+          autonomyMode: 'full-auto',
+          specModeModelId: 'claude-opus-4.1',
+          specModeReasoningEffort: 'high',
+          enabledToolIds: ['Read', 'Glob'],
+          disabledToolIds: ['Execute'],
         },
       } satisfies DroidMessage,
       'session-1',
@@ -157,6 +162,11 @@ describe('mapDroidMessageToSessionEvent', () => {
         interactionMode: 'plan',
         modelId: 'claude-sonnet-4',
         autonomyLevel: 'high',
+        autonomyMode: 'full-auto',
+        specModeModelId: 'claude-opus-4.1',
+        specModeReasoningEffort: 'high',
+        enabledToolIds: ['Read', 'Glob'],
+        disabledToolIds: ['Execute'],
       },
     })
     expect(processError).toEqual({

@@ -111,4 +111,81 @@ describe('ContextPanel', () => {
 
     expect(screen.getByText('6m 2s')).toBeTruthy()
   })
+
+  it('renders runtime catalogs for live sessions and lets users toggle tool access', () => {
+    const onToggleTool = vi.fn()
+
+    render(
+      <ContextPanel
+        liveSession={{
+          id: 'live-session-1',
+          title: 'Transcript polish',
+          projectWorkspacePath: '/tmp/project-alpha',
+          status: 'active',
+          settings: {
+            modelId: 'gpt-5.4',
+            interactionMode: 'spec',
+            reasoningEffort: 'high',
+            specModeModelId: 'claude-opus-4.1',
+            enabledToolIds: ['Read'],
+            disabledToolIds: ['Execute'],
+          },
+          availableModels: [{ id: 'gpt-5.4', name: 'GPT 5.4' }],
+          messages: [],
+          events: [],
+        }}
+        onResizeStart={() => undefined}
+        runtimeCatalog={{
+          refreshError: null,
+          tools: [
+            {
+              id: 'tool-read',
+              llmId: 'Read',
+              displayName: 'Read',
+              defaultAllowed: true,
+              currentlyAllowed: true,
+            },
+            {
+              id: 'tool-execute',
+              llmId: 'Execute',
+              displayName: 'Execute',
+              defaultAllowed: true,
+              currentlyAllowed: false,
+            },
+          ],
+          skills: [
+            {
+              name: 'vault-knowledge',
+              location: 'personal',
+              filePath: '/Users/test/.factory/skills/vault-knowledge/SKILL.md',
+            },
+          ],
+          mcpServers: [
+            {
+              name: 'figma',
+              status: 'connected',
+              source: 'user',
+              isManaged: false,
+              serverType: 'http',
+              hasAuthTokens: true,
+            },
+          ],
+          updatingToolLlmId: null,
+          onToggleTool,
+        }}
+        selectedSession={selectedSession}
+        width={320}
+      />,
+    )
+
+    expect(screen.getByText('Session settings')).toBeTruthy()
+    expect(screen.getByText('Tool controls')).toBeTruthy()
+    expect(screen.getByText('Skills')).toBeTruthy()
+    expect(screen.getByText('MCP servers')).toBeTruthy()
+    expect(screen.getByText('vault-knowledge')).toBeTruthy()
+    expect(screen.getByText('figma')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Toggle Read tool' }))
+    expect(onToggleTool).toHaveBeenCalledWith('Read', false)
+  })
 })

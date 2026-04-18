@@ -17,6 +17,13 @@ describe('buildContextPanelProps', () => {
       onBrowseSessions: vi.fn(),
       onResizeStart: vi.fn(),
       panelRef: { current: null },
+      sessionRuntimeCatalogStore: {
+        refreshError: null,
+        tools: [{ id: 'tool-read', llmId: 'Read', currentlyAllowed: true, defaultAllowed: true }],
+        skills: [],
+        mcpServers: [],
+        updatingToolLlmId: null,
+      },
       sessionStore: {
         selectedSession: { id: 'session-1' },
       } as never,
@@ -27,6 +34,9 @@ describe('buildContextPanelProps', () => {
 
     expect(props.isLoading).toBe(false)
     expect(props.liveSession).toEqual({ sessionId: 'live-1' })
+    expect(props.runtimeCatalog?.tools).toEqual([
+      { id: 'tool-read', llmId: 'Read', currentlyAllowed: true, defaultAllowed: true },
+    ])
     expect(props.selectedSession).toEqual({ id: 'session-1' })
     expect(props.width).toBe(360)
     expect(props.errorState?.actionLabel).toBe('Retry loading sessions')

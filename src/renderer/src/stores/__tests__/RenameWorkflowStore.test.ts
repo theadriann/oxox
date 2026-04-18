@@ -6,6 +6,7 @@ import { RenameWorkflowStore } from '../RenameWorkflowStore'
 
 function createSessionApi(overrides: Partial<OxoxBridge['session']> = {}) {
   return {
+    rename: vi.fn().mockResolvedValue(undefined),
     renameViaDaemon: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
@@ -46,13 +47,35 @@ describe('RenameWorkflowStore', () => {
     expect(store.isRenameDialogOpen).toBe(false)
   })
 
-  it('submits the rename via daemon api', async () => {
+  it('prefers the live session rename api when available', async () => {
+    const rename = vi.fn().mockResolvedValue(undefined)
     const renameViaDaemon = vi.fn().mockResolvedValue(undefined)
     const onRenamed = vi.fn().mockResolvedValue(undefined)
     const store = new RenameWorkflowStore(
       () => 'session-alpha',
       () => ({ title: 'Alpha session' }),
-      createSessionApi({ renameViaDaemon }),
+      createSessionApi({ rename, renameViaDaemon }),
+      onRenamed,
+    )
+
+    store.openRenameDialog()
+    store.setRenameDraft('New name')
+    await store.submitRename()
+
+    expect(rename).toHaveBeenCalledWith('session-alpha', 'New name')
+    expect(renameViaDaemon).not.toHaveBeenCalled()
+    expect(onRenamed).toHaveBeenCalledWith('session-alpha', 'New name')
+    expect(store.isRenameDialogOpen).toBe(false)
+    expect(store.renamingSessionId).toBeNull()
+  })
+
+  it('falls back to the daemon rename api', async () => {
+    const renameViaDaemon = vi.fn().mockResolvedValue(undefined)
+    const onRenamed = vi.fn().mockResolvedValue(undefined)
+    const store = new RenameWorkflowStore(
+      () => 'session-alpha',
+      () => ({ title: 'Alpha session' }),
+      createSessionApi({ rename: undefined, renameViaDaemon }),
       onRenamed,
     )
 
@@ -71,7 +94,7 @@ describe('RenameWorkflowStore', () => {
     const store = new RenameWorkflowStore(
       () => 'session-alpha',
       () => ({ title: 'Alpha' }),
-      createSessionApi({ renameViaDaemon }),
+      createSessionApi({ rename: undefined, renameViaDaemon }),
     )
 
     store.openRenameDialog()

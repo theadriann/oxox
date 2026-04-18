@@ -6,6 +6,7 @@ import { FoundationStore } from './FoundationStore'
 import { LiveSessionStore } from './LiveSessionStore'
 import { PluginCapabilityStore } from './PluginCapabilityStore'
 import { PluginHostStore } from './PluginHostStore'
+import { SessionRuntimeCatalogStore } from './SessionRuntimeCatalogStore'
 import { SessionStore } from './SessionStore'
 import { createStoreEventBus } from './storeEventBus'
 import { TranscriptStore } from './TranscriptStore'
@@ -25,6 +26,7 @@ export class RootStore {
   readonly foundationStore: FoundationStore
   readonly pluginCapabilityStore: PluginCapabilityStore
   readonly pluginHostStore: PluginHostStore
+  readonly sessionRuntimeCatalogStore: SessionRuntimeCatalogStore
   readonly composerStore: ComposerStore
   readonly updateStore: UpdateStore
   private readonly disposers: Array<() => void> = []
@@ -61,6 +63,12 @@ export class RootStore {
         : undefined,
     )
     this.pluginHostStore = new PluginHostStore(listHosts ? () => listHosts() : async () => [])
+    this.sessionRuntimeCatalogStore = new SessionRuntimeCatalogStore({
+      listMcpServers: this.api.session.listMcpServers,
+      listSkills: this.api.session.listSkills,
+      listTools: this.api.session.listTools,
+      updateSettings: this.api.session.updateSettings,
+    })
     this.updateStore = new UpdateStore(this.api.app)
     this.foundationStore = new FoundationStore(this.storeEventBus, {
       getBootstrap: this.api.foundation.getBootstrap,

@@ -367,12 +367,28 @@ function parseFactoryDefaultSettings(
   const reasoningEffort = sessionDefaultSettings
     ? toNonEmptyString(sessionDefaultSettings.reasoningEffort)
     : undefined
+  const autonomyMode = sessionDefaultSettings
+    ? toNonEmptyString(sessionDefaultSettings.autonomyMode)
+    : undefined
+  const specModeModelId = sessionDefaultSettings
+    ? toNonEmptyString(sessionDefaultSettings.specModeModelId)
+    : undefined
+  const specModeReasoningEffort = sessionDefaultSettings
+    ? toNonEmptyString(sessionDefaultSettings.specModeReasoningEffort)
+    : undefined
+  const enabledToolIds = toOptionalStringArray(sessionDefaultSettings?.enabledToolIds)
+  const disabledToolIds = toOptionalStringArray(sessionDefaultSettings?.disabledToolIds)
   const compactionTokenLimit = toOptionalNumber(value.compactionTokenLimit)
 
   return {
     ...(model ? { model } : {}),
     ...(interactionMode ? { interactionMode } : {}),
     ...(reasoningEffort ? { reasoningEffort } : {}),
+    ...(autonomyMode ? { autonomyMode } : {}),
+    ...(specModeModelId ? { specModeModelId } : {}),
+    ...(specModeReasoningEffort ? { specModeReasoningEffort } : {}),
+    ...(enabledToolIds ? { enabledToolIds } : {}),
+    ...(disabledToolIds ? { disabledToolIds } : {}),
     ...(typeof compactionTokenLimit === 'number' ? { compactionTokenLimit } : {}),
   }
 }
@@ -397,6 +413,12 @@ function toOptionalString(value: unknown): string | null | undefined {
 
 function toOptionalNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function toOptionalStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
+    ? [...value]
+    : undefined
 }
 
 function mergeSettingsBootstrapIntoCliBootstrap(
@@ -425,6 +447,32 @@ function mergeSettingsBootstrapIntoCliBootstrap(
             reasoningEffort: settingsBootstrap.factoryDefaultSettings.reasoningEffort,
           }
         : {}),
+      ...(typeof settingsBootstrap.factoryDefaultSettings.autonomyMode === 'string'
+        ? {
+            autonomyMode: settingsBootstrap.factoryDefaultSettings.autonomyMode,
+          }
+        : {}),
+      ...(typeof settingsBootstrap.factoryDefaultSettings.specModeModelId === 'string'
+        ? {
+            specModeModelId: settingsBootstrap.factoryDefaultSettings.specModeModelId,
+          }
+        : {}),
+      ...(typeof settingsBootstrap.factoryDefaultSettings.specModeReasoningEffort === 'string'
+        ? {
+            specModeReasoningEffort:
+              settingsBootstrap.factoryDefaultSettings.specModeReasoningEffort,
+          }
+        : {}),
+      ...(Array.isArray(settingsBootstrap.factoryDefaultSettings.enabledToolIds)
+        ? {
+            enabledToolIds: [...settingsBootstrap.factoryDefaultSettings.enabledToolIds],
+          }
+        : {}),
+      ...(Array.isArray(settingsBootstrap.factoryDefaultSettings.disabledToolIds)
+        ? {
+            disabledToolIds: [...settingsBootstrap.factoryDefaultSettings.disabledToolIds],
+          }
+        : {}),
       ...(typeof settingsBootstrap.factoryDefaultSettings.compactionTokenLimit === 'number'
         ? {
             compactionTokenLimit: settingsBootstrap.factoryDefaultSettings.compactionTokenLimit,
@@ -444,6 +492,15 @@ function bootstrapChanged(
       next.factoryDefaultSettings.interactionMode ||
     previous.factoryDefaultSettings.reasoningEffort !==
       next.factoryDefaultSettings.reasoningEffort ||
+    previous.factoryDefaultSettings.autonomyMode !== next.factoryDefaultSettings.autonomyMode ||
+    previous.factoryDefaultSettings.specModeModelId !==
+      next.factoryDefaultSettings.specModeModelId ||
+    previous.factoryDefaultSettings.specModeReasoningEffort !==
+      next.factoryDefaultSettings.specModeReasoningEffort ||
+    JSON.stringify(previous.factoryDefaultSettings.enabledToolIds ?? []) !==
+      JSON.stringify(next.factoryDefaultSettings.enabledToolIds ?? []) ||
+    JSON.stringify(previous.factoryDefaultSettings.disabledToolIds ?? []) !==
+      JSON.stringify(next.factoryDefaultSettings.disabledToolIds ?? []) ||
     previous.factoryDefaultSettings.compactionTokenLimit !==
       next.factoryDefaultSettings.compactionTokenLimit ||
     JSON.stringify(previous.factoryModels) !== JSON.stringify(next.factoryModels)

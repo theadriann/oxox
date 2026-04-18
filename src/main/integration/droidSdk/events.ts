@@ -232,6 +232,13 @@ export function mapDroidMessageToSessionEvent(
         recoverable: true,
       }
 
+    case 'turn_complete':
+      return {
+        type: 'stream.completed',
+        sessionId,
+        reason: 'completed',
+      }
+
     default:
       return null
   }
@@ -335,7 +342,22 @@ function pickOxoxSessionSettings(settings: Record<string, unknown>): SessionSett
     ...(typeof settings.autonomyLevel === 'string'
       ? { autonomyLevel: settings.autonomyLevel }
       : {}),
+    ...(typeof settings.autonomyMode === 'string' ? { autonomyMode: settings.autonomyMode } : {}),
+    ...(typeof settings.specModeModelId === 'string'
+      ? { specModeModelId: settings.specModeModelId }
+      : {}),
+    ...(typeof settings.specModeReasoningEffort === 'string'
+      ? { specModeReasoningEffort: settings.specModeReasoningEffort }
+      : {}),
+    ...(isStringArray(settings.enabledToolIds) ? { enabledToolIds: settings.enabledToolIds } : {}),
+    ...(isStringArray(settings.disabledToolIds)
+      ? { disabledToolIds: settings.disabledToolIds }
+      : {}),
   }
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
 }
 
 function extractDroidMessageContentBlocks(content: unknown): TranscriptMessageContentBlock[] {

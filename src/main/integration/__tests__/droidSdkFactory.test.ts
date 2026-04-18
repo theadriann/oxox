@@ -70,15 +70,7 @@ describe('buildDroidSdkProcessTransportOptions', () => {
           '/Users/tester/.local/share/pnpm',
         ].join(':'),
       },
-      execArgs: [
-        'exec',
-        '--input-format',
-        'stream-jsonrpc',
-        '--output-format',
-        'stream-jsonrpc',
-        '--session-id',
-        'session-123',
-      ],
+      execArgs: ['exec', '--input-format', 'stream-jsonrpc', '--output-format', 'stream-jsonrpc'],
       execPath: 'droid',
     })
   })
@@ -196,15 +188,7 @@ describe('createDroidSdkSessionFactory', () => {
             '/Users/tester/.local/share/pnpm',
           ].join(':'),
         },
-        execArgs: [
-          'exec',
-          '--input-format',
-          'stream-jsonrpc',
-          '--output-format',
-          'stream-jsonrpc',
-          '--session-id',
-          'session-123',
-        ],
+        execArgs: ['exec', '--input-format', 'stream-jsonrpc', '--output-format', 'stream-jsonrpc'],
         execPath: '/opt/factory/bin/droid',
       },
     ])

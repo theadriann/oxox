@@ -1669,6 +1669,7 @@ describe('createSessionProcessManager', () => {
         toolUses: [
           {
             toolUse: {
+              type: 'tool_use',
               id: 'tool-1',
               name: 'Execute',
               input: {},
@@ -1693,6 +1694,7 @@ describe('createSessionProcessManager', () => {
         toolUses: [
           {
             toolUse: {
+              type: 'tool_use',
               id: 'tool-2',
               name: 'Read',
               input: {},

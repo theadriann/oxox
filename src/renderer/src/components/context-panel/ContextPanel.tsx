@@ -7,7 +7,13 @@ import {
   useState,
 } from 'react'
 
-import type { LiveSessionEventRecord, LiveSessionSnapshot } from '../../../../shared/ipc/contracts'
+import type {
+  LiveSessionEventRecord,
+  LiveSessionMcpServerInfo,
+  LiveSessionSkillInfo,
+  LiveSessionSnapshot,
+  LiveSessionToolInfo,
+} from '../../../../shared/ipc/contracts'
 import { useTimeTick } from '../../hooks/useTimeTick'
 import { formatAbsoluteSessionTime, formatElapsedDuration } from '../../lib/sessionTime'
 import type { SessionPreview } from '../../stores/SessionStore'
@@ -18,6 +24,14 @@ import { StateCard } from '../ui/state-card'
 export interface ContextPanelProps {
   selectedSession?: SessionPreview
   liveSession: LiveSessionSnapshot | null
+  runtimeCatalog?: {
+    refreshError: string | null
+    tools: LiveSessionToolInfo[]
+    skills: LiveSessionSkillInfo[]
+    mcpServers: LiveSessionMcpServerInfo[]
+    updatingToolLlmId: string | null
+    onToggleTool?: (toolLlmId: string, allowed: boolean) => void
+  }
   isLoading?: boolean
   errorState?: {
     title: string
@@ -48,6 +62,7 @@ const CONTEXT_PANEL_SKELETON_IDS = [
 export function ContextPanel({
   selectedSession,
   liveSession,
+  runtimeCatalog,
   isLoading = false,
   errorState,
   now,
@@ -177,6 +192,33 @@ export function ContextPanel({
                 <DetailField label="Model" value={liveModelId ?? 'Unavailable'} />
               </DetailSection>
 
+              {liveSession ? (
+                <DetailSection title="Session settings">
+                  <DetailField
+                    label="Interaction"
+                    value={formatSettingValue(liveSession.settings.interactionMode)}
+                  />
+                  <DetailField
+                    label="Reasoning"
+                    value={formatSettingValue(liveSession.settings.reasoningEffort)}
+                  />
+                  <DetailField
+                    label="Autonomy"
+                    value={formatSettingValue(
+                      liveSession.settings.autonomyMode ?? liveSession.settings.autonomyLevel,
+                    )}
+                  />
+                  <DetailField
+                    label="Spec model"
+                    value={formatSettingValue(liveSession.settings.specModeModelId)}
+                  />
+                  <DetailField
+                    label="Spec reasoning"
+                    value={formatSettingValue(liveSession.settings.specModeReasoningEffort)}
+                  />
+                </DetailSection>
+              ) : null}
+
               {/* Timeline */}
               <DetailSection title="Timeline">
                 <DetailField
@@ -210,6 +252,70 @@ export function ContextPanel({
                       <TokenMetric label="Cache" value={latestTokenUsage.cacheReadTokens} />
                       <TokenMetric label="Thinking" value={latestTokenUsage.thinkingTokens} />
                     </div>
+                  </div>
+                </DetailSection>
+              ) : null}
+
+              {liveSession && runtimeCatalog ? (
+                <DetailSection title="Tool controls">
+                  {runtimeCatalog.refreshError ? (
+                    <p className="px-1 py-1 text-[11px] text-fd-danger">
+                      {runtimeCatalog.refreshError}
+                    </p>
+                  ) : runtimeCatalog.tools.length > 0 ? (
+                    <div className="flex flex-col gap-1">
+                      {runtimeCatalog.tools.map((tool) => (
+                        <ToolToggleRow
+                          key={tool.id}
+                          tool={tool}
+                          isUpdating={runtimeCatalog.updatingToolLlmId === tool.llmId}
+                          onToggle={runtimeCatalog.onToggleTool}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="px-1 py-1 text-[11px] text-fd-tertiary">
+                      Attach to inspect the current tool catalog.
+                    </p>
+                  )}
+                </DetailSection>
+              ) : null}
+
+              {liveSession && runtimeCatalog?.skills.length ? (
+                <DetailSection title="Skills">
+                  <div className="flex flex-col gap-1">
+                    {runtimeCatalog.skills.map((skill) => (
+                      <div
+                        key={`${skill.location}:${skill.name}`}
+                        className="flex items-center justify-between gap-2 px-1 py-1"
+                      >
+                        <span className="truncate text-[11px] text-fd-primary">{skill.name}</span>
+                        <span className="rounded bg-fd-panel px-1.5 py-0.5 text-[9px] uppercase text-fd-tertiary">
+                          {skill.location}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </DetailSection>
+              ) : null}
+
+              {liveSession && runtimeCatalog?.mcpServers.length ? (
+                <DetailSection title="MCP servers">
+                  <div className="flex flex-col gap-1">
+                    {runtimeCatalog.mcpServers.map((server) => (
+                      <div
+                        key={server.name}
+                        className="flex items-center justify-between gap-2 px-1 py-1"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[11px] text-fd-primary">{server.name}</p>
+                          <p className="text-[10px] text-fd-tertiary">{formatMcpSummary(server)}</p>
+                        </div>
+                        <span className="rounded bg-fd-panel px-1.5 py-0.5 text-[9px] uppercase text-fd-tertiary">
+                          {server.status}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </DetailSection>
               ) : null}
@@ -309,12 +415,69 @@ function TokenMetric({ label, value }: { label: string; value: number }) {
   )
 }
 
+function ToolToggleRow({
+  tool,
+  isUpdating,
+  onToggle,
+}: {
+  tool: LiveSessionToolInfo
+  isUpdating: boolean
+  onToggle?: (toolLlmId: string, allowed: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-fd-border-subtle bg-fd-panel/40 px-2 py-1.5">
+      <div className="min-w-0">
+        <p className="truncate text-[11px] text-fd-primary">{tool.displayName}</p>
+        <p className="text-[10px] text-fd-tertiary">
+          {tool.currentlyAllowed ? 'Allowed' : 'Blocked'}
+          {tool.defaultAllowed ? ' · default on' : ' · default off'}
+        </p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={tool.currentlyAllowed}
+        aria-label={`Toggle ${tool.displayName} tool`}
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          tool.currentlyAllowed ? 'bg-fd-ember-400' : 'bg-fd-tertiary/30'
+        }`}
+        disabled={isUpdating}
+        onClick={() => onToggle?.(tool.llmId, !tool.currentlyAllowed)}
+      >
+        <span
+          className={`pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform ${
+            tool.currentlyAllowed ? 'translate-x-[18px]' : 'translate-x-[3px]'
+          }`}
+        />
+      </button>
+    </div>
+  )
+}
+
 function formatStatusLabel(value: string): string {
   return value
     .split(/[\s_-]+/)
     .filter(Boolean)
     .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
     .join(' ')
+}
+
+function formatSettingValue(value: string | undefined): string {
+  return value && value.length > 0 ? value : 'Default'
+}
+
+function formatMcpSummary(server: LiveSessionMcpServerInfo): string {
+  const parts = [
+    server.serverType,
+    typeof server.toolCount === 'number' ? `${server.toolCount} tools` : null,
+    typeof server.hasAuthTokens === 'boolean'
+      ? server.hasAuthTokens
+        ? 'authenticated'
+        : 'auth required'
+      : null,
+  ].filter((value): value is string => Boolean(value))
+
+  return parts.join(' · ')
 }
 
 function getLatestTokenUsage(events: LiveSessionEventRecord[]): TokenUsageSnapshot | null {

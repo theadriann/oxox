@@ -237,6 +237,37 @@ describe('LiveSessionStore', () => {
     expect(store.selectedSnapshot?.messages[0]?.content).toBe('Updated hello')
   })
 
+  it('refreshes when session tool override settings change', async () => {
+    const sessionStore = new SessionStore()
+    sessionStore.hydrateSessions([createSessionRecord()])
+    sessionStore.selectSession('session-live-1')
+
+    const loadSnapshot = vi.fn().mockResolvedValue(
+      createLiveSnapshot({
+        settings: {
+          modelId: 'gpt-5.4',
+          interactionMode: 'auto',
+          enabledToolIds: ['Read'],
+          disabledToolIds: ['Execute'],
+        },
+      }),
+    )
+    const store = createStoreHarness(sessionStore, loadSnapshot)
+    store.upsertSnapshot(
+      createLiveSnapshot({
+        settings: {
+          modelId: 'gpt-5.4',
+          interactionMode: 'auto',
+        },
+      }),
+    )
+
+    await store.refreshSnapshot('session-live-1')
+
+    expect(store.selectedSnapshot?.settings.enabledToolIds).toEqual(['Read'])
+    expect(store.selectedSnapshot?.settings.disabledToolIds).toEqual(['Execute'])
+  })
+
   it('preserves existing activity timestamps when syncing live snapshot metadata', () => {
     const sessionStore = new SessionStore()
     sessionStore.hydrateSessions([

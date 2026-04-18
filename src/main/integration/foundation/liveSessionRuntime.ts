@@ -4,10 +4,13 @@ import type {
   LiveSessionEventRecord,
   LiveSessionExecuteRewindParams,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpServerInfo,
   LiveSessionNotificationSummary,
   LiveSessionRewindInfo,
   LiveSessionSettings,
+  LiveSessionSkillInfo,
   LiveSessionSnapshot,
+  LiveSessionToolInfo,
 } from '../../../shared/ipc/contracts'
 import type { SessionEvent } from '../protocol/sessionEvents'
 import type {
@@ -33,6 +36,9 @@ interface SessionProcessManagerLike {
   detachSession: (sessionId: string, viewerId?: string) => Promise<RuntimeLiveSessionSnapshot>
   addUserMessage: (sessionId: string, text: string) => Promise<void>
   renameSession: (sessionId: string, title: string) => Promise<void>
+  listSessionTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
+  listSessionSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
+  listSessionMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
   updateSessionSettings: (
     sessionId: string,
     settings: Partial<RuntimeLiveSessionSettings>,
@@ -85,6 +91,9 @@ export interface FoundationLiveSessionRuntime {
   detachSession: (sessionId: string, viewerId?: string) => Promise<LiveSessionSnapshot>
   addUserMessage: (sessionId: string, text: string) => Promise<void>
   renameSession: (sessionId: string, title: string) => Promise<void>
+  listSessionTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
+  listSessionSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
+  listSessionMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
   updateSessionSettings: (
     sessionId: string,
     settings: Partial<LiveSessionSettings>,
@@ -187,6 +196,9 @@ export function createFoundationLiveSessionRuntime({
       emitSnapshot(sessionId)
       onChange?.()
     },
+    listSessionTools: (sessionId) => sessionProcessManager.listSessionTools(sessionId),
+    listSessionSkills: (sessionId) => sessionProcessManager.listSessionSkills(sessionId),
+    listSessionMcpServers: (sessionId) => sessionProcessManager.listSessionMcpServers(sessionId),
     updateSessionSettings: (sessionId, settings) =>
       sessionProcessManager.updateSessionSettings(sessionId, settings).then(() => {
         emitSnapshot(sessionId)

@@ -5,9 +5,12 @@ import type {
   FoundationChangedPayload,
   LiveSessionCompactResult,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpServerInfo,
   LiveSessionRewindInfo,
+  LiveSessionSkillInfo,
   LiveSessionSnapshot,
   LiveSessionSnapshotChangedPayload,
+  LiveSessionToolInfo,
   NotificationNavigationPayload,
   OxoxBridge,
   PluginCapabilitiesChangedPayload,
@@ -140,6 +143,18 @@ export function createOxoxBridge(
         invokeTyped<LiveSessionSnapshot>(invoke, IPC_CHANNELS.sessionDetach, sessionId),
       addUserMessage: (sessionId, text) =>
         invokeTyped<void>(invoke, IPC_CHANNELS.sessionAddUserMessage, sessionId, text),
+      rename: (sessionId, title) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.sessionRename, sessionId, title),
+      listTools: (sessionId) =>
+        invokeTyped<LiveSessionToolInfo[]>(invoke, IPC_CHANNELS.sessionListTools, sessionId),
+      listSkills: (sessionId) =>
+        invokeTyped<LiveSessionSkillInfo[]>(invoke, IPC_CHANNELS.sessionListSkills, sessionId),
+      listMcpServers: (sessionId) =>
+        invokeTyped<LiveSessionMcpServerInfo[]>(
+          invoke,
+          IPC_CHANNELS.sessionListMcpServers,
+          sessionId,
+        ),
       updateSettings: (sessionId, settings) =>
         invokeTyped<void>(invoke, IPC_CHANNELS.sessionUpdateSettings, sessionId, settings),
       interrupt: (sessionId) => invokeTyped<void>(invoke, IPC_CHANNELS.sessionInterrupt, sessionId),

@@ -9,10 +9,13 @@ import type {
   LiveSessionCompactResult,
   LiveSessionExecuteRewindParams,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpServerInfo,
   LiveSessionNotificationSummary,
   LiveSessionRewindInfo,
   LiveSessionSettings,
+  LiveSessionSkillInfo,
   LiveSessionSnapshot,
+  LiveSessionToolInfo,
   ProjectRecord,
   SessionRecord,
   SessionTranscript,
@@ -47,6 +50,9 @@ export interface FoundationService {
   attachSession: (sessionId: string, viewerId?: string) => Promise<LiveSessionSnapshot>
   detachSession: (sessionId: string, viewerId?: string) => Promise<LiveSessionSnapshot>
   addUserMessage: (sessionId: string, text: string) => Promise<void>
+  listSessionTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
+  listSessionSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
+  listSessionMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
   updateSessionSettings: (
     sessionId: string,
     settings: Partial<LiveSessionSettings>,
@@ -169,6 +175,9 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
     attachSession: liveSessionRuntime.attachSession,
     detachSession: liveSessionRuntime.detachSession,
     addUserMessage: liveSessionRuntime.addUserMessage,
+    listSessionTools: liveSessionRuntime.listSessionTools,
+    listSessionSkills: liveSessionRuntime.listSessionSkills,
+    listSessionMcpServers: liveSessionRuntime.listSessionMcpServers,
     renameSession: async (sessionId, title) => {
       await liveSessionRuntime.renameSession(sessionId, title)
       emitFoundationChanged()

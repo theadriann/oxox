@@ -1,5 +1,6 @@
 import { batch, bindMethods, observable, readField, writeField } from './legend'
 export interface RenameSessionApi {
+  rename?: (sessionId: string, title: string) => Promise<void>
   renameViaDaemon?: (sessionId: string, title: string) => Promise<void>
 }
 
@@ -86,8 +87,9 @@ export class RenameWorkflowStore {
   async submitRename(): Promise<void> {
     const selectedSessionId = this.getSelectedSessionId()
     const nextTitle = this.renameDraft.trim()
+    const rename = this.sessionApi.rename ?? this.sessionApi.renameViaDaemon
 
-    if (!selectedSessionId || nextTitle.length === 0 || !this.sessionApi.renameViaDaemon) {
+    if (!selectedSessionId || nextTitle.length === 0 || !rename) {
       return
     }
 
@@ -97,7 +99,7 @@ export class RenameWorkflowStore {
     })
 
     try {
-      await this.sessionApi.renameViaDaemon(selectedSessionId, nextTitle)
+      await rename(selectedSessionId, nextTitle)
       await this.onRenamed?.(selectedSessionId, nextTitle)
 
       batch(() => {

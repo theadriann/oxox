@@ -154,6 +154,14 @@ export function registerAppIpcHandlers({
     },
     [IPC_CHANNELS.sessionAddUserMessage]: (_event, sessionId: string, text: string) =>
       service.addUserMessage(sessionId, text),
+    [IPC_CHANNELS.sessionRename]: (_event, sessionId: string, title: string) =>
+      service.renameSession(sessionId, title),
+    [IPC_CHANNELS.sessionListTools]: (_event, sessionId: string) =>
+      service.listSessionTools(sessionId),
+    [IPC_CHANNELS.sessionListSkills]: (_event, sessionId: string) =>
+      service.listSessionSkills(sessionId),
+    [IPC_CHANNELS.sessionListMcpServers]: (_event, sessionId: string) =>
+      service.listSessionMcpServers(sessionId),
     [IPC_CHANNELS.sessionUpdateSettings]: (
       _event,
       sessionId: string,
