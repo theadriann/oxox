@@ -178,6 +178,7 @@ describe('ContextPanel', () => {
       />,
     )
 
+    expect(screen.getByLabelText('Context panel').className).toContain('h-full')
     expect(screen.getByText('Session settings')).toBeTruthy()
     expect(screen.getByText('Tool controls')).toBeTruthy()
     expect(screen.getByText('Skills')).toBeTruthy()

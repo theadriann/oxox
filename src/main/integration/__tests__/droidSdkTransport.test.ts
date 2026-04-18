@@ -732,7 +732,7 @@ describe('DroidSdkSessionTransport', () => {
         }),
         expect.objectContaining({
           type: 'stream.completed',
-          reason: 'completed',
+          reason: 'turn_complete',
         }),
       ]),
     )

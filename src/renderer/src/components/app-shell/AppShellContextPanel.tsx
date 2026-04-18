@@ -42,7 +42,9 @@ export function AppShellContextPanel({
   )
 
   if (!shouldAnimate) {
-    return contextPanelState.isHidden ? null : <div className="min-w-0">{panel}</div>
+    return contextPanelState.isHidden ? null : (
+      <div className="h-full min-h-0 min-w-0 overflow-hidden">{panel}</div>
+    )
   }
 
   return (
@@ -52,7 +54,7 @@ export function AppShellContextPanel({
           key="context-panel"
           layout
           animate="animate"
-          className="min-w-0"
+          className="h-full min-h-0 min-w-0 overflow-hidden"
           exit="exit"
           initial="initial"
           variants={createPanelVariants(contextPanelState.prefersReducedMotion, 'right')}

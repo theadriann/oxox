@@ -236,7 +236,7 @@ export function mapDroidMessageToSessionEvent(
       return {
         type: 'stream.completed',
         sessionId,
-        reason: 'completed',
+        reason: 'turn_complete',
       }
 
     default:

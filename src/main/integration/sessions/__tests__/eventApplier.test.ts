@@ -113,4 +113,26 @@ describe('eventApplier', () => {
     expect(session.processId).toBeNull()
     expect(session.workingStatus).toBe('reconnecting')
   })
+
+  it('keeps the live transport attached when an SDK turn completes and returns the session to idle', () => {
+    const transport = { processId: 1234 } as never
+    const session = createManagedSession({
+      transport,
+      processId: 1234,
+      workingStatus: 'waiting',
+    })
+
+    applyEventToSession(
+      session,
+      {
+        type: 'stream.completed',
+        reason: 'turn_complete',
+      },
+      '2026-04-10T00:01:00.000Z',
+    )
+
+    expect(session.transport).toBe(transport)
+    expect(session.processId).toBe(1234)
+    expect(session.workingStatus).toBe('idle')
+  })
 })

@@ -46,6 +46,11 @@ export function applyEventToSession(
       return
 
     case 'stream.completed':
+      if (event.reason === 'turn_complete') {
+        session.workingStatus = 'idle'
+        return
+      }
+
       session.transport = null
       session.processId = null
       if (event.reason !== 'disposed') {

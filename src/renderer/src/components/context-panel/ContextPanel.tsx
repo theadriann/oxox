@@ -85,7 +85,7 @@ export function ContextPanel({
   return (
     <aside
       aria-label="Context panel"
-      className="oxox-context-panel-shell overflow-hidden rounded-lg border border-fd-border-default bg-fd-surface"
+      className="oxox-context-panel-shell h-full min-h-0 overflow-hidden rounded-lg border border-fd-border-default bg-fd-surface"
       data-panel-width={width}
       ref={panelRef}
     >
