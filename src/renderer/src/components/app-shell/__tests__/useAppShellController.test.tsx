@@ -60,7 +60,7 @@ describe('useAppShellController', () => {
   it('wires runtime, new-session, palette, resize, and keyboard hooks together', () => {
     const commandPalette = {
       closePalette: vi.fn(),
-      commands: [],
+      getCommands: () => [],
       handleSessionSelection: vi.fn(),
       openPalette: vi.fn(),
     }
@@ -208,7 +208,7 @@ describe('useAppShellController', () => {
       })
       useCommandPaletteMock.mockReturnValue({
         closePalette: vi.fn(),
-        commands: [],
+        getCommands: () => [],
         handleSessionSelection: vi.fn(),
         openPalette: vi.fn(),
       })

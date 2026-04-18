@@ -1,6 +1,6 @@
-import { observer } from 'mobx-react-lite'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 
+import { useValue } from '../../stores/legend'
 import {
   useFoundationStore,
   useLiveSessionStore,
@@ -16,7 +16,7 @@ interface ContextPanelConnectedProps {
   panelRef: RefObject<HTMLElement | null>
 }
 
-export const ContextPanelConnected = observer(function ContextPanelConnected({
+export function ContextPanelConnected({
   onBrowseSessions,
   onResizeStart,
   panelRef,
@@ -25,15 +25,17 @@ export const ContextPanelConnected = observer(function ContextPanelConnected({
   const liveSessionStore = useLiveSessionStore()
   const sessionStore = useSessionStore()
   const uiStore = useUIStore()
-  const props = buildContextPanelProps({
-    foundationStore,
-    liveSessionStore,
-    onBrowseSessions,
-    onResizeStart,
-    panelRef,
-    sessionStore,
-    uiStore,
-  })
+  const props = useValue(() =>
+    buildContextPanelProps({
+      foundationStore,
+      liveSessionStore,
+      onBrowseSessions,
+      onResizeStart,
+      panelRef,
+      sessionStore,
+      uiStore,
+    }),
+  )
 
   return <ContextPanel {...props} />
-})
+}

@@ -1,4 +1,6 @@
-import { useEffect } from 'react'
+import { useRef } from 'react'
+
+import { useMountEffect } from './useMountEffect'
 
 export interface KeyboardShortcutDefinition {
   id: string
@@ -6,17 +8,23 @@ export interface KeyboardShortcutDefinition {
   altKey?: boolean
   shiftKey?: boolean
   metaOrCtrl?: boolean
-  when?: boolean
+  when?: boolean | (() => boolean)
   preventDefault?: boolean
   allowInEditable?: boolean
   handler: (event: KeyboardEvent) => void
 }
 
 export function useKeyboardShortcuts(shortcuts: KeyboardShortcutDefinition[]): void {
-  useEffect(() => {
+  const shortcutsRef = useRef(shortcuts)
+  shortcutsRef.current = shortcuts
+
+  useMountEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      for (const shortcut of shortcuts) {
-        if (shortcut.when === false) {
+      for (const shortcut of shortcutsRef.current) {
+        const isEnabled =
+          typeof shortcut.when === 'function' ? shortcut.when() : shortcut.when !== false
+
+        if (!isEnabled) {
           continue
         }
 
@@ -42,7 +50,7 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcutDefinition[]): v
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [shortcuts])
+  })
 }
 
 function matchesShortcut(event: KeyboardEvent, shortcut: KeyboardShortcutDefinition): boolean {

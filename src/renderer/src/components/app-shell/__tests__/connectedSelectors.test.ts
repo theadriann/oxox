@@ -105,6 +105,7 @@ describe('app-shell connected selectors', () => {
   })
 
   it('builds sidebar, context-panel visibility, update prompt, and status-bar props from stores', () => {
+    const isProjectCollapsed = vi.fn().mockReturnValue(false)
     const sidebarProps = buildAppShellSidebarProps({
       errorState: undefined,
       foundationStore: {
@@ -125,7 +126,7 @@ describe('app-shell connected selectors', () => {
       } as never,
       shouldAnimate: true,
       uiStore: {
-        isProjectCollapsed: vi.fn().mockReturnValue(false),
+        isProjectCollapsed,
         isSidebarHidden: true,
         toggleProjectCollapsed: vi.fn(),
       } as never,
@@ -135,6 +136,8 @@ describe('app-shell connected selectors', () => {
     expect(sidebarProps.sidebar.activeCount).toBe(2)
     expect(sidebarProps.sidebar.isLoading).toBe(true)
     expect(sidebarProps.sidebar.onCompactSession).toBeTypeOf('function')
+    expect(sidebarProps.sidebar.isProjectCollapsed('project-1')).toBe(false)
+    expect(isProjectCollapsed).toHaveBeenCalledWith('project-1')
 
     const contextPanelState = buildAppShellContextPanelState({
       isContextPanelHidden: false,

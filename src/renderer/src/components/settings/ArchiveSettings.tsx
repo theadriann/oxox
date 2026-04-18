@@ -1,17 +1,17 @@
 import { Archive, FolderClosed, RotateCcw } from 'lucide-react'
-import { observer } from 'mobx-react-lite'
 import { memo, useCallback } from 'react'
 
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
+import { useValue } from '../../stores/legend'
 import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
 import { useSessionStore } from '../../stores/StoreProvider'
 import { Button } from '../ui/button'
 import { StateCard } from '../ui/state-card'
 
-export const ArchiveSettings = observer(function ArchiveSettings() {
+export function ArchiveSettings() {
   const sessionStore = useSessionStore()
-  const archivedProjects = sessionStore.archivedProjects
-  const archivedSessions = sessionStore.archivedSessions
+  const archivedProjects = useValue(() => sessionStore.archivedProjects)
+  const archivedSessions = useValue(() => sessionStore.archivedSessions)
   const hasArchived = archivedProjects.length > 0 || archivedSessions.length > 0
 
   return (
@@ -68,7 +68,7 @@ export const ArchiveSettings = observer(function ArchiveSettings() {
       ) : null}
     </div>
   )
-})
+}
 
 const ArchivedProjectRow = memo(function ArchivedProjectRow({
   project,

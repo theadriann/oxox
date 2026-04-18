@@ -1,7 +1,6 @@
-import { useEffect } from 'react'
-
 import type { NotificationNavigationPayload } from '../../../shared/ipc/contracts'
 import type { PlatformApiClient } from '../platform/apiClient'
+import { useMountEffect } from './useMountEffect'
 
 export type NotificationNavigationAppApi = PlatformApiClient['app']
 
@@ -23,7 +22,7 @@ export function useNotificationNavigation({
   transcriptStore,
   onSelectSession,
 }: UseNotificationNavigationOptions): void {
-  useEffect(() => {
+  useMountEffect(() => {
     const unsubscribe = appApi.onNotificationNavigation?.(
       async ({ sessionId }: NotificationNavigationPayload) => {
         const normalizedSessionId = sessionId.trim()
@@ -37,5 +36,5 @@ export function useNotificationNavigation({
     )
 
     return () => unsubscribe?.()
-  }, [appApi, liveSessionStore, onSelectSession, transcriptStore])
+  })
 }

@@ -1,6 +1,6 @@
-import { observer } from 'mobx-react-lite'
 import { type RefObject, useCallback } from 'react'
 
+import { useValue } from '../../stores/legend'
 import {
   useComposerStore,
   useFoundationStore,
@@ -28,7 +28,7 @@ interface DetailPanelConnectedProps {
   onBrowseSessions?: () => void
 }
 
-export const DetailPanelConnected = observer(function DetailPanelConnected({
+export function DetailPanelConnected({
   newSessionForm,
   transcriptScrollSignal,
   transcriptPrimaryActionRef,
@@ -60,19 +60,21 @@ export const DetailPanelConnected = observer(function DetailPanelConnected({
     )
   }
 
-  const props = buildDetailPanelConnectedProps({
-    composerStore,
-    foundationStore,
-    liveSessionStore,
-    newSessionForm: resolvedNewSessionForm,
-    onBrowseSessions: resolvedOnBrowseSessions,
-    sessionStore,
-    transcriptPrimaryActionRef: resolvedTranscriptPrimaryActionRef,
-    transcriptScrollSignal: resolvedTranscriptScrollSignal,
-    transcriptStore,
-    transportStore,
-    uiStore,
-  })
+  const props = useValue(() =>
+    buildDetailPanelConnectedProps({
+      composerStore,
+      foundationStore,
+      liveSessionStore,
+      newSessionForm: resolvedNewSessionForm,
+      onBrowseSessions: resolvedOnBrowseSessions,
+      sessionStore,
+      transcriptPrimaryActionRef: resolvedTranscriptPrimaryActionRef,
+      transcriptScrollSignal: resolvedTranscriptScrollSignal,
+      transcriptStore,
+      transportStore,
+      uiStore,
+    }),
+  )
   const handleResolvePermissionRequest = useCallback(
     (payload: { requestId: string; selectedOption: string }) => {
       void composerStore.permissionResolution.resolvePermission(
@@ -99,4 +101,4 @@ export const DetailPanelConnected = observer(function DetailPanelConnected({
       onSubmitAskUserResponse={handleSubmitAskUserResponse}
     />
   )
-})
+}

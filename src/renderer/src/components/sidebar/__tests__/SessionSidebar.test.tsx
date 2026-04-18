@@ -2,8 +2,8 @@
 
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { observer } from 'mobx-react-lite'
 
+import { useValue } from '../../../stores/legend'
 import { UIStore } from '../../../stores/UIStore'
 import { SessionSidebarConnected as SessionSidebar } from '../SessionSidebarConnected'
 
@@ -760,9 +760,11 @@ describe('SessionSidebar', () => {
     expect(onToggleProject).not.toHaveBeenCalled()
   })
 
-  it('rerenders immediately when workspace collapse state changes in MobX', () => {
+  it('rerenders immediately when workspace collapse state changes', () => {
     const uiStore = new UIStore()
-    const Harness = observer(function Harness() {
+    const Harness = function Harness() {
+      const isProjectAlphaCollapsed = useValue(() => uiStore.isProjectCollapsed('project-alpha'))
+
       return (
         <SessionSidebar
           groups={[
@@ -792,7 +794,11 @@ describe('SessionSidebar', () => {
           ]}
           selectedSessionId="session-alpha"
           activeCount={1}
-          isProjectCollapsed={uiStore.isProjectCollapsed}
+          isProjectCollapsed={(projectKey) =>
+            projectKey === 'project-alpha'
+              ? isProjectAlphaCollapsed
+              : uiStore.isProjectCollapsed(projectKey)
+          }
           onToggleProject={uiStore.toggleProjectCollapsed}
           onSelectSession={() => undefined}
           onTogglePinnedSession={() => undefined}
@@ -802,7 +808,7 @@ describe('SessionSidebar', () => {
           onResizeStart={() => undefined}
         />
       )
-    })
+    }
 
     render(<Harness />)
 

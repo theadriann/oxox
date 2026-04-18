@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { observer } from 'mobx-react-lite'
 import { useCallback } from 'react'
 
 import { createPanelVariants } from '../../lib/motion'
+import { readValue, useValue } from '../../stores/legend'
 import {
   useComposerStore,
   useFoundationStore,
@@ -21,10 +21,7 @@ interface AppShellSidebarProps {
   shouldAnimate: boolean
 }
 
-export const AppShellSidebar = observer(function AppShellSidebar({
-  prefersReducedMotion,
-  shouldAnimate,
-}: AppShellSidebarProps) {
+export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShellSidebarProps) {
   const composerStore = useComposerStore()
   const foundationStore = useFoundationStore()
   const liveSessionStore = useLiveSessionStore()
@@ -38,6 +35,8 @@ export const AppShellSidebar = observer(function AppShellSidebar({
     prefersReducedMotion,
     sessionStore,
   })
+  const isSettingsView = useValue(() => readValue(uiStore.isSettingsOpen))
+  const settingsSection = useValue(() => readValue(uiStore.settingsSection))
 
   const handleCopySessionId = useCallback(
     (sessionId: string) => {
@@ -79,26 +78,27 @@ export const AppShellSidebar = observer(function AppShellSidebar({
     [composerStore, sessionStore],
   )
 
-  const isSettingsView = uiStore.isSettingsOpen
-  const sidebarState = buildAppShellSidebarProps({
-    errorState: sidebarErrorState,
-    foundationStore,
-    onCompactSession: handleCompactSession,
-    onCopySessionId: handleCopySessionId,
-    onForkSession: handleForkSession,
-    onNewSession: newSessionForm.openDraft,
-    onRenameSession: handleRenameSession,
-    onResizeStart: startSidebarResize,
-    onRewindSession: handleRewindSession,
-    prefersReducedMotion,
-    sessionStore,
-    shouldAnimate,
-    uiStore,
-  })
+  const sidebarState = useValue(() =>
+    buildAppShellSidebarProps({
+      errorState: sidebarErrorState,
+      foundationStore,
+      onCompactSession: handleCompactSession,
+      onCopySessionId: handleCopySessionId,
+      onForkSession: handleForkSession,
+      onNewSession: newSessionForm.openDraft,
+      onRenameSession: handleRenameSession,
+      onResizeStart: startSidebarResize,
+      onRewindSession: handleRewindSession,
+      prefersReducedMotion,
+      sessionStore,
+      shouldAnimate,
+      uiStore,
+    }),
+  )
 
   const sidebar = isSettingsView ? (
     <SettingsSidebar
-      activeSection={uiStore.settingsSection}
+      activeSection={settingsSection}
       onSelectSection={uiStore.setSettingsSection}
       onBack={uiStore.closeSettings}
     />
@@ -125,4 +125,4 @@ export const AppShellSidebar = observer(function AppShellSidebar({
       </motion.div>
     </AnimatePresence>
   )
-})
+}

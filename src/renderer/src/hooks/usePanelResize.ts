@@ -1,7 +1,7 @@
-import { reaction } from 'mobx'
-import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef } from 'react'
-
+import { type PointerEvent as ReactPointerEvent, useCallback, useRef } from 'react'
+import { observe } from '../stores/legend'
 import type { UIStore } from '../stores/UIStore'
+import { useMountEffect } from './useMountEffect'
 
 interface UsePanelResizeOptions {
   uiStore: UIStore
@@ -16,8 +16,8 @@ export function usePanelResize({ uiStore }: UsePanelResizeOptions): UsePanelResi
   const sidebarCleanupRef = useRef<(() => void) | null>(null)
   const contextCleanupRef = useRef<(() => void) | null>(null)
 
-  useEffect(() => {
-    const syncCssVariables = () => {
+  useMountEffect(() => {
+    const stopSyncingDimensions = observe(() => {
       document.documentElement.style.setProperty(
         '--oxox-sidebar-width',
         `${uiStore.sidebarWidth}px`,
@@ -26,39 +26,23 @@ export function usePanelResize({ uiStore }: UsePanelResizeOptions): UsePanelResi
         '--oxox-context-panel-width',
         `${uiStore.contextPanelWidth}px`,
       )
-    }
-
+    })
+    const stopSyncingResizeClasses = observe(() => {
+      document.body.classList.toggle('oxox-sidebar-resizing', uiStore.isResizingSidebar)
+      document.body.classList.toggle('oxox-context-panel-resizing', uiStore.isResizingContextPanel)
+    })
     const syncWindowWidths = () => {
       uiStore.syncSidebarWidth()
       uiStore.syncContextPanelWidth()
-      syncCssVariables()
     }
 
     syncWindowWidths()
-
-    const stopSyncingSidebarWidth = reaction(() => uiStore.sidebarWidth, syncCssVariables)
-    const stopSyncingContextPanelWidth = reaction(() => uiStore.contextPanelWidth, syncCssVariables)
-    const stopSyncingSidebarClass = reaction(
-      () => uiStore.isResizingSidebar,
-      (isResizing) => {
-        document.body.classList.toggle('oxox-sidebar-resizing', isResizing)
-      },
-    )
-    const stopSyncingContextPanelClass = reaction(
-      () => uiStore.isResizingContextPanel,
-      (isResizing) => {
-        document.body.classList.toggle('oxox-context-panel-resizing', isResizing)
-      },
-    )
-
     window.addEventListener('resize', syncWindowWidths)
 
     return () => {
       window.removeEventListener('resize', syncWindowWidths)
-      stopSyncingSidebarWidth()
-      stopSyncingContextPanelWidth()
-      stopSyncingSidebarClass()
-      stopSyncingContextPanelClass()
+      stopSyncingDimensions()
+      stopSyncingResizeClasses()
       sidebarCleanupRef.current?.()
       contextCleanupRef.current?.()
       document.body.classList.remove('oxox-sidebar-resizing')
@@ -66,7 +50,7 @@ export function usePanelResize({ uiStore }: UsePanelResizeOptions): UsePanelResi
       document.documentElement.style.removeProperty('--oxox-sidebar-width')
       document.documentElement.style.removeProperty('--oxox-context-panel-width')
     }
-  }, [uiStore])
+  })
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement | HTMLButtonElement>) => {

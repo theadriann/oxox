@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { observer } from 'mobx-react-lite'
 
 import { createLayoutTransition, createViewPresenceVariants } from '../../lib/motion'
+import { useValue } from '../../stores/legend'
 import {
   useFoundationStore,
   useLiveSessionStore,
@@ -23,9 +23,7 @@ interface AppShellMainContentProps {
   prefersReducedMotion: boolean
 }
 
-export const AppShellMainContent = observer(function AppShellMainContent({
-  prefersReducedMotion,
-}: AppShellMainContentProps) {
+export function AppShellMainContent({ prefersReducedMotion }: AppShellMainContentProps) {
   const foundationStore = useFoundationStore()
   const liveSessionStore = useLiveSessionStore()
   const sessionStore = useSessionStore()
@@ -39,11 +37,15 @@ export const AppShellMainContent = observer(function AppShellMainContent({
       prefersReducedMotion,
       sessionStore,
     })
+  const isSettingsOpen = useValue(() => uiStore.isSettingsOpen)
+  const settingsSection = useValue(() => uiStore.settingsSection)
+  const isContextPanelHidden = useValue(() => uiStore.isContextPanelHidden)
+  const contentLayout = useValue(() => uiStore.contentLayout)
 
-  if (uiStore.isSettingsOpen) {
+  if (isSettingsOpen) {
     return (
       <div className="flex-1 overflow-y-auto">
-        <SettingsPanel section={uiStore.settingsSection} />
+        <SettingsPanel section={settingsSection} />
       </div>
     )
   }
@@ -54,7 +56,7 @@ export const AppShellMainContent = observer(function AppShellMainContent({
       <UpdatePromptConnected />
 
       <div
-        className={`oxox-content-area flex-1 min-h-0 ${uiStore.isContextPanelHidden ? 'oxox-content-area--without-context' : 'oxox-content-area--with-context'}`}
+        className={`oxox-content-area flex-1 min-h-0 ${isContextPanelHidden ? 'oxox-content-area--without-context' : 'oxox-content-area--with-context'}`}
       >
         <motion.section
           layout
@@ -64,10 +66,7 @@ export const AppShellMainContent = observer(function AppShellMainContent({
           transition={createLayoutTransition(prefersReducedMotion)}
         >
           <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2">
-            <ContentContainer
-              layout={uiStore.contentLayout}
-              className="flex h-full min-h-0 flex-col"
-            >
+            <ContentContainer layout={contentLayout} className="flex h-full min-h-0 flex-col">
               <AnimatePresence initial={false} mode="wait">
                 <motion.div
                   key={detailViewKey}
@@ -85,7 +84,7 @@ export const AppShellMainContent = observer(function AppShellMainContent({
             </ContentContainer>
           </div>
           <div className="flex flex-col gap-2 pb-2">
-            <ContentContainer layout={uiStore.contentLayout}>
+            <ContentContainer layout={contentLayout}>
               <div className="rounded-lg border border-fd-border-default bg-fd-panel">
                 <TodoListConnected />
                 {shouldRenderComposer ? (
@@ -103,4 +102,4 @@ export const AppShellMainContent = observer(function AppShellMainContent({
       </div>
     </>
   )
-})
+}

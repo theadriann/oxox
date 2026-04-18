@@ -1,5 +1,3 @@
-import { type IReactionDisposer, makeAutoObservable, reaction, runInAction } from 'mobx'
-
 import type { LiveSessionModel } from '../../../shared/ipc/contracts'
 import type { PlatformApiClient } from '../platform/apiClient'
 import { createLocalStoragePort, type PersistencePort } from '../platform/persistence'
@@ -21,6 +19,7 @@ import {
 import { type ComposerFeedback, FeedbackStore } from './FeedbackStore'
 import type { FoundationStore } from './FoundationStore'
 import type { LiveSessionStore } from './LiveSessionStore'
+import { batch, bindMethods, observable, readField, writeField } from './legend'
 import { toSessionRecord } from './liveSessionRecord'
 import { PermissionResolutionStore } from './PermissionResolutionStore'
 import { RenameWorkflowStore } from './RenameWorkflowStore'
@@ -41,15 +40,17 @@ export type ComposerStatus =
 export type ComposerSessionGateway = PlatformApiClient['session']
 
 export class ComposerStore {
-  draft = ''
-  error: string | null = null
-  preferencesBySessionId: Record<string, ComposerPreferences> = {}
-  pendingDraftWorkspacePath: string | null = null
-  pendingDraftPreferences: ComposerPreferences | null = null
-  sendingSessionId: string | null = null
-  isPendingDraftSubmitting = false
-  attachingSessionId: string | null = null
-  interruptingSessionId: string | null = null
+  readonly stateNode = observable({
+    draft: '',
+    error: null as string | null,
+    preferencesBySessionId: {} as Record<string, ComposerPreferences>,
+    pendingDraftWorkspacePath: null as string | null,
+    pendingDraftPreferences: null as ComposerPreferences | null,
+    sendingSessionId: null as string | null,
+    isPendingDraftSubmitting: false,
+    attachingSessionId: null as string | null,
+    interruptingSessionId: null as string | null,
+  })
 
   readonly feedbackStore: FeedbackStore
   readonly renameWorkflow: RenameWorkflowStore
@@ -61,7 +62,7 @@ export class ComposerStore {
   private readonly foundationStore: FoundationStore
   private readonly sessionApi: ComposerSessionGateway
   private readonly persistence: PersistencePort
-  private preferencesReactionDisposer: IReactionDisposer | null = null
+  private preferencesReactionDisposer: (() => void) | null = null
   private lastSessionId: string | null
 
   constructor(
@@ -118,31 +119,86 @@ export class ComposerStore {
       },
     )
 
-    makeAutoObservable(
-      this,
-      {
-        sessionStore: false,
-        liveSessionStore: false,
-        foundationStore: false,
-        sessionApi: false,
-        persistence: false,
-        preferencesReactionDisposer: false,
-        lastSessionId: false,
-        feedbackStore: false,
-        renameWorkflow: false,
-        rewindWorkflow: false,
-        permissionResolution: false,
-      },
-      { autoBind: true },
-    )
+    bindMethods(this)
 
     this.hydrateFromLocalStorage()
-    this.preferencesReactionDisposer = reaction(
-      () => this.preferencesBySessionId,
-      (preferences) => {
-        this.persistPreferences(preferences)
+    this.preferencesReactionDisposer = this.stateNode.preferencesBySessionId.onChange(
+      ({ value }) => {
+        this.persistPreferences(value)
       },
     )
+  }
+
+  get draft(): string {
+    return readField(this.stateNode, 'draft')
+  }
+
+  set draft(value: string) {
+    writeField(this.stateNode, 'draft', value)
+  }
+
+  get error(): string | null {
+    return readField(this.stateNode, 'error')
+  }
+
+  set error(value: string | null) {
+    writeField(this.stateNode, 'error', value)
+  }
+
+  get preferencesBySessionId(): Record<string, ComposerPreferences> {
+    return readField(this.stateNode, 'preferencesBySessionId')
+  }
+
+  set preferencesBySessionId(value: Record<string, ComposerPreferences>) {
+    writeField(this.stateNode, 'preferencesBySessionId', value)
+  }
+
+  get pendingDraftWorkspacePath(): string | null {
+    return readField(this.stateNode, 'pendingDraftWorkspacePath')
+  }
+
+  set pendingDraftWorkspacePath(value: string | null) {
+    writeField(this.stateNode, 'pendingDraftWorkspacePath', value)
+  }
+
+  get pendingDraftPreferences(): ComposerPreferences | null {
+    return readField(this.stateNode, 'pendingDraftPreferences')
+  }
+
+  set pendingDraftPreferences(value: ComposerPreferences | null) {
+    writeField(this.stateNode, 'pendingDraftPreferences', value)
+  }
+
+  get sendingSessionId(): string | null {
+    return readField(this.stateNode, 'sendingSessionId')
+  }
+
+  set sendingSessionId(value: string | null) {
+    writeField(this.stateNode, 'sendingSessionId', value)
+  }
+
+  get isPendingDraftSubmitting(): boolean {
+    return readField(this.stateNode, 'isPendingDraftSubmitting')
+  }
+
+  set isPendingDraftSubmitting(value: boolean) {
+    writeField(this.stateNode, 'isPendingDraftSubmitting', value)
+  }
+
+  get attachingSessionId(): string | null {
+    return readField(this.stateNode, 'attachingSessionId')
+  }
+
+  set attachingSessionId(value: string | null) {
+    writeField(this.stateNode, 'attachingSessionId', value)
+  }
+
+  get interruptingSessionId(): string | null {
+    return readField(this.stateNode, 'interruptingSessionId')
+  }
+
+  set interruptingSessionId(value: string | null) {
+    writeField(this.stateNode, 'interruptingSessionId', value)
   }
 
   // --- Draft + session lifecycle (stays on ComposerStore) ---
@@ -351,7 +407,7 @@ export class ComposerStore {
         return
       }
 
-      runInAction(() => {
+      batch(() => {
         this.isPendingDraftSubmitting = true
         this.error = null
       })
@@ -367,7 +423,7 @@ export class ComposerStore {
         })
         await addUserMessage(liveSession.sessionId, payload.text)
 
-        runInAction(() => {
+        batch(() => {
           this.pendingDraftWorkspacePath = null
           this.pendingDraftPreferences = null
           this.draft = ''
@@ -383,11 +439,11 @@ export class ComposerStore {
         })
         await this.liveSessionStore.refreshSnapshot(liveSession.sessionId)
       } catch (error) {
-        runInAction(() => {
+        batch(() => {
           this.error = error instanceof Error ? error.message : 'Unable to send the message.'
         })
       } finally {
-        runInAction(() => {
+        batch(() => {
           this.isPendingDraftSubmitting = false
         })
       }
@@ -407,7 +463,7 @@ export class ComposerStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.sendingSessionId = targetSessionId
       this.error = null
     })
@@ -428,7 +484,7 @@ export class ComposerStore {
       })
       await addUserMessage(liveSession.sessionId, payload.text)
 
-      runInAction(() => {
+      batch(() => {
         this.draft = ''
       })
 
@@ -441,11 +497,11 @@ export class ComposerStore {
 
       await this.liveSessionStore.refreshSnapshot(liveSession.sessionId)
     } catch (error) {
-      runInAction(() => {
+      batch(() => {
         this.error = error instanceof Error ? error.message : 'Unable to send the message.'
       })
     } finally {
-      runInAction(() => {
+      batch(() => {
         this.sendingSessionId = null
       })
     }
@@ -458,7 +514,7 @@ export class ComposerStore {
       return false
     }
 
-    runInAction(() => {
+    batch(() => {
       this.attachingSessionId = selectedSessionId
       this.error = null
     })
@@ -473,13 +529,13 @@ export class ComposerStore {
       const message =
         error instanceof Error ? error.message : 'Unable to attach to the selected session.'
 
-      runInAction(() => {
+      batch(() => {
         this.error = message
       })
       this.feedbackStore.showFeedback(message, 'error')
       return false
     } finally {
-      runInAction(() => {
+      batch(() => {
         this.attachingSessionId = null
       })
     }
@@ -492,7 +548,7 @@ export class ComposerStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.error = null
     })
 
@@ -507,7 +563,7 @@ export class ComposerStore {
       const message =
         error instanceof Error ? error.message : 'Unable to detach from the selected session.'
 
-      runInAction(() => {
+      batch(() => {
         this.error = message
       })
       this.feedbackStore.showFeedback(message, 'error')
@@ -522,7 +578,7 @@ export class ComposerStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.error = null
     })
 
@@ -536,7 +592,7 @@ export class ComposerStore {
       const message =
         error instanceof Error ? error.message : 'Unable to fork the selected session.'
 
-      runInAction(() => {
+      batch(() => {
         this.error = message
       })
       this.feedbackStore.showFeedback(message, 'error')
@@ -551,7 +607,7 @@ export class ComposerStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.error = null
     })
 
@@ -572,7 +628,7 @@ export class ComposerStore {
       const message =
         error instanceof Error ? error.message : 'Unable to compact the selected session.'
 
-      runInAction(() => {
+      batch(() => {
         this.error = message
       })
       this.feedbackStore.showFeedback(message, 'error')
@@ -586,7 +642,7 @@ export class ComposerStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.interruptingSessionId = selectedSnapshot.sessionId
       this.error = null
     })
@@ -595,12 +651,12 @@ export class ComposerStore {
       await this.sessionApi.interrupt(selectedSnapshot.sessionId)
       await this.liveSessionStore.refreshSnapshot(selectedSnapshot.sessionId)
     } catch (error) {
-      runInAction(() => {
+      batch(() => {
         this.error =
           error instanceof Error ? error.message : 'Unable to stop the active generation.'
       })
     } finally {
-      runInAction(() => {
+      batch(() => {
         this.interruptingSessionId = null
       })
     }
@@ -654,7 +710,7 @@ export class ComposerStore {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to copy the session ID.'
 
-      runInAction(() => {
+      batch(() => {
         this.error = message
       })
       this.feedbackStore.showFeedback(message, 'error')

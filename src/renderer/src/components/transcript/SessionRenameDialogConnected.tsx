@@ -1,17 +1,19 @@
-import { observer } from 'mobx-react-lite'
-
+import { useValue } from '../../stores/legend'
 import { useComposerStore } from '../../stores/StoreProvider'
 import { SessionRenameDialog } from './SessionRenameDialog'
 
-export const SessionRenameDialogConnected = observer(function SessionRenameDialogConnected() {
+export function SessionRenameDialogConnected() {
   const composerStore = useComposerStore()
   const renameWorkflow = composerStore.renameWorkflow
+  const open = useValue(() => renameWorkflow.isRenameDialogOpen)
+  const draft = useValue(() => renameWorkflow.renameDraft)
+  const isSaving = useValue(() => renameWorkflow.renamingSessionId !== null)
 
   return (
     <SessionRenameDialog
-      open={renameWorkflow.isRenameDialogOpen}
-      draft={renameWorkflow.renameDraft}
-      isSaving={renameWorkflow.renamingSessionId !== null}
+      open={open}
+      draft={draft}
+      isSaving={isSaving}
       onDraftChange={renameWorkflow.setRenameDraft}
       onOpenChange={(open) => {
         if (!open) {
@@ -28,4 +30,4 @@ export const SessionRenameDialogConnected = observer(function SessionRenameDialo
       }}
     />
   )
-})
+}

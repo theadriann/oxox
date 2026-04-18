@@ -1,6 +1,5 @@
-import { useEffect } from 'react'
-
 import type { PlatformApiClient } from '../platform/apiClient'
+import { useMountEffect } from './useMountEffect'
 
 interface UsePluginCapabilityEventsOptions {
   pluginApi?: PlatformApiClient['plugin']
@@ -13,7 +12,7 @@ export function usePluginCapabilityEvents({
   pluginApi,
   pluginCapabilityStore,
 }: UsePluginCapabilityEventsOptions): void {
-  useEffect(() => {
+  useMountEffect(() => {
     void pluginCapabilityStore.refresh()
     const unsubscribe = pluginApi?.onCapabilitiesChanged?.(() => {
       void pluginCapabilityStore.refresh()
@@ -22,5 +21,5 @@ export function usePluginCapabilityEvents({
     return () => {
       unsubscribe?.()
     }
-  }, [pluginApi, pluginCapabilityStore])
+  })
 }

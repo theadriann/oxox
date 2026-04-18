@@ -3,6 +3,8 @@
 import { act, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { SessionStore } from '../../stores/SessionStore'
+
 const {
   useAppUpdateEventsMock,
   useFoundationPollMock,
@@ -146,8 +148,10 @@ describe('useAppRuntime', () => {
     const composerStore = {
       resetForSession: vi.fn(),
     }
+    const sessionStore = new SessionStore()
+    sessionStore.selectedSessionId = 'session-1'
 
-    const { rerender } = render(
+    render(
       <RuntimeProbe
         rootStore={
           {
@@ -181,9 +185,7 @@ describe('useAppRuntime', () => {
           refresh: vi.fn().mockResolvedValue(undefined),
           applySnapshot: vi.fn(),
         }}
-        sessionStore={{
-          selectedSessionId: 'session-1',
-        }}
+        sessionStore={sessionStore as never}
         transcriptStore={transcriptStore}
         composerStore={composerStore}
         onSelectSession={vi.fn()}
@@ -197,52 +199,8 @@ describe('useAppRuntime', () => {
     expect(composerStore.resetForSession).toHaveBeenCalledWith('session-1')
     expect(transcriptStore.openSession).toHaveBeenCalledWith('session-1')
 
-    rerender(
-      <RuntimeProbe
-        rootStore={
-          {
-            api: {
-              app: {},
-              foundation: {},
-              plugin: {},
-              session: {},
-            },
-          } as never
-        }
-        foundationStore={{
-          initRuntime: vi.fn().mockResolvedValue(undefined),
-          refresh: vi.fn().mockResolvedValue(undefined),
-        }}
-        updateStore={{
-          refresh: vi.fn().mockResolvedValue(undefined),
-          applySnapshot: vi.fn(),
-        }}
-        liveSessionStore={{
-          selectedSnapshotId: 'session-2',
-          selectedSnapshot: {
-            sessionId: 'session-2',
-          },
-          refreshSnapshot: vi.fn().mockResolvedValue(undefined),
-          upsertSnapshot: vi.fn(),
-          snapshotsById: new Map<string, unknown>(),
-        }}
-        pluginCapabilityStore={{
-          refresh: vi.fn().mockResolvedValue(undefined),
-        }}
-        pluginHostStore={{
-          refresh: vi.fn().mockResolvedValue(undefined),
-          applySnapshot: vi.fn(),
-        }}
-        sessionStore={{
-          selectedSessionId: 'session-2',
-        }}
-        transcriptStore={transcriptStore}
-        composerStore={composerStore}
-        onSelectSession={vi.fn()}
-      />,
-    )
-
     await act(async () => {
+      sessionStore.selectedSessionId = 'session-2'
       await Promise.resolve()
     })
 

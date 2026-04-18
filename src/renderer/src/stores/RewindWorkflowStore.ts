@@ -1,9 +1,8 @@
-import { makeAutoObservable, runInAction } from 'mobx'
-
 import type {
   LiveSessionExecuteRewindResult,
   LiveSessionRewindInfo,
 } from '../../../shared/ipc/contracts'
+import { batch, bindMethods, observable, readField, writeField } from './legend'
 
 export interface RewindSessionApi {
   getRewindInfo?: (sessionId: string, messageId: string) => Promise<LiveSessionRewindInfo>
@@ -19,15 +18,17 @@ export interface RewindSessionApi {
 }
 
 export class RewindWorkflowStore {
-  rewindMessageId = ''
-  rewindForkTitle = ''
-  rewindInfo: LiveSessionRewindInfo | null = null
-  rewindError: string | null = null
-  isRewindDialogOpen = false
-  loadingRewindSessionId: string | null = null
-  rewindingSessionId: string | null = null
-  selectedRestoreFilePaths: string[] = []
-  selectedDeleteFilePaths: string[] = []
+  readonly stateNode = observable({
+    rewindMessageId: '',
+    rewindForkTitle: '',
+    rewindInfo: null as LiveSessionRewindInfo | null,
+    rewindError: null as string | null,
+    isRewindDialogOpen: false,
+    loadingRewindSessionId: null as string | null,
+    rewindingSessionId: null as string | null,
+    selectedRestoreFilePaths: [] as string[],
+    selectedDeleteFilePaths: [] as string[],
+  })
 
   private readonly getSelectedSessionId: () => string | null
   private readonly getSelectedSession: () => { title: string } | null
@@ -45,16 +46,79 @@ export class RewindWorkflowStore {
     this.sessionApi = sessionApi
     this.onRewound = onRewound
 
-    makeAutoObservable(
-      this,
-      {
-        getSelectedSessionId: false,
-        getSelectedSession: false,
-        sessionApi: false,
-        onRewound: false,
-      },
-      { autoBind: true },
-    )
+    bindMethods(this)
+  }
+
+  get rewindMessageId(): string {
+    return readField(this.stateNode, 'rewindMessageId')
+  }
+
+  set rewindMessageId(value: string) {
+    writeField(this.stateNode, 'rewindMessageId', value)
+  }
+
+  get rewindForkTitle(): string {
+    return readField(this.stateNode, 'rewindForkTitle')
+  }
+
+  set rewindForkTitle(value: string) {
+    writeField(this.stateNode, 'rewindForkTitle', value)
+  }
+
+  get rewindInfo(): LiveSessionRewindInfo | null {
+    return readField(this.stateNode, 'rewindInfo')
+  }
+
+  set rewindInfo(value: LiveSessionRewindInfo | null) {
+    writeField(this.stateNode, 'rewindInfo', value)
+  }
+
+  get rewindError(): string | null {
+    return readField(this.stateNode, 'rewindError')
+  }
+
+  set rewindError(value: string | null) {
+    writeField(this.stateNode, 'rewindError', value)
+  }
+
+  get isRewindDialogOpen(): boolean {
+    return readField(this.stateNode, 'isRewindDialogOpen')
+  }
+
+  set isRewindDialogOpen(value: boolean) {
+    writeField(this.stateNode, 'isRewindDialogOpen', value)
+  }
+
+  get loadingRewindSessionId(): string | null {
+    return readField(this.stateNode, 'loadingRewindSessionId')
+  }
+
+  set loadingRewindSessionId(value: string | null) {
+    writeField(this.stateNode, 'loadingRewindSessionId', value)
+  }
+
+  get rewindingSessionId(): string | null {
+    return readField(this.stateNode, 'rewindingSessionId')
+  }
+
+  set rewindingSessionId(value: string | null) {
+    writeField(this.stateNode, 'rewindingSessionId', value)
+  }
+
+  get selectedRestoreFilePaths(): string[] {
+    return readField(this.stateNode, 'selectedRestoreFilePaths')
+  }
+
+  set selectedRestoreFilePaths(value: string[]) {
+    writeField(this.stateNode, 'selectedRestoreFilePaths', value)
+  }
+
+  get selectedDeleteFilePaths(): string[] {
+    return readField(this.stateNode, 'selectedDeleteFilePaths')
+  }
+
+  set selectedDeleteFilePaths(value: string[]) {
+    writeField(this.stateNode, 'selectedDeleteFilePaths', value)
   }
 
   openRewindDialog(): void {
@@ -115,7 +179,7 @@ export class RewindWorkflowStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.loadingRewindSessionId = selectedSessionId
       this.rewindError = null
     })
@@ -123,18 +187,18 @@ export class RewindWorkflowStore {
     try {
       const rewindInfo = await this.sessionApi.getRewindInfo(selectedSessionId, messageId)
 
-      runInAction(() => {
+      batch(() => {
         this.rewindInfo = rewindInfo
         this.selectedRestoreFilePaths = rewindInfo.availableFiles.map((file) => file.filePath)
         this.selectedDeleteFilePaths = rewindInfo.createdFiles.map((file) => file.filePath)
       })
     } catch (error) {
-      runInAction(() => {
+      batch(() => {
         this.rewindError =
           error instanceof Error ? error.message : 'Unable to load rewind information.'
       })
     } finally {
-      runInAction(() => {
+      batch(() => {
         this.loadingRewindSessionId = null
       })
     }
@@ -155,7 +219,7 @@ export class RewindWorkflowStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.rewindingSessionId = selectedSessionId
       this.rewindError = null
     })
@@ -174,16 +238,16 @@ export class RewindWorkflowStore {
 
       await this.onRewound?.(result)
 
-      runInAction(() => {
+      batch(() => {
         this.closeRewindDialog()
       })
     } catch (error) {
-      runInAction(() => {
+      batch(() => {
         this.rewindError =
           error instanceof Error ? error.message : 'Unable to execute the rewind request.'
       })
     } finally {
-      runInAction(() => {
+      batch(() => {
         this.rewindingSessionId = null
       })
     }

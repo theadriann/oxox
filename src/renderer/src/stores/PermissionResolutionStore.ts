@@ -1,6 +1,5 @@
-import { makeAutoObservable, runInAction } from 'mobx'
-
 import type { LiveSessionAskUserAnswerRecord } from '../../../shared/ipc/contracts'
+import { batch, bindMethods, observable, readField, writeField } from './legend'
 
 export interface PermissionSessionApi {
   resolvePermissionRequest?: (
@@ -16,9 +15,11 @@ export interface PermissionSessionApi {
 }
 
 export class PermissionResolutionStore {
-  pendingPermissionRequestIds: string[] = []
-  pendingAskUserRequestIds: string[] = []
-  error: string | null = null
+  readonly stateNode = observable({
+    pendingPermissionRequestIds: [] as string[],
+    pendingAskUserRequestIds: [] as string[],
+    error: null as string | null,
+  })
 
   private readonly getSelectedSnapshot: () => { sessionId: string } | null
   private readonly sessionApi: PermissionSessionApi
@@ -33,11 +34,31 @@ export class PermissionResolutionStore {
     this.sessionApi = sessionApi
     this.onRefreshSnapshot = onRefreshSnapshot
 
-    makeAutoObservable(
-      this,
-      { getSelectedSnapshot: false, sessionApi: false, onRefreshSnapshot: false },
-      { autoBind: true },
-    )
+    bindMethods(this)
+  }
+
+  get pendingPermissionRequestIds(): string[] {
+    return readField(this.stateNode, 'pendingPermissionRequestIds')
+  }
+
+  set pendingPermissionRequestIds(value: string[]) {
+    writeField(this.stateNode, 'pendingPermissionRequestIds', value)
+  }
+
+  get pendingAskUserRequestIds(): string[] {
+    return readField(this.stateNode, 'pendingAskUserRequestIds')
+  }
+
+  set pendingAskUserRequestIds(value: string[]) {
+    writeField(this.stateNode, 'pendingAskUserRequestIds', value)
+  }
+
+  get error(): string | null {
+    return readField(this.stateNode, 'error')
+  }
+
+  set error(value: string | null) {
+    writeField(this.stateNode, 'error', value)
   }
 
   async resolvePermission(requestId: string, option: string): Promise<void> {
@@ -47,7 +68,7 @@ export class PermissionResolutionStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.pendingPermissionRequestIds = this.pendingPermissionRequestIds.includes(requestId)
         ? this.pendingPermissionRequestIds
         : [...this.pendingPermissionRequestIds, requestId]
@@ -57,12 +78,12 @@ export class PermissionResolutionStore {
       await this.sessionApi.resolvePermissionRequest(selectedSnapshot.sessionId, requestId, option)
       await this.onRefreshSnapshot?.(selectedSnapshot.sessionId)
     } catch (error) {
-      runInAction(() => {
+      batch(() => {
         this.error =
           error instanceof Error ? error.message : 'Unable to resolve the permission request.'
       })
     } finally {
-      runInAction(() => {
+      batch(() => {
         this.pendingPermissionRequestIds = this.pendingPermissionRequestIds.filter(
           (pendingRequestId) => pendingRequestId !== requestId,
         )
@@ -80,7 +101,7 @@ export class PermissionResolutionStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.pendingAskUserRequestIds = this.pendingAskUserRequestIds.includes(requestId)
         ? this.pendingAskUserRequestIds
         : [...this.pendingAskUserRequestIds, requestId]
@@ -90,12 +111,12 @@ export class PermissionResolutionStore {
       await this.sessionApi.resolveAskUser(selectedSnapshot.sessionId, requestId, answers)
       await this.onRefreshSnapshot?.(selectedSnapshot.sessionId)
     } catch (error) {
-      runInAction(() => {
+      batch(() => {
         this.error =
           error instanceof Error ? error.message : 'Unable to submit the callback response.'
       })
     } finally {
-      runInAction(() => {
+      batch(() => {
         this.pendingAskUserRequestIds = this.pendingAskUserRequestIds.filter(
           (pendingRequestId) => pendingRequestId !== requestId,
         )

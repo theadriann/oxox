@@ -1,5 +1,4 @@
 import { Archive, ArrowLeft, Settings2 } from 'lucide-react'
-import { observer } from 'mobx-react-lite'
 import { memo } from 'react'
 
 import type { SettingsSection } from '../../stores/UIStore'
@@ -19,11 +18,7 @@ interface SettingsSidebarProps {
   onBack: () => void
 }
 
-export const SettingsSidebar = observer(function SettingsSidebar({
-  activeSection,
-  onSelectSection,
-  onBack,
-}: SettingsSidebarProps) {
+export function SettingsSidebar({ activeSection, onSelectSection, onBack }: SettingsSidebarProps) {
   return (
     <aside
       className="flex h-full flex-col border-r border-fd-border-subtle bg-fd-surface pt-[50px]"
@@ -58,7 +53,7 @@ export const SettingsSidebar = observer(function SettingsSidebar({
       </nav>
     </aside>
   )
-})
+}
 
 const SettingsNavItem = memo(function SettingsNavItem({
   section,

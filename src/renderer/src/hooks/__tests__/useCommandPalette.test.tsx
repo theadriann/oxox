@@ -110,7 +110,7 @@ function CommandPaletteProbe({
   onRewindSelectedSession: () => void
   onFocusTranscriptPrimaryAction: () => void
 }) {
-  const { closePalette, commands, handleSessionSelection, openPalette } = useCommandPalette({
+  const { closePalette, getCommands, handleSessionSelection, openPalette } = useCommandPalette({
     sessionStore,
     liveSessionStore,
     pluginCapabilityStore,
@@ -127,6 +127,7 @@ function CommandPaletteProbe({
     onRewindSelectedSession,
     onFocusTranscriptPrimaryAction,
   })
+  const commands = getCommands()
 
   return (
     <div>

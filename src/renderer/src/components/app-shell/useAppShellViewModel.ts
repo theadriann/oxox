@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { shouldAnimateMotion } from '../../lib/motion'
 import type { FoundationStore } from '../../stores/FoundationStore'
 import type { LiveSessionStore } from '../../stores/LiveSessionStore'
+import { readValue, useValue } from '../../stores/legend'
 import type { SessionStore } from '../../stores/SessionStore'
 import { getDetailViewKey, getSidebarErrorState } from './detailViewKey'
 
@@ -25,51 +26,66 @@ export function useAppShellViewModel({
   sessionStore,
 }: UseAppShellViewModelOptions) {
   const shouldAnimate = shouldAnimateMotion(prefersReducedMotion)
+  const hasDeletedSelection = useValue(() => readValue(sessionStore.hasDeletedSelection))
+  const hasFoundationError = useValue(() => readValue(foundationStore.hasError))
+  const hasIndexedSessions = useValue(() => readValue(sessionStore.sessions).length > 0)
+  const isDroidMissing = useValue(() => readValue(foundationStore.isDroidMissing))
+  const isFoundationLoading = useValue(() => readValue(foundationStore.isLoading))
+  const selectedLiveSessionId = useValue(() => readValue(liveSessionStore.selectedSnapshotId))
+  const selectedSessionId = useValue(() => readValue(sessionStore.selectedSessionId))
+  const selectedSessionStatus = useValue(
+    () => readValue(sessionStore.selectedSession)?.status ?? null,
+  )
+  const sessionTitle = useValue(() =>
+    newSessionForm.showForm
+      ? 'New session'
+      : (readValue(liveSessionStore.selectedSnapshot)?.title ??
+        readValue(sessionStore.selectedSession)?.title),
+  )
+  const sessionProjectLabel = useValue(() =>
+    newSessionForm.showForm
+      ? newSessionForm.path || undefined
+      : (readValue(liveSessionStore.selectedSnapshot)?.projectWorkspacePath ??
+        readValue(sessionStore.selectedSession)?.projectLabel),
+  )
+  const shouldRenderComposer = useValue(() =>
+    Boolean(
+      newSessionForm.showForm ||
+        (readValue(sessionStore.selectedSessionId) &&
+          (readValue(liveSessionStore.selectedSnapshot) ||
+            readValue(sessionStore.selectedSession))),
+    ),
+  )
 
   const detailViewKey = useMemo(
     () =>
       getDetailViewKey({
-        hasDeletedSelection: sessionStore.hasDeletedSelection,
-        hasFoundationError: foundationStore.hasError,
-        hasIndexedSessions: sessionStore.sessions.length > 0,
-        isDroidMissing: foundationStore.isDroidMissing,
-        isFoundationLoading: foundationStore.isLoading,
-        selectedLiveSessionId: liveSessionStore.selectedSnapshotId,
-        selectedSessionId: sessionStore.selectedSessionId,
-        selectedSessionStatus: sessionStore.selectedSession?.status ?? null,
+        hasDeletedSelection,
+        hasFoundationError,
+        hasIndexedSessions,
+        isDroidMissing,
+        isFoundationLoading,
+        selectedLiveSessionId,
+        selectedSessionId,
+        selectedSessionStatus,
         showNewSessionForm: newSessionForm.showForm,
       }),
     [
-      foundationStore.hasError,
-      foundationStore.isDroidMissing,
-      foundationStore.isLoading,
-      liveSessionStore.selectedSnapshotId,
+      hasDeletedSelection,
+      hasFoundationError,
+      hasIndexedSessions,
+      isDroidMissing,
+      isFoundationLoading,
+      selectedLiveSessionId,
       newSessionForm.showForm,
-      sessionStore.hasDeletedSelection,
-      sessionStore.selectedSession?.status,
-      sessionStore.selectedSessionId,
-      sessionStore.sessions.length,
+      selectedSessionId,
+      selectedSessionStatus,
     ],
   )
 
-  const sessionTitle = newSessionForm.showForm
-    ? 'New session'
-    : (liveSessionStore.selectedSnapshot?.title ?? sessionStore.selectedSession?.title)
-
-  const sessionProjectLabel = newSessionForm.showForm
-    ? newSessionForm.path || undefined
-    : (liveSessionStore.selectedSnapshot?.projectWorkspacePath ??
-      sessionStore.selectedSession?.projectLabel)
-
-  const sidebarErrorState = getSidebarErrorState(foundationStore.hasError, () => {
+  const sidebarErrorState = getSidebarErrorState(hasFoundationError, () => {
     void foundationStore.refresh()
   })
-
-  const shouldRenderComposer = Boolean(
-    newSessionForm.showForm ||
-      (sessionStore.selectedSessionId &&
-        (liveSessionStore.selectedSnapshot || sessionStore.selectedSession)),
-  )
 
   return {
     canComposeDetached: Boolean(newSessionForm.path.trim()),

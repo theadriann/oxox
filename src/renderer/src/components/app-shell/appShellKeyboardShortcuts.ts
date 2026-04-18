@@ -50,7 +50,7 @@ export function createAppShellKeyboardShortcuts({
       key: 'a',
       metaOrCtrl: true,
       shiftKey: true,
-      when: Boolean(liveSessionStore.selectedSnapshot || composerStore.canAttachSelected),
+      when: () => Boolean(liveSessionStore.selectedSnapshot || composerStore.canAttachSelected),
       handler: () => {
         if (liveSessionStore.selectedSnapshot) {
           void composerStore.detachSelected()

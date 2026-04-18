@@ -1,5 +1,6 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import type { LiveSessionAskUserAnswerRecord } from '../../../../shared/ipc/contracts'
+import { readValue } from '../../stores/legend'
 
 import type { SessionSidebarProps } from '../sidebar/SessionSidebar'
 import type { StatusBarProps } from '../status-bar/StatusBar'
@@ -72,22 +73,22 @@ export function buildDetailPanelConnectedProps({
   transportStore,
   uiStore,
 }: BuildDetailPanelConnectedPropsOptions): DetailPanelProps {
-  const selectedSessionId = sessionStore.selectedSessionId
+  const selectedSessionId = readValue(sessionStore.selectedSessionId)
   const selectedTranscript = selectedSessionId
     ? transcriptStore.transcriptForSession(selectedSessionId)
     : null
 
   return {
-    foundation: foundationStore.foundation,
-    hasDeletedSelection: sessionStore.hasDeletedSelection,
-    hasFoundationError: foundationStore.hasError,
-    hasIndexedSessions: sessionStore.sessions.length > 0,
-    isDroidMissing: foundationStore.isDroidMissing,
-    isFoundationLoading: foundationStore.isLoading,
+    foundation: readValue(foundationStore.foundation),
+    hasDeletedSelection: readValue(sessionStore.hasDeletedSelection),
+    hasFoundationError: readValue(foundationStore.hasError),
+    hasIndexedSessions: readValue(sessionStore.sessions).length > 0,
+    isDroidMissing: readValue(foundationStore.isDroidMissing),
+    isFoundationLoading: readValue(foundationStore.isLoading),
     isRefreshingTranscript: selectedSessionId
       ? transcriptStore.isRefreshingSession(selectedSessionId)
       : false,
-    isSidebarHidden: uiStore.isSidebarHidden,
+    isSidebarHidden: readValue(uiStore.isSidebarHidden),
     newSessionError: newSessionForm.error,
     newSessionPath: newSessionForm.path,
     onBrowseSessions,
@@ -107,20 +108,24 @@ export function buildDetailPanelConnectedProps({
     },
     onSubmitAskUserResponse: (payload) =>
       void composerStore.permissionResolution.resolveAskUser(payload.requestId, payload.answers),
-    pendingAskUserRequestIds: composerStore.permissionResolution.pendingAskUserRequestIds,
-    pendingPermissionRequestIds: composerStore.permissionResolution.pendingPermissionRequestIds,
-    selectedLiveSession: liveSessionStore.selectedSnapshot,
-    selectedLiveTimeline: liveSessionStore.selectedTimelineItems,
-    selectedSession: sessionStore.selectedSession,
+    pendingAskUserRequestIds: readValue(
+      composerStore.permissionResolution.pendingAskUserRequestIds,
+    ),
+    pendingPermissionRequestIds: readValue(
+      composerStore.permissionResolution.pendingPermissionRequestIds,
+    ),
+    selectedLiveSession: readValue(liveSessionStore.selectedSnapshot),
+    selectedLiveTimeline: readValue(liveSessionStore.selectedTimelineItems),
+    selectedSession: readValue(sessionStore.selectedSession),
     selectedTranscript,
     selectedTranscriptRefreshError: selectedSessionId
       ? transcriptStore.refreshErrorForSession(selectedSessionId)
       : null,
     showNewSessionForm: newSessionForm.showForm,
-    sidebarWidth: uiStore.sidebarWidth,
+    sidebarWidth: readValue(uiStore.sidebarWidth),
     transcriptPrimaryActionRef,
     transcriptScrollSignal,
-    transportProtocol: transportStore.protocol,
+    transportProtocol: readValue(transportStore.protocol),
   }
 }
 
@@ -171,14 +176,14 @@ export function buildAppShellSidebarProps({
   uiStore,
 }: BuildAppShellSidebarPropsOptions) {
   return {
-    isHidden: uiStore.isSidebarHidden,
+    isHidden: readValue(uiStore.isSidebarHidden),
     prefersReducedMotion,
     shouldAnimate,
     sidebar: {
-      activeCount: sessionStore.activeCount,
+      activeCount: readValue(sessionStore.activeCount),
       errorState,
-      groups: sessionStore.projectGroups,
-      isLoading: foundationStore.isLoading,
+      groups: readValue(sessionStore.projectGroups),
+      isLoading: readValue(foundationStore.isLoading),
       isProjectCollapsed: uiStore.isProjectCollapsed,
       onNewSession,
       onResizeStart,
@@ -194,8 +199,8 @@ export function buildAppShellSidebarProps({
       onTogglePinnedSession: sessionStore.togglePinnedSession,
       onToggleProject: uiStore.toggleProjectCollapsed,
       onHideSidebar: uiStore.toggleSidebar,
-      pinnedSessions: sessionStore.pinnedSessions,
-      selectedSessionId: sessionStore.selectedSessionId,
+      pinnedSessions: readValue(sessionStore.pinnedSessions),
+      selectedSessionId: readValue(sessionStore.selectedSessionId),
     } satisfies SessionSidebarProps,
   }
 }
@@ -241,14 +246,15 @@ export function buildStatusBarProps({
     activeCount: number
   }
 }): StatusBarProps {
+  const foundation = readValue(foundationStore.foundation)
   return {
-    activeSessionCount: sessionStore.activeCount,
-    connectedPort: foundationStore.foundation.daemon.connectedPort,
-    daemonStatus: foundationStore.foundation.daemon.status,
-    droidCliVersion: foundationStore.foundation.droidCli.version,
-    lastSyncAt: foundationStore.foundation.daemon.lastSyncAt,
-    nextRetryDelayMs: foundationStore.foundation.daemon.nextRetryDelayMs,
-    updateStatusLabel: updateStore.statusLabel,
+    activeSessionCount: readValue(sessionStore.activeCount),
+    connectedPort: foundation.daemon.connectedPort,
+    daemonStatus: foundation.daemon.status,
+    droidCliVersion: foundation.droidCli.version,
+    lastSyncAt: foundation.daemon.lastSyncAt,
+    nextRetryDelayMs: foundation.daemon.nextRetryDelayMs,
+    updateStatusLabel: readValue(updateStore.statusLabel),
   }
 }
 
