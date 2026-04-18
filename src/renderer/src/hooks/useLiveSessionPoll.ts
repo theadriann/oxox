@@ -1,9 +1,8 @@
-import { useEffect } from 'react'
-
 import type {
   LiveSessionSnapshot,
   LiveSessionSnapshotChangedPayload,
 } from '../../../shared/ipc/contracts'
+import { useObserveEffect } from '../stores/legend'
 
 interface UseLiveSessionPollOptions {
   liveSessionStore: {
@@ -22,9 +21,9 @@ export function useLiveSessionPoll({
   liveSessionStore,
   sessionApi,
 }: UseLiveSessionPollOptions): void {
-  const selectedSnapshotId = liveSessionStore.selectedSnapshotId
+  useObserveEffect(() => {
+    const selectedSnapshotId = liveSessionStore.selectedSnapshotId
 
-  useEffect(() => {
     if (!selectedSnapshotId) {
       return
     }
@@ -38,5 +37,5 @@ export function useLiveSessionPoll({
 
       liveSessionStore.upsertSnapshot(snapshot)
     })
-  }, [liveSessionStore, selectedSnapshotId, sessionApi])
+  })
 }

@@ -1,5 +1,3 @@
-import { makeAutoObservable, runInAction } from 'mobx'
-
 import type {
   FoundationBootstrap,
   FoundationChangedPayload,
@@ -11,6 +9,7 @@ import {
   diffFoundationBootstraps,
   hasFoundationChanges,
 } from '../../../shared/ipc/foundationUpdates'
+import { batch, bindMethods, observable, readField, writeField } from './legend'
 
 import type { StoreEventBus } from './storeEventBus'
 
@@ -51,9 +50,11 @@ export interface FoundationStoreBridge {
 }
 
 export class FoundationStore {
-  foundation: FoundationBootstrap = PLACEHOLDER_FOUNDATION
-  foundationLoadError: string | null = null
-  hasLoadedFoundation = false
+  readonly stateNode = observable({
+    foundation: PLACEHOLDER_FOUNDATION as FoundationBootstrap,
+    foundationLoadError: null as string | null,
+    hasLoadedFoundation: false,
+  })
 
   private readonly bus: StoreEventBus
   private readonly bridge: FoundationStoreBridge
@@ -62,16 +63,31 @@ export class FoundationStore {
   constructor(bus: StoreEventBus, bridge: FoundationStoreBridge = {}) {
     this.bus = bus
     this.bridge = bridge
+    bindMethods(this)
+  }
 
-    makeAutoObservable(
-      this,
-      {
-        bus: false,
-        bridge: false,
-        runtimeInitPromise: false,
-      },
-      { autoBind: true },
-    )
+  get foundation(): FoundationBootstrap {
+    return readField(this.stateNode, 'foundation')
+  }
+
+  set foundation(value: FoundationBootstrap) {
+    writeField(this.stateNode, 'foundation', value)
+  }
+
+  get foundationLoadError(): string | null {
+    return readField(this.stateNode, 'foundationLoadError')
+  }
+
+  set foundationLoadError(value: string | null) {
+    writeField(this.stateNode, 'foundationLoadError', value)
+  }
+
+  get hasLoadedFoundation(): boolean {
+    return readField(this.stateNode, 'hasLoadedFoundation')
+  }
+
+  set hasLoadedFoundation(value: boolean) {
+    writeField(this.stateNode, 'hasLoadedFoundation', value)
   }
 
   get isDroidMissing(): boolean {
@@ -104,44 +120,20 @@ export class FoundationStore {
     }
 
     const nextFoundation = applyFoundationChanges(this.foundation, payload.changes)
+    const shouldPreserveFoundationReference = isSessionOnlyFoundationChanges(payload.changes)
 
     if (!foundationChanged(this.foundation, nextFoundation)) {
       return
     }
 
-    if (payload.changes.database) {
-      this.foundation.database = nextFoundation.database
-    }
-
-    if (payload.changes.droidCli) {
-      this.foundation.droidCli = nextFoundation.droidCli
-    }
-
-    if (payload.changes.daemon) {
-      this.foundation.daemon = nextFoundation.daemon
-    }
-
-    if (payload.changes.projects) {
-      this.foundation.projects = nextFoundation.projects
-    }
-
-    if (payload.changes.sessions) {
-      this.foundation.sessions = nextFoundation.sessions
-    }
-
-    if (payload.changes.syncMetadata) {
-      this.foundation.syncMetadata = nextFoundation.syncMetadata
-    }
-
-    if (payload.changes.factoryModels) {
-      this.foundation.factoryModels = nextFoundation.factoryModels
-    }
-
-    if (payload.changes.factoryDefaultSettings) {
-      this.foundation.factoryDefaultSettings = nextFoundation.factoryDefaultSettings
-    }
-
-    this.foundationLoadError = null
+    batch(() => {
+      if (shouldPreserveFoundationReference) {
+        this.foundation.sessions = nextFoundation.sessions
+      } else {
+        this.foundation = nextFoundation
+      }
+      this.foundationLoadError = null
+    })
 
     if (payload.changes.sessions) {
       this.bus.emit('session-changes-apply', {
@@ -156,7 +148,7 @@ export class FoundationStore {
     const getBootstrap = this.resolveGetBootstrap()
 
     if (!getBootstrap) {
-      runInAction(() => {
+      batch(() => {
         this.foundation = PLACEHOLDER_FOUNDATION
         this.foundationLoadError = DEFAULT_FOUNDATION_ERROR
         this.hasLoadedFoundation = false
@@ -173,7 +165,7 @@ export class FoundationStore {
         this.foundationLoadError !== null ||
         foundationChanged(this.foundation, bootstrap)
 
-      runInAction(() => {
+      batch(() => {
         if (shouldHydrate) {
           this.foundation = bootstrap
         }
@@ -188,7 +180,7 @@ export class FoundationStore {
       this.bus.emit('sessions-hydrate', { sessions: bootstrap.sessions })
       this.bus.emit('foundation-hydrate', { bootstrap })
     } catch (error) {
-      runInAction(() => {
+      batch(() => {
         this.foundation = PLACEHOLDER_FOUNDATION
         this.foundationLoadError = error instanceof Error ? error.message : DEFAULT_FOUNDATION_ERROR
         this.hasLoadedFoundation = false
@@ -237,4 +229,19 @@ function foundationChanged(
   nextFoundation: FoundationBootstrap,
 ): boolean {
   return hasFoundationChanges(diffFoundationBootstraps(previousFoundation, nextFoundation))
+}
+
+function isSessionOnlyFoundationChanges(
+  changes: NonNullable<FoundationChangedPayload['changes']>,
+): boolean {
+  return (
+    Boolean(changes.sessions) &&
+    !changes.database &&
+    !changes.droidCli &&
+    !changes.daemon &&
+    !changes.projects &&
+    !changes.syncMetadata &&
+    !changes.factoryModels &&
+    !changes.factoryDefaultSettings
+  )
 }

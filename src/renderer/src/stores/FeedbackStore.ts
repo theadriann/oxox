@@ -1,4 +1,4 @@
-import { makeAutoObservable } from 'mobx'
+import { bindMethods, observable, readField, writeField } from './legend'
 
 export interface ComposerFeedback {
   message: string
@@ -6,11 +6,21 @@ export interface ComposerFeedback {
 }
 
 export class FeedbackStore {
-  feedback: ComposerFeedback | null = null
+  readonly stateNode = observable({
+    feedback: null as ComposerFeedback | null,
+  })
   private feedbackTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor() {
-    makeAutoObservable(this, { feedbackTimer: false }, { autoBind: true })
+    bindMethods(this)
+  }
+
+  get feedback(): ComposerFeedback | null {
+    return readField(this.stateNode, 'feedback')
+  }
+
+  set feedback(value: ComposerFeedback | null) {
+    writeField(this.stateNode, 'feedback', value)
   }
 
   showFeedback(message: string, tone: ComposerFeedback['tone'] = 'success'): void {

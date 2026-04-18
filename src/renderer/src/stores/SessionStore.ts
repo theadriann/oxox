@@ -1,8 +1,7 @@
-import { makeAutoObservable } from 'mobx'
-
 import type { FoundationRecordDelta, SessionRecord } from '../../../shared/ipc/contracts'
 import { deriveProjectLabel, toTimestamp } from '../lib/sessionTime'
 import { createLocalStoragePort, type PersistencePort } from '../platform/persistence'
+import { batch, bindMethods, observable, readField, writeField } from './legend'
 import type { StoreEventBus } from './storeEventBus'
 
 const SESSION_PREFERENCES_STORAGE_KEY = 'oxox.session.preferences'
@@ -50,21 +49,95 @@ interface PersistedSessionPreferences {
 }
 
 export class SessionStore {
-  sessions: SessionPreview[] = []
-  selectedSessionId = ''
-  hasHydratedSessions = false
-  missingSelectedSession = false
-  isDraftSelectionActive = false
-  pinnedSessionIds: string[] = []
-  projectDisplayNames: Record<string, string> = {}
-  archivedSessionIds: string[] = []
-  archivedProjectKeys: string[] = []
+  readonly stateNode = observable({
+    sessions: [] as SessionPreview[],
+    selectedSessionId: '',
+    hasHydratedSessions: false,
+    missingSelectedSession: false,
+    isDraftSelectionActive: false,
+    pinnedSessionIds: [] as string[],
+    projectDisplayNames: {} as Record<string, string>,
+    archivedSessionIds: [] as string[],
+    archivedProjectKeys: [] as string[],
+  })
   private readonly persistence: PersistencePort
 
   constructor(persistence: PersistencePort = createLocalStoragePort()) {
     this.persistence = persistence
-    makeAutoObservable(this, { persistence: false }, { autoBind: true })
+    bindMethods(this)
     this.hydratePreferences()
+  }
+
+  get sessions(): SessionPreview[] {
+    return readField(this.stateNode, 'sessions')
+  }
+
+  set sessions(value: SessionPreview[]) {
+    writeField(this.stateNode, 'sessions', value)
+  }
+
+  get selectedSessionId(): string {
+    return readField(this.stateNode, 'selectedSessionId')
+  }
+
+  set selectedSessionId(value: string) {
+    writeField(this.stateNode, 'selectedSessionId', value)
+  }
+
+  get hasHydratedSessions(): boolean {
+    return readField(this.stateNode, 'hasHydratedSessions')
+  }
+
+  set hasHydratedSessions(value: boolean) {
+    writeField(this.stateNode, 'hasHydratedSessions', value)
+  }
+
+  get missingSelectedSession(): boolean {
+    return readField(this.stateNode, 'missingSelectedSession')
+  }
+
+  set missingSelectedSession(value: boolean) {
+    writeField(this.stateNode, 'missingSelectedSession', value)
+  }
+
+  get isDraftSelectionActive(): boolean {
+    return readField(this.stateNode, 'isDraftSelectionActive')
+  }
+
+  set isDraftSelectionActive(value: boolean) {
+    writeField(this.stateNode, 'isDraftSelectionActive', value)
+  }
+
+  get pinnedSessionIds(): string[] {
+    return readField(this.stateNode, 'pinnedSessionIds')
+  }
+
+  set pinnedSessionIds(value: string[]) {
+    writeField(this.stateNode, 'pinnedSessionIds', value)
+  }
+
+  get projectDisplayNames(): Record<string, string> {
+    return readField(this.stateNode, 'projectDisplayNames')
+  }
+
+  set projectDisplayNames(value: Record<string, string>) {
+    writeField(this.stateNode, 'projectDisplayNames', value)
+  }
+
+  get archivedSessionIds(): string[] {
+    return readField(this.stateNode, 'archivedSessionIds')
+  }
+
+  set archivedSessionIds(value: string[]) {
+    writeField(this.stateNode, 'archivedSessionIds', value)
+  }
+
+  get archivedProjectKeys(): string[] {
+    return readField(this.stateNode, 'archivedProjectKeys')
+  }
+
+  set archivedProjectKeys(value: string[]) {
+    writeField(this.stateNode, 'archivedProjectKeys', value)
   }
 
   get selectedSession(): SessionPreview | undefined {
@@ -131,32 +204,40 @@ export class SessionStore {
   }
 
   selectSession(sessionId: string): void {
-    this.selectedSessionId = sessionId
-    this.missingSelectedSession = false
-    this.isDraftSelectionActive = false
+    batch(() => {
+      this.selectedSessionId = sessionId
+      this.missingSelectedSession = false
+      this.isDraftSelectionActive = false
+    })
   }
 
   startDraftSelection(): void {
-    this.selectedSessionId = ''
-    this.missingSelectedSession = false
-    this.isDraftSelectionActive = true
+    batch(() => {
+      this.selectedSessionId = ''
+      this.missingSelectedSession = false
+      this.isDraftSelectionActive = true
+    })
   }
 
   cancelDraftSelection(nextSessionId?: string): void {
-    this.isDraftSelectionActive = false
+    batch(() => {
+      this.isDraftSelectionActive = false
 
-    if (nextSessionId) {
-      this.selectSession(nextSessionId)
-      return
-    }
+      if (nextSessionId) {
+        this.selectSession(nextSessionId)
+        return
+      }
 
-    this.selectedSessionId = ''
-    this.missingSelectedSession = false
+      this.selectedSessionId = ''
+      this.missingSelectedSession = false
+    })
   }
 
   clearSelection(): void {
-    this.selectedSessionId = ''
-    this.missingSelectedSession = false
+    batch(() => {
+      this.selectedSessionId = ''
+      this.missingSelectedSession = false
+    })
   }
 
   isSessionPinned(sessionId: string): boolean {
@@ -239,18 +320,20 @@ export class SessionStore {
   setProjectDisplayName(projectKey: string, value: string): void {
     const trimmedValue = value.trim()
 
-    if (trimmedValue) {
-      this.projectDisplayNames = {
-        ...this.projectDisplayNames,
-        [projectKey]: trimmedValue,
+    batch(() => {
+      if (trimmedValue) {
+        this.projectDisplayNames = {
+          ...this.projectDisplayNames,
+          [projectKey]: trimmedValue,
+        }
+      } else {
+        const remainingDisplayNames = { ...this.projectDisplayNames }
+        delete remainingDisplayNames[projectKey]
+        this.projectDisplayNames = remainingDisplayNames
       }
-    } else {
-      const remainingDisplayNames = { ...this.projectDisplayNames }
-      delete remainingDisplayNames[projectKey]
-      this.projectDisplayNames = remainingDisplayNames
-    }
 
-    this.sessions = applyDisplayNameOverrides(this.sessions, this.projectDisplayNames)
+      this.sessions = applyDisplayNameOverrides(this.sessions, this.projectDisplayNames)
+    })
     this.persistPreferences()
   }
 
@@ -320,36 +403,40 @@ export class SessionStore {
       (session) => session.id === this.selectedSessionId,
     )
 
-    if (sessionsChanged) {
-      this.sessions = nextSessions
-    }
+    batch(() => {
+      if (sessionsChanged) {
+        this.sessions = nextSessions
+      }
 
-    this.hasHydratedSessions = true
-    this.missingSelectedSession =
-      hadSelectionBeforeHydration && this.selectedSessionId.length > 0 && !stillHasSelectedSession
+      this.hasHydratedSessions = true
+      this.missingSelectedSession =
+        hadSelectionBeforeHydration && this.selectedSessionId.length > 0 && !stillHasSelectedSession
 
-    if (this.isDraftSelectionActive && this.selectedSessionId.length === 0) {
-      return
-    }
+      if (this.isDraftSelectionActive && this.selectedSessionId.length === 0) {
+        return
+      }
 
-    if (!this.selectedSessionId) {
-      this.selectedSessionId = currentSessions[0]?.id ?? ''
-      return
-    }
+      if (!this.selectedSessionId) {
+        this.selectedSessionId = currentSessions[0]?.id ?? ''
+        return
+      }
 
-    if (!stillHasSelectedSession && !this.missingSelectedSession) {
-      this.selectedSessionId = currentSessions[0]?.id ?? ''
-    }
+      if (!stillHasSelectedSession && !this.missingSelectedSession) {
+        this.selectedSessionId = currentSessions[0]?.id ?? ''
+      }
+    })
   }
 
   private hydratePreferences(): void {
     const persistedPreferences = readPersistedSessionPreferences(this.persistence)
 
-    this.pinnedSessionIds = persistedPreferences.pinnedSessionIds ?? []
-    this.archivedSessionIds = persistedPreferences.archivedSessionIds ?? []
-    this.archivedProjectKeys = persistedPreferences.archivedProjectKeys ?? []
-    this.projectDisplayNames = persistedPreferences.projectDisplayNames ?? {}
-    this.sessions = applyDisplayNameOverrides(this.sessions, this.projectDisplayNames)
+    batch(() => {
+      this.pinnedSessionIds = persistedPreferences.pinnedSessionIds ?? []
+      this.archivedSessionIds = persistedPreferences.archivedSessionIds ?? []
+      this.archivedProjectKeys = persistedPreferences.archivedProjectKeys ?? []
+      this.projectDisplayNames = persistedPreferences.projectDisplayNames ?? {}
+      this.sessions = applyDisplayNameOverrides(this.sessions, this.projectDisplayNames)
+    })
   }
 
   private persistPreferences(): void {

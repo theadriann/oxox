@@ -1,8 +1,7 @@
-import { useEffect } from 'react'
-
 import type { ComposerStore } from '../stores/ComposerStore'
 import type { FoundationStore } from '../stores/FoundationStore'
 import type { LiveSessionStore } from '../stores/LiveSessionStore'
+import { useObserveEffect } from '../stores/legend'
 import type { PluginCapabilityStore } from '../stores/PluginCapabilityStore'
 import type { PluginHostStore } from '../stores/PluginHostStore'
 import type { RootStore } from '../stores/RootStore'
@@ -53,15 +52,14 @@ export function useAppRuntime({
     onSelectSession,
   })
 
-  useEffect(() => {
-    composerStore.resetForSession(sessionStore.selectedSessionId || '')
-  }, [composerStore, sessionStore.selectedSessionId])
+  useObserveEffect(() => {
+    const nextSessionId = sessionStore.selectedSessionId
+    composerStore.resetForSession(nextSessionId || '')
 
-  useEffect(() => {
-    if (!sessionStore.selectedSessionId) {
+    if (!nextSessionId) {
       return
     }
 
-    void transcriptStore.openSession(sessionStore.selectedSessionId)
-  }, [sessionStore.selectedSessionId, transcriptStore])
+    void transcriptStore.openSession(nextSessionId)
+  })
 }

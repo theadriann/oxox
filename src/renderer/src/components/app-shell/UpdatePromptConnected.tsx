@@ -1,16 +1,15 @@
-import { observer } from 'mobx-react-lite'
-
+import { useValue } from '../../stores/legend'
 import { useUpdateStore } from '../../stores/StoreProvider'
 import { buildUpdatePromptProps } from './connectedSelectors'
 import { UpdatePrompt } from './UpdatePrompt'
 
-export const UpdatePromptConnected = observer(function UpdatePromptConnected() {
+export function UpdatePromptConnected() {
   const updateStore = useUpdateStore()
-  const props = buildUpdatePromptProps({ updateStore })
+  const props = useValue(() => buildUpdatePromptProps({ updateStore }))
 
   if (!props) {
     return null
   }
 
   return <UpdatePrompt {...props} />
-})
+}

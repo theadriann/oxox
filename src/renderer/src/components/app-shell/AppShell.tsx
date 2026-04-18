@@ -1,5 +1,4 @@
 import { useReducedMotion } from 'framer-motion'
-import { observer } from 'mobx-react-lite'
 import { useStores } from '../../stores/StoreProvider'
 import { SessionRenameDialogConnected } from '../transcript/SessionRenameDialogConnected'
 import { SessionRewindDialogConnected } from '../transcript/SessionRewindDialogConnected'
@@ -7,7 +6,7 @@ import { AppShellControllerProvider } from './AppShellControllerContext'
 import { AppShellView } from './AppShellView'
 import { useAppShellController } from './useAppShellController'
 
-export const AppShell = observer(function AppShell() {
+export function AppShell() {
   const {
     composerStore,
     foundationStore,
@@ -41,4 +40,4 @@ export const AppShell = observer(function AppShell() {
       <AppShellView prefersReducedMotion={prefersReducedMotion ?? false} />
     </AppShellControllerProvider>
   )
-})
+}

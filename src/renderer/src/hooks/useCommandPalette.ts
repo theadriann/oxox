@@ -1,5 +1,5 @@
 import { Sparkles } from 'lucide-react'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 
 import type { CommandPaletteAction } from '../components/command-palette/CommandPalette'
 import type { LiveSessionStore } from '../stores/LiveSessionStore'
@@ -29,8 +29,8 @@ interface UseCommandPaletteOptions {
 }
 
 interface UseCommandPaletteResult {
-  commands: CommandPaletteAction[]
   closePalette: () => void
+  getCommands: () => CommandPaletteAction[]
   handleSessionSelection: (sessionId: string) => void
   openPalette: () => void
 }
@@ -101,20 +101,16 @@ export function useCommandPalette({
     [onFocusTranscriptPrimaryAction, onSelectSession, sessionStore],
   )
 
-  const selectedSession = sessionStore.selectedSession
-  const selectedSessionId = sessionStore.selectedSessionId
-  const selectedLiveSession = liveSessionStore.selectedSnapshot
-  const runningPluginIds = useMemo(
-    () => new Set(pluginHostStore.runningHosts.map((host) => host.pluginId)),
-    [pluginHostStore.runningHosts],
-  )
-  const canAttachSelectedSession = Boolean(
-    selectedSessionId &&
-      selectedSession?.status !== 'completed' &&
-      (!selectedLiveSession || liveSessionStore.selectedNeedsReconnect),
-  )
-
-  const commands = useMemo<CommandPaletteAction[]>(() => {
+  const getCommands = useCallback((): CommandPaletteAction[] => {
+    const selectedSession = sessionStore.selectedSession
+    const selectedSessionId = sessionStore.selectedSessionId
+    const selectedLiveSession = liveSessionStore.selectedSnapshot
+    const runningPluginIds = new Set(pluginHostStore.runningHosts.map((host) => host.pluginId))
+    const canAttachSelectedSession = Boolean(
+      selectedSessionId &&
+        selectedSession?.status !== 'completed' &&
+        (!selectedLiveSession || liveSessionStore.selectedNeedsReconnect),
+    )
     const pluginAppCommands: CommandPaletteAction[] = pluginCapabilityStore.appActions.map(
       (capability) => ({
         id: `plugin-capability:${capability.qualifiedId}`,
@@ -163,26 +159,24 @@ export function useCommandPalette({
       selectedSessionId,
     })
   }, [
-    canAttachSelectedSession,
+    liveSessionStore,
     onAttachSelectedSession,
     onCompactSelectedSession,
     onCopySelectedSessionId,
     onDetachSelectedSession,
     onForkSelectedSession,
-    onRenameSelectedSession,
-    onRewindSelectedSession,
     onOpenNewWindow,
     onPickDirectory,
+    onRenameSelectedSession,
+    onRewindSelectedSession,
     pluginCapabilityStore,
-    runningPluginIds,
-    selectedLiveSession,
-    selectedSession,
-    selectedSessionId,
+    pluginHostStore,
+    sessionStore,
   ])
 
   return {
     closePalette,
-    commands,
+    getCommands,
     handleSessionSelection,
     openPalette,
   }

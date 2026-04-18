@@ -1,16 +1,33 @@
-import { makeAutoObservable } from 'mobx'
-
 import type { FoundationBootstrap } from '../../../shared/ipc/contracts'
+import { bindMethods, observable, readField, writeField } from './legend'
 import type { StoreEventBus } from './storeEventBus'
 
 export type TransportStatus = 'connected' | 'reconnecting' | 'disconnected'
 
 export class TransportStore {
-  status: TransportStatus = 'disconnected'
-  protocol = 'artifacts'
+  readonly stateNode = observable({
+    status: 'disconnected' as TransportStatus,
+    protocol: 'artifacts',
+  })
 
   constructor() {
-    makeAutoObservable(this, {}, { autoBind: true })
+    bindMethods(this)
+  }
+
+  get status(): TransportStatus {
+    return readField(this.stateNode, 'status')
+  }
+
+  set status(value: TransportStatus) {
+    writeField(this.stateNode, 'status', value)
+  }
+
+  get protocol(): string {
+    return readField(this.stateNode, 'protocol')
+  }
+
+  set protocol(value: string) {
+    writeField(this.stateNode, 'protocol', value)
   }
 
   hydrateFoundation(bootstrap: FoundationBootstrap): void {

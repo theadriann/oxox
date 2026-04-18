@@ -1,6 +1,6 @@
-import { observer } from 'mobx-react-lite'
 import { useCallback, useMemo } from 'react'
 
+import { useValue } from '../../stores/legend'
 import {
   useComposerStore,
   useLiveSessionStore,
@@ -14,16 +14,26 @@ import {
   resolveSessionRewindTimelineItems,
 } from './sessionRewindSelectors'
 
-export const SessionRewindDialogConnected = observer(function SessionRewindDialogConnected() {
+export function SessionRewindDialogConnected() {
   const composerStore = useComposerStore()
   const liveSessionStore = useLiveSessionStore()
   const sessionStore = useSessionStore()
   const transcriptStore = useTranscriptStore()
   const rewindWorkflow = composerStore.rewindWorkflow
-  const selectedSessionId = sessionStore.selectedSessionId
-  const transcript = selectedSessionId
-    ? transcriptStore.transcriptForSession(selectedSessionId)
-    : null
+  const selectedSessionId = useValue(() => sessionStore.selectedSessionId)
+  const transcript = useValue(() =>
+    selectedSessionId ? transcriptStore.transcriptForSession(selectedSessionId) : null,
+  )
+  const selectedTimelineItems = useValue(() => liveSessionStore.selectedTimelineItems)
+  const open = useValue(() => rewindWorkflow.isRewindDialogOpen)
+  const rewindMessageId = useValue(() => rewindWorkflow.rewindMessageId)
+  const rewindForkTitle = useValue(() => rewindWorkflow.rewindForkTitle)
+  const rewindInfo = useValue(() => rewindWorkflow.rewindInfo)
+  const selectedRestoreFilePaths = useValue(() => rewindWorkflow.selectedRestoreFilePaths)
+  const selectedDeleteFilePaths = useValue(() => rewindWorkflow.selectedDeleteFilePaths)
+  const isLoadingInfo = useValue(() => rewindWorkflow.loadingRewindSessionId !== null)
+  const isExecuting = useValue(() => rewindWorkflow.rewindingSessionId !== null)
+  const error = useValue(() => rewindWorkflow.rewindError)
   const historicalTimeline = useMemo(
     () => buildHistoricalTimeline(transcript?.entries ?? []),
     [transcript],
@@ -32,9 +42,9 @@ export const SessionRewindDialogConnected = observer(function SessionRewindDialo
     () =>
       resolveSessionRewindTimelineItems({
         historicalTimeline,
-        selectedTimelineItems: liveSessionStore.selectedTimelineItems,
+        selectedTimelineItems,
       }),
-    [historicalTimeline, liveSessionStore.selectedTimelineItems],
+    [historicalTimeline, selectedTimelineItems],
   )
   const messageOptions = useMemo<SessionRewindMessageOption[]>(
     () => buildSessionRewindMessageOptions(timelineItems),
@@ -54,16 +64,16 @@ export const SessionRewindDialogConnected = observer(function SessionRewindDialo
 
   return (
     <SessionRewindDialog
-      open={rewindWorkflow.isRewindDialogOpen}
+      open={open}
       messageOptions={messageOptions}
-      selectedMessageId={rewindWorkflow.rewindMessageId}
-      forkTitle={rewindWorkflow.rewindForkTitle}
-      rewindInfo={rewindWorkflow.rewindInfo}
-      selectedRestoreFilePaths={rewindWorkflow.selectedRestoreFilePaths}
-      selectedDeleteFilePaths={rewindWorkflow.selectedDeleteFilePaths}
-      isLoadingInfo={rewindWorkflow.loadingRewindSessionId !== null}
-      isExecuting={rewindWorkflow.rewindingSessionId !== null}
-      error={rewindWorkflow.rewindError}
+      selectedMessageId={rewindMessageId}
+      forkTitle={rewindForkTitle}
+      rewindInfo={rewindInfo}
+      selectedRestoreFilePaths={selectedRestoreFilePaths}
+      selectedDeleteFilePaths={selectedDeleteFilePaths}
+      isLoadingInfo={isLoadingInfo}
+      isExecuting={isExecuting}
+      error={error}
       onMessageIdChange={handleMessageIdChange}
       onForkTitleChange={rewindWorkflow.setRewindForkTitle}
       onOpenChange={(open) => {
@@ -84,4 +94,4 @@ export const SessionRewindDialogConnected = observer(function SessionRewindDialo
       }}
     />
   )
-})
+}

@@ -1,5 +1,4 @@
-import { observer } from 'mobx-react-lite'
-
+import { useValue } from '../../stores/legend'
 import {
   useFoundationStore,
   useLiveSessionStore,
@@ -14,9 +13,7 @@ interface AppShellSidebarRegionProps {
   prefersReducedMotion: boolean
 }
 
-export const AppShellSidebarRegion = observer(function AppShellSidebarRegion({
-  prefersReducedMotion,
-}: AppShellSidebarRegionProps) {
+export function AppShellSidebarRegion({ prefersReducedMotion }: AppShellSidebarRegionProps) {
   const foundationStore = useFoundationStore()
   const liveSessionStore = useLiveSessionStore()
   const sessionStore = useSessionStore()
@@ -29,12 +26,13 @@ export const AppShellSidebarRegion = observer(function AppShellSidebarRegion({
     prefersReducedMotion,
     sessionStore,
   })
+  const isSidebarHidden = useValue(() => uiStore.isSidebarHidden)
 
-  if (uiStore.isSidebarHidden) {
+  if (isSidebarHidden) {
     return null
   }
 
   return (
     <AppShellSidebar prefersReducedMotion={prefersReducedMotion} shouldAnimate={shouldAnimate} />
   )
-})
+}

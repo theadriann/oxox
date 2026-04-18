@@ -1,6 +1,12 @@
-import { makeAutoObservable } from 'mobx'
 import type { KeyboardEvent } from 'react'
-
+import {
+  batch,
+  bindMethods,
+  observable,
+  readField,
+  readMapValue,
+  writeField,
+} from '../../stores/legend'
 import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
 import { DEFAULT_SIDEBAR_FILTERS, type SidebarFilters } from './sessionFiltering'
 
@@ -10,19 +16,85 @@ export interface RenderedSessionItem {
 }
 
 export class SessionSidebarStore {
-  now = Date.now()
-  focusedItemKey: string | null = null
-  expandedProjectKeys = new Set<string>()
-  projectRevealCounts = new Map<string, number>()
-  editingProjectKey: string | null = null
-  draftProjectName = ''
-  filters: SidebarFilters = { ...DEFAULT_SIDEBAR_FILTERS }
-  isFilterPanelOpen = false
-  isSearchOpen = false
+  readonly stateNode = observable({
+    now: Date.now(),
+    focusedItemKey: null as string | null,
+    expandedProjectKeys: new Set<string>(),
+    projectRevealCounts: new Map<string, number>(),
+    editingProjectKey: null as string | null,
+    draftProjectName: '',
+    filters: { ...DEFAULT_SIDEBAR_FILTERS } as SidebarFilters,
+    isFilterPanelOpen: false,
+    isSearchOpen: false,
+  })
   private storedScrollTop = 0
 
   constructor() {
-    makeAutoObservable(this, {}, { autoBind: true })
+    bindMethods(this)
+  }
+
+  get now(): number {
+    return readField(this.stateNode, 'now')
+  }
+
+  set now(value: number) {
+    writeField(this.stateNode, 'now', value)
+  }
+
+  get focusedItemKey(): string | null {
+    return readField(this.stateNode, 'focusedItemKey')
+  }
+
+  set focusedItemKey(value: string | null) {
+    writeField(this.stateNode, 'focusedItemKey', value)
+  }
+
+  get expandedProjectKeys(): Set<string> {
+    return readField(this.stateNode, 'expandedProjectKeys')
+  }
+
+  get projectRevealCounts(): Map<string, number> {
+    return readField(this.stateNode, 'projectRevealCounts')
+  }
+
+  get editingProjectKey(): string | null {
+    return readField(this.stateNode, 'editingProjectKey')
+  }
+
+  set editingProjectKey(value: string | null) {
+    writeField(this.stateNode, 'editingProjectKey', value)
+  }
+
+  get draftProjectName(): string {
+    return readField(this.stateNode, 'draftProjectName')
+  }
+
+  set draftProjectName(value: string) {
+    writeField(this.stateNode, 'draftProjectName', value)
+  }
+
+  get filters(): SidebarFilters {
+    return readField(this.stateNode, 'filters')
+  }
+
+  set filters(value: SidebarFilters) {
+    writeField(this.stateNode, 'filters', value)
+  }
+
+  get isFilterPanelOpen(): boolean {
+    return readField(this.stateNode, 'isFilterPanelOpen')
+  }
+
+  set isFilterPanelOpen(value: boolean) {
+    writeField(this.stateNode, 'isFilterPanelOpen', value)
+  }
+
+  get isSearchOpen(): boolean {
+    return readField(this.stateNode, 'isSearchOpen')
+  }
+
+  set isSearchOpen(value: boolean) {
+    writeField(this.stateNode, 'isSearchOpen', value)
   }
 
   tickNow(): void {
@@ -30,7 +102,7 @@ export class SessionSidebarStore {
   }
 
   isProjectExpanded(projectKey: string): boolean {
-    return this.expandedProjectKeys.has(projectKey)
+    return this.stateNode.expandedProjectKeys.has(projectKey)
   }
 
   setFocusedItemKey(focusKey: string | null): void {
@@ -123,34 +195,42 @@ export class SessionSidebarStore {
   }
 
   toggleProjectExpansion(projectKey: string): void {
-    const current = this.projectRevealCounts.get(projectKey) ?? 0
-    if (current > 0) {
-      this.projectRevealCounts.delete(projectKey)
-      this.expandedProjectKeys.delete(projectKey)
-    } else {
-      this.expandedProjectKeys.add(projectKey)
-    }
+    batch(() => {
+      const current = readMapValue(this.stateNode.projectRevealCounts, projectKey) ?? 0
+      if (current > 0) {
+        this.stateNode.projectRevealCounts.delete(projectKey)
+        this.stateNode.expandedProjectKeys.delete(projectKey)
+      } else {
+        this.stateNode.expandedProjectKeys.add(projectKey)
+      }
+    })
   }
 
   revealMoreSessions(projectKey: string, batchSize: number): void {
-    const current = this.projectRevealCounts.get(projectKey) ?? 0
-    this.projectRevealCounts.set(projectKey, current + batchSize)
-    this.expandedProjectKeys.add(projectKey)
+    batch(() => {
+      const current = readMapValue(this.stateNode.projectRevealCounts, projectKey) ?? 0
+      this.stateNode.projectRevealCounts.set(projectKey, current + batchSize)
+      this.stateNode.expandedProjectKeys.add(projectKey)
+    })
   }
 
   collapseProjectSessions(projectKey: string): void {
-    this.projectRevealCounts.delete(projectKey)
-    this.expandedProjectKeys.delete(projectKey)
+    batch(() => {
+      this.stateNode.projectRevealCounts.delete(projectKey)
+      this.stateNode.expandedProjectKeys.delete(projectKey)
+    })
   }
 
   getRevealLimit(projectKey: string, baseLimit: number): number {
-    const extra = this.projectRevealCounts.get(projectKey) ?? 0
+    const extra = readMapValue(this.stateNode.projectRevealCounts, projectKey) ?? 0
     return baseLimit + extra
   }
 
   startEditingProject(group: ProjectSessionGroup): void {
-    this.editingProjectKey = group.key
-    this.draftProjectName = group.label
+    batch(() => {
+      this.editingProjectKey = group.key
+      this.draftProjectName = group.label
+    })
   }
 
   setDraftProjectName(value: string): void {
@@ -166,8 +246,10 @@ export class SessionSidebarStore {
   }
 
   cancelProjectEditing(): void {
-    this.editingProjectKey = null
-    this.draftProjectName = ''
+    batch(() => {
+      this.editingProjectKey = null
+      this.draftProjectName = ''
+    })
   }
 
   /**
@@ -222,8 +304,10 @@ export class SessionSidebarStore {
   }
 
   closeSearch(): void {
-    this.isSearchOpen = false
-    this.isFilterPanelOpen = false
+    batch(() => {
+      this.isSearchOpen = false
+      this.isFilterPanelOpen = false
+    })
     if (this.filters.query.length > 0) {
       this.updateFilters({ query: '' })
     }

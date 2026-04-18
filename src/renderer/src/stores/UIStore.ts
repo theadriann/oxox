@@ -1,5 +1,5 @@
-import { makeAutoObservable } from 'mobx'
 import { createLocalStoragePort, type PersistencePort } from '../platform/persistence'
+import { bindMethods, observable, readField, writeField } from './legend'
 
 const SIDEBAR_STATE_STORAGE_KEY = 'oxox.ui.sidebar'
 const DEFAULT_SIDEBAR_WIDTH = 256
@@ -25,24 +25,122 @@ export type ComposerContextUsageDisplayMode = 'percentage' | 'tokens'
 export class UIStore {
   readonly colorMode = 'dark'
   readonly isCommandPaletteReady = true
-  sidebarWidth = DEFAULT_SIDEBAR_WIDTH
-  isSidebarHidden = false
-  isResizingSidebar = false
-  contextPanelWidth = DEFAULT_CONTEXT_PANEL_WIDTH
-  isContextPanelHidden = false
-  isResizingContextPanel = false
-  isCommandPaletteOpen = false
-  collapsedProjectKeys: string[] = []
-  contentLayout: ContentLayout = 'fixed'
-  composerContextUsageDisplayMode: ComposerContextUsageDisplayMode = 'percentage'
-  activeView: AppView = 'sessions'
-  settingsSection: SettingsSection = 'general'
+  readonly stateNode = observable({
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+    isSidebarHidden: false,
+    isResizingSidebar: false,
+    contextPanelWidth: DEFAULT_CONTEXT_PANEL_WIDTH,
+    isContextPanelHidden: false,
+    isResizingContextPanel: false,
+    isCommandPaletteOpen: false,
+    collapsedProjectKeys: [] as string[],
+    contentLayout: 'fixed' as ContentLayout,
+    composerContextUsageDisplayMode: 'percentage' as ComposerContextUsageDisplayMode,
+    activeView: 'sessions' as AppView,
+    settingsSection: 'general' as SettingsSection,
+  })
   private readonly persistence: PersistencePort
 
   constructor(persistence: PersistencePort = createLocalStoragePort()) {
     this.persistence = persistence
-    makeAutoObservable(this, { persistence: false }, { autoBind: true })
+    bindMethods(this)
     this.hydrate()
+  }
+
+  get sidebarWidth(): number {
+    return readField(this.stateNode, 'sidebarWidth')
+  }
+
+  set sidebarWidth(value: number) {
+    writeField(this.stateNode, 'sidebarWidth', value)
+  }
+
+  get isSidebarHidden(): boolean {
+    return readField(this.stateNode, 'isSidebarHidden')
+  }
+
+  set isSidebarHidden(value: boolean) {
+    writeField(this.stateNode, 'isSidebarHidden', value)
+  }
+
+  get isResizingSidebar(): boolean {
+    return readField(this.stateNode, 'isResizingSidebar')
+  }
+
+  set isResizingSidebar(value: boolean) {
+    writeField(this.stateNode, 'isResizingSidebar', value)
+  }
+
+  get contextPanelWidth(): number {
+    return readField(this.stateNode, 'contextPanelWidth')
+  }
+
+  set contextPanelWidth(value: number) {
+    writeField(this.stateNode, 'contextPanelWidth', value)
+  }
+
+  get isContextPanelHidden(): boolean {
+    return readField(this.stateNode, 'isContextPanelHidden')
+  }
+
+  set isContextPanelHidden(value: boolean) {
+    writeField(this.stateNode, 'isContextPanelHidden', value)
+  }
+
+  get isResizingContextPanel(): boolean {
+    return readField(this.stateNode, 'isResizingContextPanel')
+  }
+
+  set isResizingContextPanel(value: boolean) {
+    writeField(this.stateNode, 'isResizingContextPanel', value)
+  }
+
+  get isCommandPaletteOpen(): boolean {
+    return readField(this.stateNode, 'isCommandPaletteOpen')
+  }
+
+  set isCommandPaletteOpen(value: boolean) {
+    writeField(this.stateNode, 'isCommandPaletteOpen', value)
+  }
+
+  get collapsedProjectKeys(): string[] {
+    return readField(this.stateNode, 'collapsedProjectKeys')
+  }
+
+  set collapsedProjectKeys(value: string[]) {
+    writeField(this.stateNode, 'collapsedProjectKeys', value)
+  }
+
+  get contentLayout(): ContentLayout {
+    return readField(this.stateNode, 'contentLayout')
+  }
+
+  set contentLayout(value: ContentLayout) {
+    writeField(this.stateNode, 'contentLayout', value)
+  }
+
+  get composerContextUsageDisplayMode(): ComposerContextUsageDisplayMode {
+    return readField(this.stateNode, 'composerContextUsageDisplayMode')
+  }
+
+  set composerContextUsageDisplayMode(value: ComposerContextUsageDisplayMode) {
+    writeField(this.stateNode, 'composerContextUsageDisplayMode', value)
+  }
+
+  get activeView(): AppView {
+    return readField(this.stateNode, 'activeView')
+  }
+
+  set activeView(value: AppView) {
+    writeField(this.stateNode, 'activeView', value)
+  }
+
+  get settingsSection(): SettingsSection {
+    return readField(this.stateNode, 'settingsSection')
+  }
+
+  set settingsSection(value: SettingsSection) {
+    writeField(this.stateNode, 'settingsSection', value)
   }
 
   setSidebarWidth(width: number, windowWidth = getWindowWidth()): void {

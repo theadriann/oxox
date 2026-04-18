@@ -1,43 +1,47 @@
-import { observer } from 'mobx-react-lite'
-
+import { useValue } from '../../stores/legend'
 import { useLiveSessionStore, useSessionStore, useUIStore } from '../../stores/StoreProvider'
 import { useAppShellControllerContext } from './AppShellControllerContext'
 import { AppTopBar } from './AppTopBar'
 
-export const AppShellTopBarConnected = observer(function AppShellTopBarConnected() {
+export function AppShellTopBarConnected() {
   const liveSessionStore = useLiveSessionStore()
   const sessionStore = useSessionStore()
   const uiStore = useUIStore()
   const { newSessionForm } = useAppShellControllerContext()
+  const isSettingsOpen = useValue(() => uiStore.isSettingsOpen)
+  const isSidebarHidden = useValue(() => uiStore.isSidebarHidden)
+  const isContextPanelHidden = useValue(() => uiStore.isContextPanelHidden)
+  const sessionTitle = useValue(() =>
+    newSessionForm.showForm
+      ? 'New session'
+      : (liveSessionStore.selectedSnapshot?.title ?? sessionStore.selectedSession?.title),
+  )
+  const sessionProjectLabel = useValue(() =>
+    newSessionForm.showForm
+      ? newSessionForm.path || undefined
+      : (liveSessionStore.selectedSnapshot?.projectWorkspacePath ??
+        sessionStore.selectedSession?.projectLabel),
+  )
 
-  if (uiStore.isSettingsOpen) {
+  if (isSettingsOpen) {
     return (
       <AppTopBar
         sessionTitle="Settings"
         sessionProjectLabel={undefined}
-        isSidebarHidden={uiStore.isSidebarHidden}
+        isSidebarHidden={isSidebarHidden}
         onToggleSidebar={uiStore.toggleSidebar}
       />
     )
   }
 
-  const sessionTitle = newSessionForm.showForm
-    ? 'New session'
-    : (liveSessionStore.selectedSnapshot?.title ?? sessionStore.selectedSession?.title)
-
-  const sessionProjectLabel = newSessionForm.showForm
-    ? newSessionForm.path || undefined
-    : (liveSessionStore.selectedSnapshot?.projectWorkspacePath ??
-      sessionStore.selectedSession?.projectLabel)
-
   return (
     <AppTopBar
       sessionTitle={sessionTitle}
       sessionProjectLabel={sessionProjectLabel}
-      isSidebarHidden={uiStore.isSidebarHidden}
-      isContextPanelHidden={uiStore.isContextPanelHidden}
+      isSidebarHidden={isSidebarHidden}
+      isContextPanelHidden={isContextPanelHidden}
       onToggleSidebar={uiStore.toggleSidebar}
       onToggleContextPanel={uiStore.toggleContextPanel}
     />
   )
-})
+}

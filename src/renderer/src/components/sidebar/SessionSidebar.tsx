@@ -1,8 +1,7 @@
 import { ChevronsLeft, FolderSearch, GripVertical, Plus, Search } from 'lucide-react'
-import { observer } from 'mobx-react-lite'
 import type { ChangeEvent, KeyboardEvent } from 'react'
 import { memo, type PointerEvent, useCallback, useMemo, useRef } from 'react'
-
+import { useValue } from '../../stores/legend'
 import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -55,7 +54,7 @@ interface SessionSidebarViewProps extends SessionSidebarProps {
   store: SessionSidebarStore
 }
 
-export const SessionSidebar = observer(function SessionSidebar({
+export function SessionSidebar({
   groups,
   pinnedSessions,
   selectedSessionId,
@@ -82,33 +81,42 @@ export const SessionSidebar = observer(function SessionSidebar({
   const sessionRefs = useRef(new Map<string, HTMLButtonElement>())
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const hasAnySessions = groups.length > 0 || pinnedSessions.length > 0
+  const editingProjectKey = useValue(() =>
+    store.isEditingProjectValid(groups) ? store.editingProjectKey : null,
+  )
+  const filters = useValue(() => store.filters)
+  const isFilterPanelOpen = useValue(() => store.isFilterPanelOpen)
+  const now = useValue(() => store.now)
   const filteredSidebar = useMemo(
-    () => filterSessionGroups(groups, pinnedSessions, store.filters, store.now),
-    [groups, pinnedSessions, store.filters, store.now],
-  )
-  const editingProjectKey = store.isEditingProjectValid(groups) ? store.editingProjectKey : null
-
-  const visibleItems = buildVisibleItems(
-    filteredSidebar.pinnedSessions,
-    filteredSidebar.groups,
-    filteredSidebar.isFiltering,
-    isProjectCollapsed,
-    store,
+    () => filterSessionGroups(groups, pinnedSessions, filters, now),
+    [filters, groups, now, pinnedSessions],
   )
 
-  const flatItems = buildFlatItems({
-    pinnedSessions: filteredSidebar.pinnedSessions,
-    groups: filteredSidebar.groups,
-    isFiltering: filteredSidebar.isFiltering,
-    isLoading,
-    hasError: Boolean(errorState),
-    editingProjectKey,
-    isProjectCollapsed,
-    store,
-  })
+  const visibleItems = useValue(() =>
+    buildVisibleItems(
+      filteredSidebar.pinnedSessions,
+      filteredSidebar.groups,
+      filteredSidebar.isFiltering,
+      isProjectCollapsed,
+      store,
+    ),
+  )
+
+  const flatItems = useValue(() =>
+    buildFlatItems({
+      pinnedSessions: filteredSidebar.pinnedSessions,
+      groups: filteredSidebar.groups,
+      isFiltering: filteredSidebar.isFiltering,
+      isLoading,
+      hasError: Boolean(errorState),
+      editingProjectKey,
+      isProjectCollapsed,
+      store,
+    }),
+  )
 
   // Derive focused key inline (replaces useEffect + syncFocusedItemKey)
-  const focusedKey = store.deriveFocusedItemKey(visibleItems, selectedSessionId)
+  const focusedKey = useValue(() => store.deriveFocusedItemKey(visibleItems, selectedSessionId))
 
   // Stable callback ref pattern (rerender-defer-reads / advanced-event-handler-refs)
   const visibleItemsRef = useRef(visibleItems)
@@ -194,9 +202,9 @@ export const SessionSidebar = observer(function SessionSidebar({
         />
 
         <SessionFilterPanel
-          filters={store.filters}
+          filters={filters}
           filteredSidebar={filteredSidebar}
-          isFilterPanelOpen={store.isFilterPanelOpen}
+          isFilterPanelOpen={isFilterPanelOpen}
           onQueryChange={handleQueryChange}
           onClearQuery={handleClearQuery}
           onToggleFilterPanel={store.toggleFilterPanel}
@@ -260,7 +268,7 @@ export const SessionSidebar = observer(function SessionSidebar({
       </aside>
     </TooltipProvider>
   )
-})
+}
 
 const SidebarHeader = memo(function SidebarHeader({
   activeCount,

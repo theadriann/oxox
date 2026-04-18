@@ -32,6 +32,9 @@ importers:
       '@json-render/react':
         specifier: ^0.16.0
         version: 0.16.0(react@19.2.4)(zod@3.25.76)
+      '@legendapp/state':
+        specifier: 3.0.0-beta.46
+        version: 3.0.0-beta.46(react@19.2.4)
       '@pierre/diffs':
         specifier: ^1.1.13
         version: 1.1.13(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -77,12 +80,6 @@ importers:
       lucide-react:
         specifier: ^1.6.0
         version: 1.6.0(react@19.2.4)
-      mobx:
-        specifier: ^6.15.0
-        version: 6.15.0
-      mobx-react-lite:
-        specifier: ^4.1.1
-        version: 4.1.1(mobx@6.15.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1017,6 +1014,14 @@ packages:
     resolution: {integrity: sha512-PJQjLftGYZ5LNlA1IFww+yNOAJZRW2feEcH/L10u/8M/b/zImr9wfqQVMDyC87myoEzhyucpkQ6joISeZdKxsw==}
     peerDependencies:
       react: ^19.2.3
+
+  '@legendapp/state@3.0.0-beta.46':
+    resolution: {integrity: sha512-TcCabsE9jPW2r0sKQbUet46L0hbWiupKoun9UUkcHyF/6Jec1RyJCmLrdgFPnYZ9HwupJKIRxJVlxNrg2tG3SQ==}
+    peerDependencies:
+      expo-sqlite: ^15.0.0
+    peerDependenciesMeta:
+      expo-sqlite:
+        optional: true
 
   '@malept/cross-spawn-promise@2.0.0':
     resolution: {integrity: sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg==}
@@ -4251,22 +4256,6 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  mobx-react-lite@4.1.1:
-    resolution: {integrity: sha512-iUxiMpsvNraCKXU+yPotsOncNNmyeS2B5DKL+TL6Tar/xm+wwNJAubJmtRSeAoYawdZqwv8Z/+5nPRHeQxTiXg==}
-    peerDependencies:
-      mobx: ^6.9.0
-      react: ^16.8.0 || ^17 || ^18 || ^19
-      react-dom: '*'
-      react-native: '*'
-    peerDependenciesMeta:
-      react-dom:
-        optional: true
-      react-native:
-        optional: true
-
-  mobx@6.15.0:
-    resolution: {integrity: sha512-UczzB+0nnwGotYSgllfARAqWCJ5e/skuV2K/l+Zyck/H6pJIhLXuBnz+6vn2i211o7DtbE78HQtsYEKICHGI+g==}
-
   motion-dom@12.38.0:
     resolution: {integrity: sha512-pdkHLD8QYRp8VfiNLb8xIBJis1byQ9gPT3Jnh2jqfFtAsWUA3dEepDlsWe/xMpO8McV+VdpKVcp+E+TGJEtOoA==}
 
@@ -6503,6 +6492,12 @@ snapshots:
       react: 19.2.4
     transitivePeerDependencies:
       - zod
+
+  '@legendapp/state@3.0.0-beta.46(react@19.2.4)':
+    dependencies:
+      use-sync-external-store: 1.6.0(react@19.2.4)
+    transitivePeerDependencies:
+      - react
 
   '@malept/cross-spawn-promise@2.0.0':
     dependencies:
@@ -10147,16 +10142,6 @@ snapshots:
       minimist: 1.2.8
 
   mkdirp@1.0.4: {}
-
-  mobx-react-lite@4.1.1(mobx@6.15.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
-    dependencies:
-      mobx: 6.15.0
-      react: 19.2.4
-      use-sync-external-store: 1.6.0(react@19.2.4)
-    optionalDependencies:
-      react-dom: 19.2.4(react@19.2.4)
-
-  mobx@6.15.0: {}
 
   motion-dom@12.38.0:
     dependencies:

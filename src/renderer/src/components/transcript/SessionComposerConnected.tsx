@@ -1,5 +1,4 @@
-import { observer } from 'mobx-react-lite'
-
+import { useValue } from '../../stores/legend'
 import {
   useComposerStore,
   useLiveSessionStore,
@@ -23,7 +22,7 @@ interface SessionComposerConnectedProps {
   }) => void | Promise<void>
 }
 
-export const SessionComposerConnected = observer(function SessionComposerConnected({
+export function SessionComposerConnected({
   onAttach,
   canComposeDetached,
   isSubmittingDetached,
@@ -55,20 +54,22 @@ export const SessionComposerConnected = observer(function SessionComposerConnect
           autonomyLevel: string
         }) => controller.newSessionForm.submitNewSession(payload)
       : undefined)
-  const { composer, error } = buildSessionComposerProps({
-    canComposeDetached: resolvedCanComposeDetached,
-    composerStore,
-    isSubmittingDetached: resolvedIsSubmittingDetached,
-    liveSessionStore,
-    onAttach: resolvedOnAttach,
-    onSubmitDetached: resolvedOnSubmitDetached,
-    sessionStore,
-    uiStore,
-  })
+  const { composer, error } = useValue(() =>
+    buildSessionComposerProps({
+      canComposeDetached: resolvedCanComposeDetached,
+      composerStore,
+      isSubmittingDetached: resolvedIsSubmittingDetached,
+      liveSessionStore,
+      onAttach: resolvedOnAttach,
+      onSubmitDetached: resolvedOnSubmitDetached,
+      sessionStore,
+      uiStore,
+    }),
+  )
 
   return (
     <SessionComposerContainer error={error}>
       <SessionComposer {...composer} />
     </SessionComposerContainer>
   )
-})
+}

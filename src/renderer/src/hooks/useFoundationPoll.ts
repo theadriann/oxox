@@ -1,7 +1,6 @@
-import { useEffect } from 'react'
-
 import type { FoundationChangedPayload } from '../../../shared/ipc/contracts'
 import type { PlatformApiClient } from '../platform/apiClient'
+import { useMountEffect } from './useMountEffect'
 
 interface UseFoundationPollOptions {
   foundationApi?: PlatformApiClient['foundation']
@@ -16,7 +15,7 @@ export function useFoundationPoll({
   foundationApi,
   foundationStore,
 }: UseFoundationPollOptions): void {
-  useEffect(() => {
+  useMountEffect(() => {
     void foundationStore.initRuntime()
     void foundationStore.refresh()
     const unsubscribe = foundationApi?.onChanged?.((payload) => {
@@ -31,5 +30,5 @@ export function useFoundationPoll({
     return () => {
       unsubscribe?.()
     }
-  }, [foundationApi, foundationStore])
+  })
 }

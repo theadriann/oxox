@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { act, render } from '@testing-library/react'
-import { runInAction } from 'mobx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createPlatformApiClient } from '../../../platform/apiClient'
@@ -20,7 +19,7 @@ vi.mock('../useAppShellController', () => ({
   useAppShellController: () => ({
     commandPalette: {
       closePalette: vi.fn(),
-      commands: [],
+      getCommands: () => [],
       handleSessionSelection: vi.fn(),
       openPalette: vi.fn(),
     },
@@ -132,9 +131,7 @@ describe('AppShell', () => {
     expect(renderState.count).toBe(1)
 
     act(() => {
-      runInAction(() => {
-        rootStore.transportStore.status = 'connected'
-      })
+      rootStore.transportStore.status = 'connected'
     })
 
     expect(renderState.count).toBe(1)

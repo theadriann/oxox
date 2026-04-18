@@ -1,7 +1,6 @@
-import { useEffect } from 'react'
-
 import type { PluginHostSnapshot } from '../../../shared/plugins/contracts'
 import type { PlatformApiClient } from '../platform/apiClient'
+import { useMountEffect } from './useMountEffect'
 
 interface UsePluginHostEventsOptions {
   pluginApi?: PlatformApiClient['plugin']
@@ -15,7 +14,7 @@ export function usePluginHostEvents({
   pluginApi,
   pluginHostStore,
 }: UsePluginHostEventsOptions): void {
-  useEffect(() => {
+  useMountEffect(() => {
     void pluginHostStore.refresh()
     const unsubscribe = pluginApi?.onHostChanged?.(({ snapshot }) => {
       pluginHostStore.applySnapshot(snapshot)
@@ -24,5 +23,5 @@ export function usePluginHostEvents({
     return () => {
       unsubscribe?.()
     }
-  }, [pluginApi, pluginHostStore])
+  })
 }

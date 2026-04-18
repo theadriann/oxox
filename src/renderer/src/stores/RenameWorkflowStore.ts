@@ -1,14 +1,15 @@
-import { makeAutoObservable, runInAction } from 'mobx'
-
+import { batch, bindMethods, observable, readField, writeField } from './legend'
 export interface RenameSessionApi {
   renameViaDaemon?: (sessionId: string, title: string) => Promise<void>
 }
 
 export class RenameWorkflowStore {
-  renameDraft = ''
-  isRenameDialogOpen = false
-  renamingSessionId: string | null = null
-  error: string | null = null
+  readonly stateNode = observable({
+    renameDraft: '',
+    isRenameDialogOpen: false,
+    renamingSessionId: null as string | null,
+    error: null as string | null,
+  })
 
   private readonly getSelectedSessionId: () => string | null
   private readonly getSelectedSession: () => { title: string } | null
@@ -26,16 +27,39 @@ export class RenameWorkflowStore {
     this.sessionApi = sessionApi
     this.onRenamed = onRenamed
 
-    makeAutoObservable(
-      this,
-      {
-        getSelectedSessionId: false,
-        getSelectedSession: false,
-        sessionApi: false,
-        onRenamed: false,
-      },
-      { autoBind: true },
-    )
+    bindMethods(this)
+  }
+
+  get renameDraft(): string {
+    return readField(this.stateNode, 'renameDraft')
+  }
+
+  set renameDraft(value: string) {
+    writeField(this.stateNode, 'renameDraft', value)
+  }
+
+  get isRenameDialogOpen(): boolean {
+    return readField(this.stateNode, 'isRenameDialogOpen')
+  }
+
+  set isRenameDialogOpen(value: boolean) {
+    writeField(this.stateNode, 'isRenameDialogOpen', value)
+  }
+
+  get renamingSessionId(): string | null {
+    return readField(this.stateNode, 'renamingSessionId')
+  }
+
+  set renamingSessionId(value: string | null) {
+    writeField(this.stateNode, 'renamingSessionId', value)
+  }
+
+  get error(): string | null {
+    return readField(this.stateNode, 'error')
+  }
+
+  set error(value: string | null) {
+    writeField(this.stateNode, 'error', value)
   }
 
   openRenameDialog(): void {
@@ -67,7 +91,7 @@ export class RenameWorkflowStore {
       return
     }
 
-    runInAction(() => {
+    batch(() => {
       this.renamingSessionId = selectedSessionId
       this.error = null
     })
@@ -76,16 +100,16 @@ export class RenameWorkflowStore {
       await this.sessionApi.renameViaDaemon(selectedSessionId, nextTitle)
       await this.onRenamed?.(selectedSessionId, nextTitle)
 
-      runInAction(() => {
+      batch(() => {
         this.closeRenameDialog()
       })
     } catch (error) {
-      runInAction(() => {
+      batch(() => {
         this.error =
           error instanceof Error ? error.message : 'Unable to rename the selected session.'
       })
     } finally {
-      runInAction(() => {
+      batch(() => {
         this.renamingSessionId = null
       })
     }

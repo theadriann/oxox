@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { observer } from 'mobx-react-lite'
 import { useMemo } from 'react'
 
 import { createPanelVariants } from '../../lib/motion'
+import { useValue } from '../../stores/legend'
 import { useUIStore } from '../../stores/StoreProvider'
 import { ContextPanelConnected } from '../context-panel/ContextPanelConnected'
 import { useAppShellControllerContext } from './AppShellControllerContext'
@@ -13,21 +13,22 @@ interface AppShellContextPanelProps {
   shouldAnimate: boolean
 }
 
-export const AppShellContextPanel = observer(function AppShellContextPanel({
+export function AppShellContextPanel({
   prefersReducedMotion,
   shouldAnimate,
 }: AppShellContextPanelProps) {
   const uiStore = useUIStore()
   const { contextPanelRef, handleBrowseSessions, startContextPanelResize } =
     useAppShellControllerContext()
+  const isContextPanelHidden = useValue(() => uiStore.isContextPanelHidden)
   const contextPanelState = useMemo(
     () =>
       buildAppShellContextPanelState({
-        isContextPanelHidden: uiStore.isContextPanelHidden,
+        isContextPanelHidden,
         prefersReducedMotion,
         shouldAnimate,
       }),
-    [uiStore.isContextPanelHidden, prefersReducedMotion, shouldAnimate],
+    [isContextPanelHidden, prefersReducedMotion, shouldAnimate],
   )
   const panel = useMemo(
     () => (
@@ -61,4 +62,4 @@ export const AppShellContextPanel = observer(function AppShellContextPanel({
       ) : null}
     </AnimatePresence>
   )
-})
+}

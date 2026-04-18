@@ -35,7 +35,7 @@ export function getToolContextLabel(toolName: string, inputMarkdown: string | nu
 
   // Glob → show patterns
   if (lower === 'glob') {
-    const patterns = parsed['patterns']
+    const patterns = parsed.patterns
     if (Array.isArray(patterns) && patterns.length > 0) {
       return String(patterns[0])
     }
@@ -108,7 +108,7 @@ export function getToolContextLabel(toolName: string, inputMarkdown: string | nu
 
   // executor___resume → show executionId
   if (lower === 'executor___resume') {
-    const payload = parsed['resumePayload']
+    const payload = parsed.resumePayload
     if (payload && typeof payload === 'object') {
       return strField(payload as Record<string, unknown>, 'executionId')
     }

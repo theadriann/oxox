@@ -1,5 +1,4 @@
-import { observer } from 'mobx-react-lite'
-
+import { useValue } from '../../stores/legend'
 import { useUIStore } from '../../stores/StoreProvider'
 import { AppShellMainContent } from './AppShellMainContent'
 import { AppShellSidebarRegion } from './AppShellSidebarRegion'
@@ -11,10 +10,9 @@ interface AppShellViewProps {
   prefersReducedMotion: boolean
 }
 
-export const AppShellView = observer(function AppShellView({
-  prefersReducedMotion,
-}: AppShellViewProps) {
+export function AppShellView({ prefersReducedMotion }: AppShellViewProps) {
   const uiStore = useUIStore()
+  const isSidebarHidden = useValue(() => uiStore.isSidebarHidden)
 
   return (
     <div
@@ -28,7 +26,7 @@ export const AppShellView = observer(function AppShellView({
       </div>
 
       <div
-        className={`oxox-app-layout h-full ${uiStore.isSidebarHidden ? 'oxox-app-layout--sidebar-hidden' : 'oxox-app-layout--sidebar-visible'}`}
+        className={`oxox-app-layout h-full ${isSidebarHidden ? 'oxox-app-layout--sidebar-hidden' : 'oxox-app-layout--sidebar-visible'}`}
       >
         <AppShellSidebarRegion prefersReducedMotion={prefersReducedMotion} />
         <div className="flex min-h-0 min-w-0 flex-col pt-12.5">
@@ -38,4 +36,4 @@ export const AppShellView = observer(function AppShellView({
       </div>
     </div>
   )
-})
+}

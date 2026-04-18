@@ -1,6 +1,5 @@
-import { makeAutoObservable, runInAction } from 'mobx'
-
 import type { SessionTranscript } from '../../../shared/ipc/contracts'
+import { batch, bindMethods, observable, readMapValue, writeMapValue } from './legend'
 
 type TranscriptLoader = (sessionId: string) => Promise<SessionTranscript>
 const UNAVAILABLE_TRANSCRIPT_LOADER: TranscriptLoader = async () => {
@@ -10,25 +9,27 @@ const UNAVAILABLE_TRANSCRIPT_LOADER: TranscriptLoader = async () => {
 export class TranscriptStore {
   private readonly transcriptLoader: TranscriptLoader
 
-  private readonly transcriptsBySession = new Map<string, SessionTranscript>()
-  private readonly refreshErrorsBySession = new Map<string, string>()
-  private readonly refreshingSessionIds = new Set<string>()
+  readonly stateNode = observable({
+    transcriptsBySession: new Map<string, SessionTranscript>(),
+    refreshErrorsBySession: new Map<string, string>(),
+    refreshingSessionIds: new Set<string>(),
+  })
 
   constructor(transcriptLoader: TranscriptLoader = UNAVAILABLE_TRANSCRIPT_LOADER) {
     this.transcriptLoader = transcriptLoader
-    makeAutoObservable(this, { transcriptLoader: false }, { autoBind: true })
+    bindMethods(this)
   }
 
   transcriptForSession(sessionId: string): SessionTranscript | null {
-    return this.transcriptsBySession.get(sessionId) ?? null
+    return readMapValue(this.stateNode.transcriptsBySession, sessionId) ?? null
   }
 
   refreshErrorForSession(sessionId: string): string | null {
-    return this.refreshErrorsBySession.get(sessionId) ?? null
+    return readMapValue(this.stateNode.refreshErrorsBySession, sessionId) ?? null
   }
 
   isRefreshingSession(sessionId: string): boolean {
-    return this.refreshingSessionIds.has(sessionId)
+    return this.stateNode.refreshingSessionIds.has(sessionId)
   }
 
   async openSession(sessionId: string): Promise<void> {
@@ -36,25 +37,28 @@ export class TranscriptStore {
       return
     }
 
-    this.refreshErrorsBySession.delete(sessionId)
-    this.refreshingSessionIds.add(sessionId)
+    batch(() => {
+      this.stateNode.refreshErrorsBySession.delete(sessionId)
+      this.stateNode.refreshingSessionIds.add(sessionId)
+    })
 
     try {
       const transcript = await this.transcriptLoader(sessionId)
-      runInAction(() => {
-        this.transcriptsBySession.set(sessionId, transcript)
-        this.refreshErrorsBySession.delete(sessionId)
+      batch(() => {
+        writeMapValue(this.stateNode.transcriptsBySession, sessionId, transcript)
+        this.stateNode.refreshErrorsBySession.delete(sessionId)
       })
     } catch (error) {
-      runInAction(() => {
-        this.refreshErrorsBySession.set(
+      batch(() => {
+        writeMapValue(
+          this.stateNode.refreshErrorsBySession,
           sessionId,
           error instanceof Error ? error.message : 'Unable to refresh transcript.',
         )
       })
     } finally {
-      runInAction(() => {
-        this.refreshingSessionIds.delete(sessionId)
+      batch(() => {
+        this.stateNode.refreshingSessionIds.delete(sessionId)
       })
     }
   }

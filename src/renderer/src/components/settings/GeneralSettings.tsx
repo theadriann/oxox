@@ -1,9 +1,11 @@
-import { observer } from 'mobx-react-lite'
-
+import { useValue } from '../../stores/legend'
 import { useUIStore } from '../../stores/StoreProvider'
 
-export const GeneralSettings = observer(function GeneralSettings() {
+export function GeneralSettings() {
   const uiStore = useUIStore()
+  const isSidebarHidden = useValue(() => uiStore.isSidebarHidden)
+  const isContextPanelHidden = useValue(() => uiStore.isContextPanelHidden)
+  const composerContextUsageDisplayMode = useValue(() => uiStore.composerContextUsageDisplayMode)
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,7 +28,7 @@ export const GeneralSettings = observer(function GeneralSettings() {
           description="Show the session sidebar when the app starts."
         >
           <ToggleSwitch
-            checked={!uiStore.isSidebarHidden}
+            checked={!isSidebarHidden}
             onChange={() => uiStore.toggleSidebar()}
             label="Sidebar visible"
           />
@@ -37,7 +39,7 @@ export const GeneralSettings = observer(function GeneralSettings() {
           description="Show the context panel when the app starts."
         >
           <ToggleSwitch
-            checked={!uiStore.isContextPanelHidden}
+            checked={!isContextPanelHidden}
             onChange={() => uiStore.toggleContextPanel()}
             label="Context panel visible"
           />
@@ -49,7 +51,7 @@ export const GeneralSettings = observer(function GeneralSettings() {
         >
           <div className="flex items-center gap-1 rounded-md border border-fd-border-default bg-fd-panel p-1">
             {(['percentage', 'tokens'] as const).map((mode) => {
-              const isActive = uiStore.composerContextUsageDisplayMode === mode
+              const isActive = composerContextUsageDisplayMode === mode
 
               return (
                 <button
@@ -84,7 +86,7 @@ export const GeneralSettings = observer(function GeneralSettings() {
       </div>
     </div>
   )
-})
+}
 
 function SettingsRow({
   label,
