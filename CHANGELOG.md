@@ -1,5 +1,11 @@
 # oxox
 
+## 0.0.9
+
+### Patch Changes
+
+- Integrate the latest Droid SDK runtime context APIs and fix context usage estimation in the composer and context panel.
+
 ## 0.0.8
 
 ### Patch Changes
