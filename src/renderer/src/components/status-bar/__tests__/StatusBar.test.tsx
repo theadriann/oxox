@@ -31,6 +31,37 @@ describe('StatusBar', () => {
     expect(screen.getByTestId('daemon-status-indicator').className).toContain('bg-fd-ready')
   })
 
+  it('renders search indexing progress when background indexing is active', () => {
+    render(
+      <StatusBar
+        activeSessionCount={2}
+        connectedPort={37643}
+        daemonStatus="connected"
+        droidCliVersion="0.84.0"
+        lastSyncAt="2026-03-25T00:01:01.000Z"
+        nextRetryDelayMs={null}
+        now={Date.parse('2026-03-25T00:03:01.000Z')}
+        searchIndexingProgress={{
+          indexedSessions: 40,
+          totalSessions: 100,
+          isIndexing: true,
+          updatedAt: '2026-03-25T00:03:00.000Z',
+        }}
+        updateStatusLabel={null}
+      />,
+    )
+
+    expect(screen.getByText('Indexing 40/100')).toBeTruthy()
+    expect(
+      screen
+        .getByRole('progressbar', { name: /session search indexing/i })
+        .getAttribute('aria-valuenow'),
+    ).toBe('40')
+    expect(screen.getByTestId('search-indexing-progress-fill').className).toContain(
+      'bg-fd-ember-500',
+    )
+  })
+
   it('renders reconnecting and disconnected states with the expected indicator colors', () => {
     const { rerender } = render(
       <StatusBar

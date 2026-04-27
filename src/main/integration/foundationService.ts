@@ -19,6 +19,7 @@ import type {
   LiveSessionToolInfo,
   ProjectRecord,
   SessionRecord,
+  SessionSearchIndexingProgress,
   SessionSearchRequest,
   SessionSearchResponse,
   SessionTranscript,
@@ -42,8 +43,10 @@ import { createFoundationChangeBroadcaster } from './foundation/changeBroadcaste
 import { createFoundationLiveSessionRuntime } from './foundation/liveSessionRuntime'
 import { createFoundationQueries } from './foundation/queries'
 import { createFoundationSessionCatalog } from './foundation/sessionCatalog'
+import { createLiveSessionSearchIndexScheduler } from './search/liveSessionSearchIndexScheduler'
 import { createSessionSearchService } from './search/sessionSearchService'
 import { createSessionProcessManager } from './sessions/processManager'
+import { loadSessionTranscriptFromFile } from './transcripts/service'
 
 export interface FoundationService {
   close: () => void
@@ -95,6 +98,7 @@ export interface FoundationService {
   listSyncMetadata: () => SyncMetadataRecord[]
   getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
   searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
+  getSearchIndexingProgress: () => SessionSearchIndexingProgress
   subscribeToFoundationUpdates: (
     listener: (payload: FoundationChangedPayload) => void,
   ) => (() => void) | undefined
@@ -155,7 +159,12 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
   })
   const searchService = createSessionSearchService({
     bootstrap: queries.getBootstrap(),
-    loadSessionTranscript: queries.getSessionTranscript,
+    loadSessionTranscript: loadSessionTranscriptFromFile,
+    searchDatabasePath: join(options.userDataPath, 'session-search.db'),
+  })
+  const liveSearchIndexScheduler = createLiveSessionSearchIndexScheduler({
+    getSessionSnapshot: liveSessionRuntime.getSessionSnapshot,
+    scheduleLiveSnapshotUpdate: searchService.scheduleLiveSnapshotUpdate,
   })
   foundationChangeBroadcaster = createFoundationChangeBroadcaster({
     getSnapshot: queries.getBootstrap,
@@ -172,10 +181,7 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
   })
   foundationChangeBroadcaster.prime()
   const unsubscribeSearchLiveSnapshots = liveSessionRuntime.subscribeToSnapshots((sessionId) => {
-    const snapshot = liveSessionRuntime.getSessionSnapshot(sessionId)
-    if (snapshot) {
-      searchService.scheduleLiveSnapshotUpdate(snapshot)
-    }
+    liveSearchIndexScheduler.schedule(sessionId)
   })
   daemonTransport.start()
   void foundationBootstrapState.refreshFromDroidCli()
@@ -184,6 +190,7 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
     close: () => {
       sessionCatalog.close()
       unsubscribeSearchLiveSnapshots()
+      liveSearchIndexScheduler.dispose()
       searchService.dispose()
       void daemonTransport.stop()
       void liveSessionRuntime.dispose()
@@ -240,6 +247,7 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
     listSyncMetadata: queries.listSyncMetadata,
     getSessionTranscript: queries.getSessionTranscript,
     searchSessions: searchService.searchSessions,
+    getSearchIndexingProgress: searchService.getIndexingProgress,
     subscribeToFoundationUpdates: (listener) => {
       foundationUpdateListeners.add(listener)
 

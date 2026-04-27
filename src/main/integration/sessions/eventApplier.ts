@@ -17,7 +17,7 @@ export function applyEventToSession(
   event: import('../protocol/sessionEvents').SessionEvent,
   timestamp: string,
 ): void {
-  session.events = [...session.events, event]
+  session.events.push(event)
   session.updatedAt = timestamp
   session.lastEventAt = event.occurredAt ?? timestamp
 
@@ -87,7 +87,7 @@ export function upsertMessage(session: ManagedSession, event: MessageCompletedEv
     return
   }
 
-  session.messages = [...session.messages, nextMessage]
+  session.messages.push(nextMessage)
 }
 
 export function normalizeWorkingStatus(

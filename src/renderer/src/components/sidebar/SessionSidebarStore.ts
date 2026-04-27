@@ -23,6 +23,7 @@ export class SessionSidebarStore {
     projectRevealCounts: new Map<string, number>(),
     editingProjectKey: null as string | null,
     draftProjectName: '',
+    searchQueryDraft: DEFAULT_SIDEBAR_FILTERS.query,
     filters: { ...DEFAULT_SIDEBAR_FILTERS } as SidebarFilters,
     isFilterPanelOpen: false,
     isSearchOpen: false,
@@ -71,6 +72,14 @@ export class SessionSidebarStore {
 
   set draftProjectName(value: string) {
     writeField(this.stateNode, 'draftProjectName', value)
+  }
+
+  get searchQueryDraft(): string {
+    return readField(this.stateNode, 'searchQueryDraft')
+  }
+
+  set searchQueryDraft(value: string) {
+    writeField(this.stateNode, 'searchQueryDraft', value)
   }
 
   get filters(): SidebarFilters {
@@ -237,6 +246,10 @@ export class SessionSidebarStore {
     this.draftProjectName = value
   }
 
+  setSearchQueryDraft(value: string): void {
+    this.searchQueryDraft = value
+  }
+
   submitProjectDisplayName(
     projectKey: string,
     onSetProjectDisplayName: (projectKey: string, value: string) => void,
@@ -285,6 +298,7 @@ export class SessionSidebarStore {
   }
 
   clearFilters(scrollElement?: HTMLDivElement | null): void {
+    this.searchQueryDraft = ''
     this.applyFilters({ ...DEFAULT_SIDEBAR_FILTERS }, scrollElement)
   }
 
@@ -307,6 +321,7 @@ export class SessionSidebarStore {
     batch(() => {
       this.isSearchOpen = false
       this.isFilterPanelOpen = false
+      this.searchQueryDraft = ''
     })
     if (this.filters.query.length > 0) {
       this.updateFilters({ query: '' })
@@ -316,12 +331,18 @@ export class SessionSidebarStore {
   private applyFilters(nextFilters: SidebarFilters, scrollElement?: HTMLDivElement | null): void {
     const wasFiltering = hasActiveFilters(this.filters)
     const isFiltering = hasActiveFilters(nextFilters)
+    const previousQuery = this.filters.query
 
     if (!wasFiltering && isFiltering) {
       this.storedScrollTop = scrollElement?.scrollTop ?? 0
     }
 
-    this.filters = nextFilters
+    batch(() => {
+      this.filters = nextFilters
+      if (nextFilters.query !== previousQuery) {
+        this.searchQueryDraft = nextFilters.query
+      }
+    })
 
     if (wasFiltering && !isFiltering && scrollElement) {
       scrollElement.scrollTop = this.storedScrollTop

@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useMountEffect } from '../../hooks/useMountEffect'
 import { useValue } from '../../stores/legend'
 import { SessionSearchController } from '../../stores/SessionSearchController'
 import { useRootStore, useSessionStore, useUIStore } from '../../stores/StoreProvider'
@@ -33,12 +34,18 @@ export function CommandPaletteConnected({ commandPalette }: CommandPaletteConnec
       return sessionStore.sessions
     }
 
+    if (searchController.matches.length === 0) {
+      return []
+    }
+
     const sessionsById = new Map(sessionStore.sessions.map((session) => [session.id, session]))
     return searchController.matches
       .map((match) => sessionsById.get(match.sessionId))
       .filter((session): session is NonNullable<typeof session> => Boolean(session))
   })
   const commands = useValue(() => (open ? (resolvedCommandPalette?.getCommands() ?? []) : []))
+
+  useMountEffect(() => () => searchController.dispose())
 
   if (!resolvedCommandPalette) {
     throw new Error(
@@ -55,7 +62,7 @@ export function CommandPaletteConnected({ commandPalette }: CommandPaletteConnec
         open ? resolvedCommandPalette.openPalette() : resolvedCommandPalette.closePalette()
       }
       onSelectSession={resolvedCommandPalette.handleSessionSelection}
-      onSearchChange={searchController.search}
+      onSearchChange={searchController.scheduleSearch}
       forceMountSessionResults={Boolean(rootStore.api.search.sessions)}
     />
   )

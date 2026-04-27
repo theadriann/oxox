@@ -2,6 +2,7 @@ import { ChevronsLeft, FolderSearch, GripVertical, Plus, Search } from 'lucide-r
 import type { ChangeEvent, KeyboardEvent } from 'react'
 import { memo, type PointerEvent, useCallback, useMemo, useRef } from 'react'
 import type { SessionSearchMatch } from '../../../../shared/ipc/contracts'
+import { useMountEffect } from '../../hooks/useMountEffect'
 import { useValue } from '../../stores/legend'
 import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
 import { Badge } from '../ui/badge'
@@ -21,6 +22,7 @@ const SIDEBAR_SKELETON_IDS = [
   'sidebar-skeleton-d',
   'sidebar-skeleton-e',
 ]
+const SIDEBAR_QUERY_COMMIT_DELAY_MS = 120
 
 export interface SessionSidebarProps {
   groups: ProjectSessionGroup[]
@@ -90,6 +92,7 @@ export function SessionSidebar({
     store.isEditingProjectValid(groups) ? store.editingProjectKey : null,
   )
   const filters = useValue(() => store.filters)
+  const searchQueryDraft = useValue(() => store.searchQueryDraft)
   const isFilterPanelOpen = useValue(() => store.isFilterPanelOpen)
   const now = useValue(() => store.now)
   const filteredSidebar = useMemo(
@@ -126,6 +129,27 @@ export function SessionSidebar({
   // Stable callback ref pattern (rerender-defer-reads / advanced-event-handler-refs)
   const visibleItemsRef = useRef(visibleItems)
   visibleItemsRef.current = visibleItems
+  const queryCommitTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+
+  const clearPendingQueryCommit = useCallback(() => {
+    if (queryCommitTimerRef.current) {
+      window.clearTimeout(queryCommitTimerRef.current)
+      queryCommitTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleQueryCommit = useCallback(
+    (query: string) => {
+      clearPendingQueryCommit()
+      queryCommitTimerRef.current = window.setTimeout(() => {
+        queryCommitTimerRef.current = null
+        store.updateFilters({ query }, scrollAreaRef.current)
+      }, SIDEBAR_QUERY_COMMIT_DELAY_MS)
+    },
+    [clearPendingQueryCommit, store],
+  )
+
+  useMountEffect(() => clearPendingQueryCommit)
 
   const handleSessionKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>, focusKey: string, sessionId: string) => {
@@ -152,26 +176,31 @@ export function SessionSidebar({
       }
       if (store.isSearchOpen) {
         event.preventDefault()
+        clearPendingQueryCommit()
         store.closeSearch()
+        onSearchQueryChange?.('')
       }
     },
-    [store],
+    [clearPendingQueryCommit, onSearchQueryChange, store],
   )
 
   // Stable handlers for filter updates (rerender-functional-setstate / stable refs)
   const handleQueryChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const query = event.target.value
-      store.updateFilters({ query }, scrollAreaRef.current)
+      store.setSearchQueryDraft(query)
+      scheduleQueryCommit(query)
       onSearchQueryChange?.(query)
     },
-    [onSearchQueryChange, store],
+    [onSearchQueryChange, scheduleQueryCommit, store],
   )
 
   const handleClearQuery = useCallback(() => {
+    clearPendingQueryCommit()
+    store.setSearchQueryDraft('')
     store.updateFilters({ query: '' }, scrollAreaRef.current)
     onSearchQueryChange?.('')
-  }, [onSearchQueryChange, store])
+  }, [clearPendingQueryCommit, onSearchQueryChange, store])
 
   const handleUpdateFilters = useCallback(
     (nextFilters: Partial<SidebarFilters>) => {
@@ -188,8 +217,10 @@ export function SessionSidebar({
   )
 
   const handleClearFilters = useCallback(() => {
+    clearPendingQueryCommit()
     store.clearFilters(scrollAreaRef.current)
-  }, [store])
+    onSearchQueryChange?.('')
+  }, [clearPendingQueryCommit, onSearchQueryChange, store])
 
   const handleNewSession = useCallback(() => {
     onNewSession()
@@ -211,6 +242,7 @@ export function SessionSidebar({
 
         <SessionFilterPanel
           filters={filters}
+          query={searchQueryDraft}
           filteredSidebar={filteredSidebar}
           isFilterPanelOpen={isFilterPanelOpen}
           onQueryChange={handleQueryChange}

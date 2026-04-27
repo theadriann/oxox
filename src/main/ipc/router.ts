@@ -135,6 +135,7 @@ export function registerAppIpcHandlers({
       _event,
       request: Parameters<FoundationService['searchSessions']>[0],
     ) => service.searchSessions(request),
+    [IPC_CHANNELS.sessionSearchIndexingProgress]: () => service.getSearchIndexingProgress(),
     [IPC_CHANNELS.transcriptGetSessionTranscript]: (_event, sessionId: string) =>
       service.getSessionTranscript(sessionId),
     [IPC_CHANNELS.sessionCreate]: async (event: IpcInvokeEventLike, cwd: string) => {

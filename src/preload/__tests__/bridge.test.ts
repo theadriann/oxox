@@ -79,6 +79,13 @@ describe('createOxoxBridge', () => {
               },
             ],
           })
+        case IPC_CHANNELS.sessionSearchIndexingProgress:
+          return Promise.resolve({
+            indexedSessions: 4,
+            totalSessions: 10,
+            isIndexing: true,
+            updatedAt: '2026-04-27T00:00:00.000Z',
+          })
         case IPC_CHANNELS.pluginListHosts:
           return Promise.resolve([
             {
@@ -229,6 +236,12 @@ describe('createOxoxBridge', () => {
         },
       ],
     })
+    await expect(bridge.search.indexingProgress()).resolves.toEqual({
+      indexedSessions: 4,
+      totalSessions: 10,
+      isIndexing: true,
+      updatedAt: '2026-04-27T00:00:00.000Z',
+    })
     await expect(bridge.plugin?.listCapabilities()).resolves.toEqual([
       {
         qualifiedId: 'plugin.example:summarize',
@@ -351,6 +364,7 @@ describe('createOxoxBridge', () => {
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.databaseListSessions)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.databaseListSyncMetadata)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionSearch, { query: 'sdk' })
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionSearchIndexingProgress)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.pluginListCapabilities)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.pluginListHosts)
     expect(invoke).toHaveBeenCalledWith(

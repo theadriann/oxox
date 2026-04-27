@@ -1,5 +1,8 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import type { DaemonConnectionStatus } from '../../../../shared/ipc/contracts'
+import type {
+  DaemonConnectionStatus,
+  SessionSearchIndexingProgress,
+} from '../../../../shared/ipc/contracts'
 import { useTimeTick } from '../../hooks/useTimeTick'
 import { createStatusDotTarget } from '../../lib/motion'
 import { formatAbsoluteSessionTime, toTimestamp } from '../../lib/sessionTime'
@@ -11,6 +14,7 @@ export interface StatusBarProps {
   activeSessionCount: number
   lastSyncAt: string | null
   droidCliVersion: string | null
+  searchIndexingProgress?: SessionSearchIndexingProgress | null
   updateStatusLabel?: string | null
   now?: number
 }
@@ -44,6 +48,7 @@ export function StatusBar({
   droidCliVersion,
   now,
   nextRetryDelayMs,
+  searchIndexingProgress,
   updateStatusLabel,
 }: StatusBarProps) {
   const prefersReducedMotion = useReducedMotion()
@@ -80,6 +85,8 @@ export function StatusBar({
         <span className="text-fd-border-strong">|</span>
 
         <LastSyncText lastSyncAt={lastSyncAt} now={now} />
+
+        <SearchIndexingProgress progress={searchIndexingProgress} />
       </div>
 
       <div className="flex items-center gap-4">
@@ -91,6 +98,42 @@ export function StatusBar({
         ) : null}
       </div>
     </footer>
+  )
+}
+
+function SearchIndexingProgress({ progress }: { progress?: SessionSearchIndexingProgress | null }) {
+  if (!progress || progress.totalSessions <= 0 || !progress.isIndexing) {
+    return null
+  }
+
+  const percent = Math.round((progress.indexedSessions / progress.totalSessions) * 100)
+
+  return (
+    <>
+      <span className="text-fd-border-strong">|</span>
+      <span
+        className="flex items-center gap-1.5"
+        title={`${progress.indexedSessions} of ${progress.totalSessions} sessions indexed for search`}
+      >
+        <span>
+          Indexing {progress.indexedSessions}/{progress.totalSessions}
+        </span>
+        <span
+          aria-label="Session search indexing"
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={percent}
+          className="h-1 w-16 overflow-hidden rounded-full bg-fd-border-subtle"
+          role="progressbar"
+        >
+          <span
+            className="block h-full rounded-full bg-fd-ember-500"
+            data-testid="search-indexing-progress-fill"
+            style={{ width: `${percent}%` }}
+          />
+        </span>
+      </span>
+    </>
   )
 }
 

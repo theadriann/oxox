@@ -29,6 +29,12 @@ describe('registerAppIpcHandlers', () => {
         query: 'sdk',
         matches: [{ sessionId: 'session-1', score: 10, reasons: [] }],
       }),
+      getSearchIndexingProgress: vi.fn().mockReturnValue({
+        indexedSessions: 4,
+        totalSessions: 10,
+        isIndexing: true,
+        updatedAt: '2026-04-27T00:00:00.000Z',
+      }),
       getSessionTranscript: vi.fn(),
       createSession: vi.fn(),
       getSessionSnapshot: vi.fn(),
@@ -184,6 +190,12 @@ describe('registerAppIpcHandlers', () => {
       matches: [{ sessionId: 'session-1', score: 10, reasons: [] }],
     })
     expect(service.searchSessions).toHaveBeenCalledWith({ query: 'sdk' })
+    expect(await ipcMain.handlers.get(IPC_CHANNELS.sessionSearchIndexingProgress)?.()).toEqual({
+      indexedSessions: 4,
+      totalSessions: 10,
+      isIndexing: true,
+      updatedAt: '2026-04-27T00:00:00.000Z',
+    })
     await ipcMain.handlers.get(IPC_CHANNELS.sessionRename)?.(undefined, 'session-1', 'Renamed live')
     expect(service.renameSession).toHaveBeenCalledWith('session-1', 'Renamed live')
     expect(

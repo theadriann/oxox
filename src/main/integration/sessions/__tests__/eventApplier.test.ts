@@ -135,4 +135,23 @@ describe('eventApplier', () => {
     expect(session.processId).toBe(1234)
     expect(session.workingStatus).toBe('idle')
   })
+
+  it('appends events without replacing the event list on hot streaming paths', () => {
+    const initialEvents: ManagedSession['events'] = []
+    const session = createManagedSession({ events: initialEvents })
+
+    applyEventToSession(
+      session,
+      {
+        type: 'message.delta',
+        messageId: 'm-1',
+        role: 'assistant',
+        delta: 'token',
+      },
+      '2026-04-10T00:01:00.000Z',
+    )
+
+    expect(session.events).toBe(initialEvents)
+    expect(session.events).toHaveLength(1)
+  })
 })

@@ -1,4 +1,4 @@
-import MiniSearch from 'minisearch'
+import { createRequire } from 'node:module'
 
 import type {
   FoundationBootstrap,
@@ -6,6 +6,7 @@ import type {
   LiveSessionMessage,
   LiveSessionSnapshot,
   SessionRecord,
+  SessionSearchIndexingProgress,
   SessionSearchMatch,
   SessionSearchRequest,
   SessionSearchResponse,
@@ -20,7 +21,7 @@ import {
   tokenizeSearchText,
 } from '../../../shared/search/sessionSearchQuery'
 
-interface SearchDocument {
+export interface SearchDocument {
   id: string
   title: string
   project: string
@@ -33,105 +34,203 @@ interface SearchDocument {
   transcriptSourcePath: string | null
 }
 
+export interface SessionSearchStore {
+  listHydratedDocumentIds: () => string[]
+  replaceMetadataDocuments: (documents: SearchDocument[]) => void
+  upsertDocument: (document: SearchDocument) => void
+  searchDocuments: (parsed: ParsedSessionSearchQuery) => SearchDocument[]
+  dispose?: () => void
+}
+
 export interface CreateSessionSearchServiceOptions {
   bootstrap: FoundationBootstrap
-  loadSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
+  loadSessionTranscript: (
+    sessionId: string,
+    transcriptSourcePath: string,
+  ) => Promise<SessionTranscript>
+  backgroundHydrationDelayMs?: number
+  backgroundHydrationLimit?: number
+  createSearchStore?: () => SessionSearchStore
+  hydrationYieldMs?: number
   liveUpdateDebounceMs?: number
+  maxIndexedContentChars?: number
+  maxIndexedToolChars?: number
+  searchDatabasePath?: string
 }
 
 export interface SessionSearchService {
   searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
+  getIndexingProgress: () => SessionSearchIndexingProgress
   replaceFoundation: (bootstrap: FoundationBootstrap) => void
   scheduleLiveSnapshotUpdate: (snapshot: LiveSessionSnapshot) => void
   waitForHydration: () => Promise<void>
   dispose: () => void
 }
 
-const SEARCH_FIELDS = ['title', 'content', 'project', 'path', 'status', 'sessionId', 'tool']
-const STORE_FIELDS = [
-  'id',
-  'title',
-  'project',
-  'path',
-  'status',
-  'sessionId',
-  'content',
-  'tool',
-  'lastActivityAt',
-  'transcriptSourcePath',
-]
 const DEFAULT_LIMIT = 100
+const DEFAULT_BACKGROUND_HYDRATION_DELAY_MS = 2_000
+const DEFAULT_HYDRATION_YIELD_MS = 25
 const DEFAULT_LIVE_UPDATE_DEBOUNCE_MS = 100
+const DEFAULT_MAX_INDEXED_CONTENT_CHARS = 80_000
+const DEFAULT_MAX_INDEXED_TOOL_CHARS = 40_000
+const require = createRequire(import.meta.url)
 
 export function createSessionSearchService({
+  backgroundHydrationDelayMs = DEFAULT_BACKGROUND_HYDRATION_DELAY_MS,
+  backgroundHydrationLimit,
   bootstrap,
+  createSearchStore,
+  hydrationYieldMs = DEFAULT_HYDRATION_YIELD_MS,
   loadSessionTranscript,
   liveUpdateDebounceMs = DEFAULT_LIVE_UPDATE_DEBOUNCE_MS,
+  maxIndexedContentChars = DEFAULT_MAX_INDEXED_CONTENT_CHARS,
+  maxIndexedToolChars = DEFAULT_MAX_INDEXED_TOOL_CHARS,
+  searchDatabasePath = ':memory:',
 }: CreateSessionSearchServiceOptions): SessionSearchService {
   let documents = new Map<string, SearchDocument>()
-  let miniSearch = createMiniSearch()
-  let hydrationGeneration = 0
+  const searchStore = createSearchStore?.() ?? createSqliteSessionSearchStore(searchDatabasePath)
+  let hydratedDocumentIds = new Set(searchStore.listHydratedDocumentIds())
+  let disposed = false
+  let hydrationInFlight = false
   let hydrationPromise: Promise<void> = Promise.resolve()
+  let hydrationRerunRequested = false
+  let indexingProgress = createIndexingProgress(0, 0, false)
   const pendingLiveSnapshots = new Map<string, LiveSessionSnapshot>()
   const liveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
-  const rebuildIndex = () => {
-    miniSearch = createMiniSearch()
-    miniSearch.addAll([...documents.values()])
+  const upsertIndexedDocument = (document: SearchDocument) => {
+    documents.set(document.id, stripHydratedFields(document))
+    hydratedDocumentIds.add(document.id)
+    searchStore.upsertDocument(document)
   }
 
-  const scheduleHydration = () => {
-    const generation = hydrationGeneration
-    const sessionsToHydrate = [...documents.values()]
+  const getHydrationPlan = () => {
+    const hydratableSessions = [...documents.values()]
       .filter((document) => document.transcriptSourcePath)
       .sort((left, right) => right.lastActivityAt - left.lastActivityAt)
+      .slice(
+        0,
+        typeof backgroundHydrationLimit === 'number'
+          ? Math.max(0, backgroundHydrationLimit)
+          : undefined,
+      )
+    const totalSessions = hydratableSessions.length
+    const indexedSessions = hydratableSessions.filter((document) =>
+      hydratedDocumentIds.has(document.id),
+    ).length
+    const sessionsToHydrate = hydratableSessions.filter(
+      (document) => !hydratedDocumentIds.has(document.id),
+    )
 
-    hydrationPromise = (async () => {
-      for (const document of sessionsToHydrate) {
-        if (generation !== hydrationGeneration) {
-          return
+    return {
+      indexedSessions,
+      sessionsToHydrate,
+      totalSessions,
+    }
+  }
+
+  const updateIndexingProgressFromPlan = () => {
+    const { indexedSessions, sessionsToHydrate, totalSessions } = getHydrationPlan()
+    indexingProgress = createIndexingProgress(
+      indexedSessions,
+      totalSessions,
+      sessionsToHydrate.length > 0,
+    )
+
+    return sessionsToHydrate
+  }
+
+  const runHydrationWorker = async () => {
+    hydrationInFlight = true
+
+    try {
+      do {
+        hydrationRerunRequested = false
+        const sessionsToHydrate = updateIndexingProgressFromPlan()
+
+        if (sessionsToHydrate.length === 0) {
+          continue
         }
 
-        try {
-          const transcript = await loadSessionTranscript(document.id)
+        await delay(backgroundHydrationDelayMs)
 
-          if (generation !== hydrationGeneration) {
+        for (const document of sessionsToHydrate) {
+          if (disposed) {
             return
           }
 
-          const nextDocument = {
-            ...document,
-            ...extractTranscriptSearchFields(transcript.entries),
+          const currentDocument = documents.get(document.id)
+
+          if (!currentDocument?.transcriptSourcePath || hydratedDocumentIds.has(document.id)) {
+            continue
           }
-          documents.set(nextDocument.id, nextDocument)
-          rebuildIndex()
-        } catch {
-          // Search should remain available even if a transcript artifact is missing
-          // or malformed. Metadata matches are still useful and are indexed synchronously.
+
+          try {
+            const transcript = await loadSessionTranscript(
+              currentDocument.id,
+              currentDocument.transcriptSourcePath,
+            )
+
+            if (disposed || !documents.has(currentDocument.id)) {
+              return
+            }
+
+            const nextDocument = {
+              ...currentDocument,
+              ...extractTranscriptSearchFields(
+                transcript.entries,
+                maxIndexedContentChars,
+                maxIndexedToolChars,
+              ),
+            }
+            upsertIndexedDocument(nextDocument)
+          } catch {
+            // Search should remain available even if a transcript artifact is missing
+            // or malformed. Metadata matches are still useful and are indexed synchronously.
+          } finally {
+            if (!disposed) {
+              updateIndexingProgressFromPlan()
+            }
+          }
+
+          await delay(hydrationYieldMs)
         }
+      } while (hydrationRerunRequested && !disposed)
+    } finally {
+      hydrationInFlight = false
+
+      if (!disposed) {
+        updateIndexingProgressFromPlan()
       }
-    })()
+    }
+  }
+
+  const scheduleHydration = () => {
+    if (hydrationInFlight) {
+      hydrationRerunRequested = true
+      updateIndexingProgressFromPlan()
+      return
+    }
+
+    hydrationPromise = runHydrationWorker()
   }
 
   const replaceFoundation = (nextBootstrap: FoundationBootstrap) => {
-    hydrationGeneration += 1
     const metadataBySessionId = new Map(
       nextBootstrap.syncMetadata.map((metadata) => [metadata.sessionId, metadata.sourcePath]),
     )
     documents = new Map(
-      nextBootstrap.sessions.map((session) => {
-        const existing = documents.get(session.id)
-        return [
-          session.id,
-          createDocumentFromSession(
-            session,
-            metadataBySessionId.get(session.id) ?? null,
-            existing ? pickHydratedFields(existing) : undefined,
-          ),
-        ]
-      }),
+      nextBootstrap.sessions.map((session) => [
+        session.id,
+        createDocumentFromSession(session, metadataBySessionId.get(session.id) ?? null),
+      ]),
     )
-    rebuildIndex()
+    searchStore.replaceMetadataDocuments([...documents.values()])
+    hydratedDocumentIds = new Set(searchStore.listHydratedDocumentIds())
+    const currentDocumentIds = new Set(documents.keys())
+    hydratedDocumentIds = new Set(
+      [...hydratedDocumentIds].filter((documentId) => currentDocumentIds.has(documentId)),
+    )
     scheduleHydration()
   }
 
@@ -143,12 +242,12 @@ export function createSessionSearchService({
       return { query: request.query, matches: [] }
     }
 
-    const scoreById = getMiniSearchScores(parsed)
-    const matches = [...documents.values()]
+    const matches = searchStore
+      .searchDocuments(parsed)
       .filter((document) => documentMatchesQuery(document, parsed))
       .map((document) => ({
         sessionId: document.id,
-        score: rankDocument(document, parsed) + (scoreById.get(document.id) ?? 0),
+        score: rankDocument(document, parsed),
         reasons: buildReasons(document, parsed),
       }))
       .sort(
@@ -161,24 +260,6 @@ export function createSessionSearchService({
       .slice(0, limit)
 
     return { query: request.query, matches }
-  }
-
-  const getMiniSearchScores = (parsed: ParsedSessionSearchQuery): Map<string, number> => {
-    const terms = [
-      ...parsed.terms,
-      ...Object.values(parsed.modifiers)
-        .flat()
-        .flatMap((value) => tokenizeSearchText(value)),
-    ]
-    const query = terms.join(' ')
-
-    if (!query) {
-      return new Map()
-    }
-
-    return new Map(
-      miniSearch.search(query).map((result) => [String(result.id), Number(result.score) || 0]),
-    )
   }
 
   const scheduleLiveSnapshotUpdate = (snapshot: LiveSessionSnapshot) => {
@@ -201,9 +282,13 @@ export function createSessionSearchService({
         }
 
         const existing = documents.get(latestSnapshot.sessionId)
-        const liveDocument = createDocumentFromLiveSnapshot(latestSnapshot, existing)
-        documents.set(liveDocument.id, liveDocument)
-        rebuildIndex()
+        const liveDocument = createDocumentFromLiveSnapshot(
+          latestSnapshot,
+          existing,
+          maxIndexedContentChars,
+          maxIndexedToolChars,
+        )
+        upsertIndexedDocument(liveDocument)
       }, liveUpdateDebounceMs),
     )
   }
@@ -212,45 +297,329 @@ export function createSessionSearchService({
 
   return {
     searchSessions,
+    getIndexingProgress: () => indexingProgress,
     replaceFoundation,
     scheduleLiveSnapshotUpdate,
     waitForHydration: () => hydrationPromise,
     dispose: () => {
-      hydrationGeneration += 1
+      disposed = true
       for (const timer of liveTimers.values()) {
         clearTimeout(timer)
       }
       liveTimers.clear()
       pendingLiveSnapshots.clear()
+      searchStore.dispose?.()
     },
   }
 }
 
-function createMiniSearch(): MiniSearch<SearchDocument> {
-  return new MiniSearch<SearchDocument>({
-    fields: SEARCH_FIELDS,
-    idField: 'id',
-    storeFields: STORE_FIELDS,
-    searchOptions: {
-      boost: {
-        title: 8,
-        content: 5,
-        project: 3,
-        path: 2.5,
-        tool: 1.5,
-        sessionId: 1,
-        status: 1,
-      },
-      prefix: true,
-      combineWith: 'AND',
-    },
+type SqliteStatement<TResult = unknown> = {
+  all: (...params: unknown[]) => TResult[]
+  run: (...params: unknown[]) => unknown
+}
+
+type SqliteDatabase = {
+  close: () => void
+  exec: (sql: string) => void
+  prepare: <TResult = unknown>(sql: string) => SqliteStatement<TResult>
+  pragma: (statement: string) => unknown
+  transaction: <T extends (...args: never[]) => unknown>(callback: T) => T
+}
+
+type SearchDocumentRow = {
+  id: string
+  title: string
+  project: string
+  path: string
+  status: string
+  sessionId: string
+  content: string
+  tool: string
+  lastActivityAt: number
+  transcriptSourcePath: string | null
+}
+
+export function createSqliteSessionSearchStore(databasePath: string): SessionSearchStore {
+  const database = createSqliteDatabase(databasePath)
+
+  database.pragma('journal_mode = WAL')
+  database.pragma('busy_timeout = 5000')
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS session_search_documents (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      project TEXT NOT NULL,
+      path TEXT NOT NULL,
+      status TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      tool TEXT NOT NULL DEFAULT '',
+      last_activity_at INTEGER NOT NULL DEFAULT 0,
+      transcript_source_path TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_search_last_activity_at
+      ON session_search_documents(last_activity_at);
+  `)
+
+  const upsertMetadataStatement = database.prepare(`
+    INSERT INTO session_search_documents (
+      id,
+      title,
+      project,
+      path,
+      status,
+      session_id,
+      content,
+      tool,
+      last_activity_at,
+      transcript_source_path
+    )
+    VALUES (?, ?, ?, ?, ?, ?, '', '', ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title,
+      project = excluded.project,
+      path = excluded.path,
+      status = excluded.status,
+      session_id = excluded.session_id,
+      last_activity_at = excluded.last_activity_at,
+      transcript_source_path = excluded.transcript_source_path
+  `)
+  const upsertDocumentStatement = database.prepare(`
+    INSERT INTO session_search_documents (
+      id,
+      title,
+      project,
+      path,
+      status,
+      session_id,
+      content,
+      tool,
+      last_activity_at,
+      transcript_source_path
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title,
+      project = excluded.project,
+      path = excluded.path,
+      status = excluded.status,
+      session_id = excluded.session_id,
+      content = excluded.content,
+      tool = excluded.tool,
+      last_activity_at = excluded.last_activity_at,
+      transcript_source_path = excluded.transcript_source_path
+  `)
+  const allIdsStatement = database.prepare<{ id: string }>(
+    'SELECT id FROM session_search_documents',
+  )
+  const hydratedIdsStatement = database.prepare<{ id: string }>(`
+    SELECT id
+    FROM session_search_documents
+    WHERE length(content) > 0 OR length(tool) > 0
+  `)
+  const deleteDocumentStatement = database.prepare(
+    'DELETE FROM session_search_documents WHERE id = ?',
+  )
+
+  const upsertMetadata = (document: SearchDocument) => {
+    upsertMetadataStatement.run(
+      document.id,
+      document.title,
+      document.project,
+      document.path,
+      document.status,
+      document.sessionId,
+      document.lastActivityAt,
+      document.transcriptSourcePath,
+    )
+  }
+  const upsertDocument = (document: SearchDocument) => {
+    upsertDocumentStatement.run(
+      document.id,
+      document.title,
+      document.project,
+      document.path,
+      document.status,
+      document.sessionId,
+      document.content,
+      document.tool,
+      document.lastActivityAt,
+      document.transcriptSourcePath,
+    )
+  }
+  const replaceMetadataTransaction = database.transaction((nextDocuments: SearchDocument[]) => {
+    const nextIds = new Set(nextDocuments.map((document) => document.id))
+
+    for (const row of allIdsStatement.all()) {
+      if (!nextIds.has(row.id)) {
+        deleteDocumentStatement.run(row.id)
+      }
+    }
+
+    for (const document of nextDocuments) {
+      upsertMetadata(document)
+    }
   })
+
+  return {
+    listHydratedDocumentIds: () => hydratedIdsStatement.all().map((row) => row.id),
+    replaceMetadataDocuments: (nextDocuments) => {
+      replaceMetadataTransaction(nextDocuments)
+    },
+    upsertDocument,
+    searchDocuments: (parsed) => {
+      const { parameters, whereClause } = buildSearchWhereClause(parsed)
+
+      if (!whereClause) {
+        return []
+      }
+
+      return database
+        .prepare<SearchDocumentRow>(`
+          SELECT
+            id,
+            title,
+            project,
+            path,
+            status,
+            session_id AS sessionId,
+            content,
+            tool,
+            last_activity_at AS lastActivityAt,
+            transcript_source_path AS transcriptSourcePath
+          FROM session_search_documents
+          WHERE ${whereClause}
+          ORDER BY last_activity_at DESC, id ASC
+        `)
+        .all(...parameters)
+        .map(rowToSearchDocument)
+    },
+    dispose: () => {
+      database.close()
+    },
+  }
+}
+
+function createSqliteDatabase(databasePath: string): SqliteDatabase {
+  try {
+    const BetterSqlite3 = require('better-sqlite3')
+    return new BetterSqlite3(databasePath) as SqliteDatabase
+  } catch {
+    const { DatabaseSync } = require('node:sqlite') as {
+      DatabaseSync: new (
+        path: string,
+      ) => {
+        close: () => void
+        exec: (sql: string) => void
+        prepare: (sql: string) => {
+          all: (...params: unknown[]) => unknown[]
+          run: (...params: unknown[]) => unknown
+        }
+      }
+    }
+    const database = new DatabaseSync(databasePath)
+
+    return {
+      close: () => {
+        database.close()
+      },
+      exec: (sql) => {
+        database.exec(sql)
+      },
+      prepare: (sql) => database.prepare(sql) as SqliteStatement,
+      pragma: (statement) => {
+        database.exec(`PRAGMA ${statement}`)
+        return undefined
+      },
+      transaction: <T extends (...args: never[]) => unknown>(callback: T): T =>
+        ((...args: Parameters<T>) => {
+          database.exec('BEGIN')
+
+          try {
+            const result = callback(...args)
+            database.exec('COMMIT')
+            return result
+          } catch (transactionError) {
+            database.exec('ROLLBACK')
+            throw transactionError
+          }
+        }) as T,
+    }
+  }
+}
+
+function buildSearchWhereClause(parsed: ParsedSessionSearchQuery): {
+  parameters: string[]
+  whereClause: string
+} {
+  const clauses: string[] = []
+  const parameters: string[] = []
+
+  for (const term of parsed.terms) {
+    clauses.push(
+      [
+        'instr(title, ?) > 0',
+        'instr(content, ?) > 0',
+        'instr(project, ?) > 0',
+        'instr(path, ?) > 0',
+        'instr(tool, ?) > 0',
+        'instr(status, ?) > 0',
+        'instr(session_id, ?) > 0',
+      ].join(' OR '),
+    )
+    parameters.push(term, term, term, term, term, term, term)
+  }
+
+  for (const [field, values] of Object.entries(parsed.modifiers)) {
+    for (const value of values ?? []) {
+      clauses.push(`instr(${sqlColumnForSearchField(field as SessionSearchModifier)}, ?) > 0`)
+      parameters.push(value)
+    }
+  }
+
+  return {
+    parameters,
+    whereClause: clauses.map((clause) => `(${clause})`).join(' AND '),
+  }
+}
+
+function sqlColumnForSearchField(field: SessionSearchModifier): string {
+  switch (field) {
+    case 'title':
+      return 'title'
+    case 'content':
+      return 'content'
+    case 'project':
+      return 'project'
+    case 'path':
+      return 'path'
+    case 'status':
+      return 'status'
+    case 'id':
+      return 'session_id'
+    case 'tool':
+      return 'tool'
+  }
+}
+
+function rowToSearchDocument(row: SearchDocumentRow): SearchDocument {
+  return {
+    id: row.id,
+    title: row.title,
+    project: row.project,
+    path: row.path,
+    status: row.status,
+    sessionId: row.sessionId,
+    content: row.content,
+    tool: row.tool,
+    lastActivityAt: row.lastActivityAt,
+    transcriptSourcePath: row.transcriptSourcePath,
+  }
 }
 
 function createDocumentFromSession(
   session: SessionRecord,
   transcriptSourcePath: string | null,
-  hydratedFields: Pick<SearchDocument, 'content' | 'tool'> = { content: '', tool: '' },
 ): SearchDocument {
   return {
     id: session.id,
@@ -259,18 +628,32 @@ function createDocumentFromSession(
     path: normalizeSearchText(session.projectWorkspacePath ?? ''),
     status: normalizeSearchText(session.status),
     sessionId: normalizeSearchText(session.id),
-    content: hydratedFields.content,
-    tool: hydratedFields.tool,
+    content: '',
+    tool: '',
     lastActivityAt: toTimestamp(session.lastActivityAt ?? session.updatedAt ?? session.createdAt),
     transcriptSourcePath,
+  }
+}
+
+function stripHydratedFields(document: SearchDocument): SearchDocument {
+  return {
+    ...document,
+    content: '',
+    tool: '',
   }
 }
 
 function createDocumentFromLiveSnapshot(
   snapshot: LiveSessionSnapshot,
   existing?: SearchDocument,
+  maxIndexedContentChars = DEFAULT_MAX_INDEXED_CONTENT_CHARS,
+  maxIndexedToolChars = DEFAULT_MAX_INDEXED_TOOL_CHARS,
 ): SearchDocument {
-  const extracted = extractLiveSnapshotSearchFields(snapshot)
+  const extracted = extractLiveSnapshotSearchFields(
+    snapshot,
+    maxIndexedContentChars,
+    maxIndexedToolChars,
+  )
 
   return {
     id: snapshot.sessionId,
@@ -296,15 +679,10 @@ function deriveProjectName(session: SessionRecord): string {
   return session.projectId ?? ''
 }
 
-function pickHydratedFields(document: SearchDocument): Pick<SearchDocument, 'content' | 'tool'> {
-  return {
-    content: document.content,
-    tool: document.tool,
-  }
-}
-
 function extractTranscriptSearchFields(
   entries: TranscriptEntry[],
+  maxIndexedContentChars = DEFAULT_MAX_INDEXED_CONTENT_CHARS,
+  maxIndexedToolChars = DEFAULT_MAX_INDEXED_TOOL_CHARS,
 ): Pick<SearchDocument, 'content' | 'tool'> {
   const content: string[] = []
   const tool: string[] = []
@@ -319,21 +697,35 @@ function extractTranscriptSearchFields(
   }
 
   return {
-    content: normalizeSearchText(content.join('\n')),
-    tool: normalizeSearchText(tool.join('\n')),
+    content: capSearchField(normalizeSearchText(content.join('\n')), maxIndexedContentChars),
+    tool: capSearchField(normalizeSearchText(tool.join('\n')), maxIndexedToolChars),
   }
 }
 
 function extractLiveSnapshotSearchFields(
   snapshot: LiveSessionSnapshot,
+  maxIndexedContentChars = DEFAULT_MAX_INDEXED_CONTENT_CHARS,
+  maxIndexedToolChars = DEFAULT_MAX_INDEXED_TOOL_CHARS,
 ): Pick<SearchDocument, 'content' | 'tool'> {
   const content = snapshot.messages.map((message) => serializeLiveMessage(message)).join('\n')
   const tool = snapshot.events.map((event) => serializeLiveEventToolContent(event)).join('\n')
 
   return {
-    content: normalizeSearchText(content),
-    tool: normalizeSearchText(tool),
+    content: capSearchField(normalizeSearchText(content), maxIndexedContentChars),
+    tool: capSearchField(normalizeSearchText(tool), maxIndexedToolChars),
   }
+}
+
+function capSearchField(value: string, maxChars: number): string {
+  if (maxChars <= 0) {
+    return ''
+  }
+
+  if (value.length <= maxChars) {
+    return value
+  }
+
+  return value.slice(0, maxChars)
 }
 
 function serializeLiveMessage(message: LiveSessionMessage): string {
@@ -539,4 +931,25 @@ function serializeUnknown(value: unknown): string {
   }
 
   return JSON.stringify(value)
+}
+
+function createIndexingProgress(
+  indexedSessions: number,
+  totalSessions: number,
+  isIndexing: boolean,
+): SessionSearchIndexingProgress {
+  return {
+    indexedSessions,
+    totalSessions,
+    isIndexing,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return Promise.resolve()
+  }
+
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

@@ -20,6 +20,7 @@ import type {
   ProjectRecord,
   RuntimeInfo,
   SessionRecord,
+  SessionSearchIndexingProgress,
   SessionSearchRequest,
   SessionSearchResponse,
   SessionTranscript,
@@ -139,6 +140,11 @@ export function createOxoxBridge(
     search: {
       sessions: (request: SessionSearchRequest) =>
         invokeTyped<SessionSearchResponse>(invoke, IPC_CHANNELS.sessionSearch, request),
+      indexingProgress: () =>
+        invokeTyped<SessionSearchIndexingProgress>(
+          invoke,
+          IPC_CHANNELS.sessionSearchIndexingProgress,
+        ),
     },
     session: {
       create: (cwd) => invokeTyped<LiveSessionSnapshot>(invoke, IPC_CHANNELS.sessionCreate, cwd),

@@ -28,12 +28,15 @@ export function SessionSidebarConnected({
 
   const handleSearchQueryChange = (query: string) => {
     onSearchQueryChange?.(query)
-    void searchController.search(query)
+    searchController.scheduleSearch(query)
   }
 
   useMountEffect(() => {
     const timer = window.setInterval(() => resolvedStore.tickNow(), 60_000)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      searchController.dispose()
+    }
   })
 
   return (

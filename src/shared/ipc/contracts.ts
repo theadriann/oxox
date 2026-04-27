@@ -24,6 +24,7 @@ export const IPC_CHANNELS = {
   databaseListSessions: 'database:list-sessions',
   databaseListSyncMetadata: 'database:list-sync-metadata',
   sessionSearch: 'session:search',
+  sessionSearchIndexingProgress: 'session:search-indexing-progress',
   transcriptGetSessionTranscript: 'transcript:get-session-transcript',
   sessionCreate: 'session:create',
   sessionGetSnapshot: 'session:get-snapshot',
@@ -218,6 +219,13 @@ export interface SessionSearchMatch {
 export interface SessionSearchResponse {
   query: string
   matches: SessionSearchMatch[]
+}
+
+export interface SessionSearchIndexingProgress {
+  indexedSessions: number
+  totalSessions: number
+  isIndexing: boolean
+  updatedAt: string
 }
 
 export interface DatabaseDiagnostics {
@@ -602,6 +610,7 @@ export interface OxoxBridge {
   }
   search: {
     sessions: (request: SessionSearchRequest) => Promise<SessionSearchResponse>
+    indexingProgress: () => Promise<SessionSearchIndexingProgress>
   }
   session: {
     create: (cwd: string) => Promise<LiveSessionSnapshot>

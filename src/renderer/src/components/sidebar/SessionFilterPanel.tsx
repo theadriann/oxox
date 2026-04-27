@@ -12,6 +12,7 @@ import type {
 
 interface SessionFilterPanelProps {
   filters: SidebarFilters
+  query: string
   filteredSidebar: FilteredSessionGroupsResult
   isFilterPanelOpen: boolean
   onQueryChange: (event: ChangeEvent<HTMLInputElement>) => void
@@ -25,6 +26,7 @@ interface SessionFilterPanelProps {
 
 export function SessionFilterPanel({
   filters,
+  query,
   filteredSidebar,
   isFilterPanelOpen,
   onQueryChange,
@@ -38,7 +40,7 @@ export function SessionFilterPanel({
   return (
     <>
       <SearchBar
-        query={filters.query}
+        query={query}
         isFilterPanelOpen={isFilterPanelOpen}
         activeFilterCount={filteredSidebar.activeFilterCount}
         onQueryChange={onQueryChange}

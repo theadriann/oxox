@@ -13,6 +13,7 @@ import { isRendererAttachedToSession } from './ipc/liveSessionAttachmentRegistry
 import { registerAppIpcHandlers } from './ipc/router'
 import { createGracefulQuitController } from './lifecycle/gracefulQuit'
 import { focusMainWindow } from './lifecycle/singleInstance'
+import { createLiveSessionSnapshotBroadcaster } from './liveSessionSnapshotBroadcaster'
 import { installSystemIntegration } from './native/systemIntegration'
 import { getRuntimeInfo } from './runtime/runtimeInfo'
 import { getContentSecurityPolicy } from './security/csp'
@@ -156,31 +157,6 @@ function broadcastAppUpdateStateChanged(payload: { snapshot: unknown }): void {
   }
 }
 
-function createLiveSessionSnapshotBroadcaster(
-  getSessionSnapshot: (sessionId: string) => unknown,
-): (payload: { sessionId: string }) => void {
-  return ({ sessionId }) => {
-    const subscribedWindows = BrowserWindow.getAllWindows().filter(
-      (window) =>
-        !window.isDestroyed() && isRendererAttachedToSession(window.webContents.id, sessionId),
-    )
-
-    if (subscribedWindows.length === 0) {
-      return
-    }
-
-    const snapshot = getSessionSnapshot(sessionId)
-
-    if (!snapshot) {
-      return
-    }
-
-    for (const window of subscribedWindows) {
-      window.webContents.send(IPC_CHANNELS.sessionSnapshotChanged, { snapshot })
-    }
-  }
-}
-
 function broadcastPluginHostSnapshot(payload: { snapshot: unknown }): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (window.isDestroyed()) {
@@ -285,15 +261,17 @@ app.whenReady().then(async () => {
   })
   const foundationService = appKernel.start()
   void appUpdater.start()
-  const broadcastLiveSessionSnapshot = createLiveSessionSnapshotBroadcaster((sessionId) =>
-    foundationService.getSessionSnapshot(sessionId),
-  )
+  const liveSessionSnapshotBroadcaster = createLiveSessionSnapshotBroadcaster({
+    getAllWindows: () => BrowserWindow.getAllWindows(),
+    getSessionSnapshot: (sessionId) => foundationService.getSessionSnapshot(sessionId),
+    isRendererAttachedToSession,
+  })
   stopRuntimeCoordinator?.()
-  stopRuntimeCoordinator = startRuntimeCoordinator({
+  const stopCoordinator = startRuntimeCoordinator({
     foundationService,
     pluginHost: appKernel.getPluginHost(),
     broadcastFoundationChanged,
-    broadcastLiveSessionSnapshot,
+    broadcastLiveSessionSnapshot: liveSessionSnapshotBroadcaster.broadcast,
     broadcastPluginHostSnapshot,
     startPluginBootstrap: () => {
       void startPluginBootstrap({
@@ -307,6 +285,10 @@ app.whenReady().then(async () => {
       })
     },
   })
+  stopRuntimeCoordinator = () => {
+    stopCoordinator()
+    liveSessionSnapshotBroadcaster.dispose()
+  }
   for (const windowState of windowStateCoordinator.resolveInitialWindows()) {
     await windowCoordinator.createAppWindow(windowState)
   }

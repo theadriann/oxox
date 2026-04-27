@@ -36,6 +36,7 @@ describe('SessionFilterPanel', () => {
           status: 'active',
           tags: ['alpha'],
         }}
+        query="alpha"
         filteredSidebar={createFilteredSidebarResult()}
         isFilterPanelOpen={true}
         onQueryChange={vi.fn()}

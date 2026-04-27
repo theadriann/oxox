@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { useValue } from '../../../stores/legend'
 import { UIStore } from '../../../stores/UIStore'
 import { SessionSidebarConnected as SessionSidebar } from '../SessionSidebarConnected'
+import { SessionSidebarStore } from '../SessionSidebarStore'
 
 describe('SessionSidebar', () => {
   beforeEach(() => {
@@ -39,6 +40,7 @@ describe('SessionSidebar', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   it('renders loading, empty, and error states with recovery actions', () => {
@@ -244,6 +246,44 @@ describe('SessionSidebar', () => {
     })
 
     expect(onSearchQueryChange).toHaveBeenCalledWith('content:auth')
+  })
+
+  it('keeps search input responsive while deferring expensive sidebar filtering work', async () => {
+    vi.useFakeTimers()
+    const store = new SessionSidebarStore()
+
+    render(
+      <SessionSidebar
+        store={store}
+        groups={[]}
+        selectedSessionId=""
+        activeCount={0}
+        isProjectCollapsed={() => false}
+        onToggleProject={() => undefined}
+        onSelectSession={() => undefined}
+        onTogglePinnedSession={() => undefined}
+        onSetProjectDisplayName={() => undefined}
+        pinnedSessions={[]}
+        onNewSession={() => undefined}
+        onResizeStart={() => undefined}
+      />,
+    )
+
+    const input = screen.getByRole('searchbox', {
+      name: /search sessions/i,
+    }) as HTMLInputElement
+
+    fireEvent.change(input, { target: { value: 'content:auth' } })
+
+    expect(input.value).toBe('content:auth')
+    expect(store.filters.query).toBe('')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150)
+    })
+
+    expect(store.filters.query).toBe('content:auth')
+    vi.useRealTimers()
   })
 
   it('offers a session archive action from the row menu', async () => {
@@ -553,7 +593,9 @@ describe('SessionSidebar', () => {
     expect(screen.queryByText('Theta')).toBeNull()
   })
 
-  it('filters sessions with search and restores scroll position when search clears', () => {
+  it('filters sessions with search and restores scroll position when search clears', async () => {
+    vi.useFakeTimers()
+
     render(
       <SessionSidebar
         groups={[
@@ -617,6 +659,10 @@ describe('SessionSidebar', () => {
       target: { value: '999999' },
     })
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150)
+    })
+
     expect(screen.queryByTitle('Design Factory Audit')).toBeNull()
     expect(screen.queryByTitle('Beta Review')).toBeNull()
 
@@ -626,6 +672,7 @@ describe('SessionSidebar', () => {
     expect(screen.getByTitle('Design Factory Audit')).toBeTruthy()
     expect(screen.getByTitle('Beta Review')).toBeTruthy()
     expect(scrollArea.scrollTop).toBe(148)
+    vi.useRealTimers()
   })
 
   it('reveals advanced filters in popover, composes them with AND logic, and clears them all', () => {
@@ -737,10 +784,14 @@ describe('SessionSidebar', () => {
   })
 
   it('keeps project toggles keyboard-focusable and lets Escape dismiss search', async () => {
+    vi.useFakeTimers()
     const onToggleProject = vi.fn()
+    const onSearchQueryChange = vi.fn()
+    const store = new SessionSidebarStore()
 
     render(
       <SessionSidebar
+        store={store}
         groups={[
           {
             key: 'project-alpha',
@@ -776,6 +827,7 @@ describe('SessionSidebar', () => {
         pinnedSessions={[]}
         onNewSession={() => undefined}
         onResizeStart={() => undefined}
+        onSearchQueryChange={onSearchQueryChange}
       />,
     )
 
@@ -785,6 +837,22 @@ describe('SessionSidebar', () => {
     expect(document.activeElement).toBe(projectToggle)
     expect(projectToggle.getAttribute('tabindex')).not.toBe('-1')
     expect(onToggleProject).not.toHaveBeenCalled()
+
+    const searchInput = screen.getByRole('searchbox', { name: /search sessions/i })
+    fireEvent.focus(searchInput)
+    fireEvent.change(searchInput, { target: { value: 'alpha' } })
+
+    expect(store.searchQueryDraft).toBe('alpha')
+
+    fireEvent.keyDown(screen.getByLabelText('Session sidebar'), { key: 'Escape' })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(150)
+    })
+
+    expect(store.searchQueryDraft).toBe('')
+    expect(store.filters.query).toBe('')
+    expect(onSearchQueryChange).toHaveBeenLastCalledWith('')
+    vi.useRealTimers()
   })
 
   it('rerenders immediately when workspace collapse state changes', () => {
