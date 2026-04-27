@@ -1,5 +1,11 @@
 # oxox
 
+## 0.0.10
+
+### Patch Changes
+
+- Improve session search and streaming performance with disk-backed indexing, coalesced live updates, continuous indexing progress, and deferred renderer search input handling.
+
 ## 0.0.9
 
 ### Patch Changes
