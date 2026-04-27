@@ -108,6 +108,9 @@ export function mapDroidNotificationPayloadToSessionEvents(
 export function mapDroidMessageToSessionEvent(
   message: DroidMessage,
   sessionId?: string,
+  options?: {
+    rewindBoundaryMessageId?: string
+  },
 ): SessionEvent | null {
   switch (message.type) {
     case 'assistant_text_delta':
@@ -196,6 +199,7 @@ export function mapDroidMessageToSessionEvent(
         sessionId,
         messageId: message.messageId,
         content: textContent,
+        rewindBoundaryMessageId: options?.rewindBoundaryMessageId,
         contentBlocks: contentBlocks.length > 0 ? contentBlocks : undefined,
         role: message.role,
       }

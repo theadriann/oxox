@@ -1,6 +1,7 @@
 import type {
   LiveSessionAskUserAnswerRecord,
   LiveSessionCompactResult,
+  LiveSessionContextStatsInfo,
   LiveSessionExecuteRewindResult,
   LiveSessionMcpServerInfo,
   LiveSessionRewindInfo,
@@ -72,6 +73,12 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
   const nextRequestId = tracker.nextRequestId
   const persistManagedSession = tracker.persist
   const emitToSubscribers = tracker.emitToSubscribers
+  const getRewindBoundaryMessageIdsByMessageId = (sessionId: string): ReadonlyMap<string, string> =>
+    new Map(
+      options.database
+        .listSessionRewindBoundaries(sessionId)
+        .map((boundary) => [boundary.messageId, boundary.rewindBoundaryMessageId]),
+    )
 
   const requireTrackedSession = (sessionId: string): ManagedSession => {
     const session = tracker.get(sessionId)
@@ -92,6 +99,14 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
 
     transport.subscribe((event) => {
       applyEventToSession(session, event, now())
+      if (event.type === 'message.completed' && event.rewindBoundaryMessageId) {
+        options.database.upsertSessionRewindBoundary({
+          sessionId: session.sessionId,
+          messageId: event.messageId,
+          rewindBoundaryMessageId: event.rewindBoundaryMessageId,
+          updatedAt: event.occurredAt ?? now(),
+        })
+      }
       persistManagedSession(session)
       emitToSubscribers(session, event)
 
@@ -107,11 +122,20 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
     viewerId?: string,
   ): void => {
     const hadExistingTranscript = session.messages.length > 0 || session.events.length > 0
+    const rewindBoundaryMessageIdsByMessageId = getRewindBoundaryMessageIdsByMessageId(
+      session.sessionId,
+    )
     session.cwd = result.cwd ?? session.cwd
-    session.messages = mergeMessages(session.messages, normalizeMessages(result.session.messages))
+    session.messages = mergeMessages(
+      session.messages,
+      normalizeMessages(result.session.messages, rewindBoundaryMessageIdsByMessageId),
+    )
     session.title = resolveSessionTitle(result.session, session.messages, session.title)
     if (session.events.length === 0) {
-      session.events = extractHistoryEvents(result.session.messages)
+      session.events = extractHistoryEvents(
+        result.session.messages,
+        rewindBoundaryMessageIdsByMessageId,
+      )
     }
     session.settings = normalizeSessionSettings(result.settings, result.availableModels)
     session.availableModels = normalizeAvailableModels(result.availableModels, result.settings)
@@ -227,14 +251,15 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
       return existing
     }
 
-    const messages = normalizeMessages(result.session.messages)
+    const rewindBoundaryMessageIdsByMessageId = getRewindBoundaryMessageIdsByMessageId(sessionId)
+    const messages = normalizeMessages(result.session.messages, rewindBoundaryMessageIdsByMessageId)
     const managedSession = createManagedSession(
       sessionId,
       transport,
       result.cwd ?? cwd,
       resolveSessionTitle(result.session, messages),
       messages,
-      extractHistoryEvents(result.session.messages),
+      extractHistoryEvents(result.session.messages, rewindBoundaryMessageIdsByMessageId),
       normalizeSessionSettings(result.settings, result.availableModels),
       normalizeAvailableModels(result.availableModels, result.settings),
       undefined,
@@ -301,14 +326,18 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
         return tracker.toSnapshot(existing)
       }
 
-      const messages = normalizeMessages(result.session.messages)
+      const rewindBoundaryMessageIdsByMessageId = getRewindBoundaryMessageIdsByMessageId(sessionId)
+      const messages = normalizeMessages(
+        result.session.messages,
+        rewindBoundaryMessageIdsByMessageId,
+      )
       const managedSession = createManagedSession(
         sessionId,
         transport,
         result.cwd ?? cwd,
         resolveSessionTitle(result.session, messages),
         messages,
-        extractHistoryEvents(result.session.messages),
+        extractHistoryEvents(result.session.messages, rewindBoundaryMessageIdsByMessageId),
         normalizeSessionSettings(result.settings, result.availableModels),
         normalizeAvailableModels(result.availableModels, result.settings),
         request.viewerId,
@@ -372,6 +401,15 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
       return (
         (await requireManagedTransport(session).listMcpServers?.(nextRequestId('session:mcp'))) ??
         []
+      )
+    },
+
+    async getSessionContextStats(sessionId: string): Promise<LiveSessionContextStatsInfo | null> {
+      const session = requireTrackedSession(sessionId)
+      return (
+        (await requireManagedTransport(session).getContextStats?.(
+          nextRequestId('session:context-stats'),
+        )) ?? null
       )
     },
 

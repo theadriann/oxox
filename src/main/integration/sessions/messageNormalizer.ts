@@ -4,10 +4,14 @@ import type { LiveSessionMessage, StreamJsonRpcMessage, StreamJsonRpcSession } f
 
 const TOOL_ERROR_PREFIX = /^error\b|^failed\b/i
 
-export function normalizeMessages(messages: StreamJsonRpcMessage[]): LiveSessionMessage[] {
+export function normalizeMessages(
+  messages: StreamJsonRpcMessage[],
+  rewindBoundaryMessageIdsByMessageId?: ReadonlyMap<string, string>,
+): LiveSessionMessage[] {
   return messages.flatMap((message, index) => {
     const role = normalizeMessageRole(message.role)
     const contentBlocks = extractMessageContentBlocks(message.content)
+    const messageId = message.id ?? `message-${index + 1}`
     const content =
       contentBlocks.length > 0
         ? contentBlocks.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('')
@@ -19,16 +23,20 @@ export function normalizeMessages(messages: StreamJsonRpcMessage[]): LiveSession
 
     return [
       {
-        id: message.id ?? `message-${index + 1}`,
+        id: messageId,
         role,
         content,
+        rewindBoundaryMessageId: rewindBoundaryMessageIdsByMessageId?.get(messageId),
         contentBlocks: contentBlocks.length > 0 ? contentBlocks : undefined,
       },
     ]
   })
 }
 
-export function extractHistoryEvents(messages: StreamJsonRpcMessage[]): SessionEvent[] {
+export function extractHistoryEvents(
+  messages: StreamJsonRpcMessage[],
+  rewindBoundaryMessageIdsByMessageId?: ReadonlyMap<string, string>,
+): SessionEvent[] {
   const events: SessionEvent[] = []
   const toolNames = new Map<string, string>()
 
@@ -46,6 +54,7 @@ export function extractHistoryEvents(messages: StreamJsonRpcMessage[]): SessionE
         role,
         occurredAt,
         content: message.content,
+        rewindBoundaryMessageId: rewindBoundaryMessageIdsByMessageId?.get(messageId),
       })
       continue
     }
@@ -57,6 +66,7 @@ export function extractHistoryEvents(messages: StreamJsonRpcMessage[]): SessionE
         role,
         occurredAt,
         contentBlocks: pendingBlocks,
+        rewindBoundaryMessageId: rewindBoundaryMessageIdsByMessageId?.get(messageId),
       })
       pendingBlocks.length = 0
     }
@@ -232,12 +242,14 @@ function appendCompletedHistoryMessageEvent(
     occurredAt,
     content,
     contentBlocks,
+    rewindBoundaryMessageId,
   }: {
     messageId: string
     role: SessionEventRole | 'tool' | undefined
     occurredAt: string | null
     content?: unknown
     contentBlocks?: TranscriptMessageContentBlock[]
+    rewindBoundaryMessageId?: string
   },
 ): void {
   if (role === 'tool') {
@@ -259,6 +271,7 @@ function appendCompletedHistoryMessageEvent(
     occurredAt: occurredAt ?? undefined,
     messageId,
     content: textContent,
+    rewindBoundaryMessageId,
     contentBlocks: normalizedBlocks.length > 0 ? normalizedBlocks : undefined,
     role,
   })

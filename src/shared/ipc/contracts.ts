@@ -33,6 +33,7 @@ export const IPC_CHANNELS = {
   sessionListTools: 'session:list-tools',
   sessionListSkills: 'session:list-skills',
   sessionListMcpServers: 'session:list-mcp-servers',
+  sessionGetContextStats: 'session:get-context-stats',
   sessionUpdateSettings: 'session:update-settings',
   sessionInterrupt: 'session:interrupt',
   sessionFork: 'session:fork',
@@ -143,6 +144,14 @@ export interface LiveSessionMcpServerInfo {
   hasAuthTokens?: boolean
 }
 
+export interface LiveSessionContextStatsInfo {
+  used: number
+  remaining: number
+  limit: number
+  accuracy: 'exact' | 'estimated'
+  updatedAt: string
+}
+
 export type TranscriptMessageRole = 'assistant' | 'system' | 'user'
 export type TranscriptToolCallStatus = 'completed' | 'failed' | 'running'
 
@@ -161,6 +170,7 @@ export interface TranscriptMessageEntry {
   kind: 'message'
   id: string
   sourceMessageId?: string
+  rewindBoundaryMessageId?: string
   occurredAt: string | null
   role: TranscriptMessageRole
   markdown: string
@@ -352,6 +362,7 @@ export interface LiveSessionMessage {
   id: string
   role?: string
   content: string
+  rewindBoundaryMessageId?: string
   contentBlocks?: TranscriptMessageContentBlock[]
 }
 
@@ -373,6 +384,7 @@ export interface LiveSessionMessageCompletedEventRecord extends BaseLiveSessionE
   type: 'message.completed'
   messageId: string
   content: string
+  rewindBoundaryMessageId?: string
   contentBlocks?: TranscriptMessageContentBlock[]
   role?: string
 }
@@ -576,6 +588,7 @@ export interface OxoxBridge {
     listTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
     listSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
     listMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
+    getContextStats: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
     updateSettings: (sessionId: string, settings: Partial<LiveSessionSettings>) => Promise<void>
     interrupt: (sessionId: string) => Promise<void>
     fork: (sessionId: string) => Promise<LiveSessionSnapshot>

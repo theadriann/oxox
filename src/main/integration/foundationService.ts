@@ -7,6 +7,7 @@ import type {
   FoundationChangedPayload,
   LiveSessionAskUserAnswerRecord,
   LiveSessionCompactResult,
+  LiveSessionContextStatsInfo,
   LiveSessionExecuteRewindParams,
   LiveSessionExecuteRewindResult,
   LiveSessionMcpServerInfo,
@@ -53,6 +54,7 @@ export interface FoundationService {
   listSessionTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
   listSessionSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
   listSessionMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
+  getSessionContextStats: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
   updateSessionSettings: (
     sessionId: string,
     settings: Partial<LiveSessionSettings>,
@@ -178,6 +180,7 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
     listSessionTools: liveSessionRuntime.listSessionTools,
     listSessionSkills: liveSessionRuntime.listSessionSkills,
     listSessionMcpServers: liveSessionRuntime.listSessionMcpServers,
+    getSessionContextStats: liveSessionRuntime.getSessionContextStats,
     renameSession: async (sessionId, title) => {
       await liveSessionRuntime.renameSession(sessionId, title)
       emitFoundationChanged()

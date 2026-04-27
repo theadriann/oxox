@@ -8,6 +8,7 @@ import {
 } from 'react'
 
 import type {
+  LiveSessionContextStatsInfo,
   LiveSessionEventRecord,
   LiveSessionMcpServerInfo,
   LiveSessionSkillInfo,
@@ -26,6 +27,7 @@ export interface ContextPanelProps {
   liveSession: LiveSessionSnapshot | null
   runtimeCatalog?: {
     refreshError: string | null
+    contextStats?: LiveSessionContextStatsInfo | null
     tools: LiveSessionToolInfo[]
     skills: LiveSessionSkillInfo[]
     mcpServers: LiveSessionMcpServerInfo[]
@@ -256,6 +258,12 @@ export function ContextPanel({
                 </DetailSection>
               ) : null}
 
+              {liveSession && runtimeCatalog?.contextStats ? (
+                <DetailSection title="Context window">
+                  <ContextStatsCard stats={runtimeCatalog.contextStats} />
+                </DetailSection>
+              ) : null}
+
               {liveSession && runtimeCatalog ? (
                 <DetailSection title="Tool controls">
                   {runtimeCatalog.refreshError ? (
@@ -415,6 +423,38 @@ function TokenMetric({ label, value }: { label: string; value: number }) {
   )
 }
 
+function ContextStatsCard({ stats }: { stats: LiveSessionContextStatsInfo }) {
+  const usedPercentage = stats.limit > 0 ? Math.round((stats.used / stats.limit) * 100) : 0
+  const clampedPercentage = Math.max(0, Math.min(100, usedPercentage))
+
+  return (
+    <div className="rounded-md border border-fd-border-subtle bg-fd-panel/50 p-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[10px] text-fd-tertiary">
+          {formatContextAccuracy(stats.accuracy)}
+        </span>
+        <span className="font-mono text-xs font-medium tabular-nums text-fd-primary">
+          {clampedPercentage}% used
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-fd-border-subtle">
+        <div
+          className="h-full rounded-full bg-fd-ember-400"
+          style={{ width: `${clampedPercentage}%` }}
+        />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between">
+        <span className="font-mono text-[10px] tabular-nums text-fd-secondary">
+          {stats.used.toLocaleString()} used
+        </span>
+        <span className="font-mono text-[10px] tabular-nums text-fd-secondary">
+          {stats.remaining.toLocaleString()} remaining
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function ToolToggleRow({
   tool,
   isUpdating,
@@ -464,6 +504,10 @@ function formatStatusLabel(value: string): string {
 
 function formatSettingValue(value: string | undefined): string {
   return value && value.length > 0 ? value : 'Default'
+}
+
+function formatContextAccuracy(value: LiveSessionContextStatsInfo['accuracy']): string {
+  return value === 'exact' ? 'Exact count' : 'Estimated count'
 }
 
 function formatMcpSummary(server: LiveSessionMcpServerInfo): string {

@@ -71,10 +71,13 @@ export function applyEventToSession(
 }
 
 export function upsertMessage(session: ManagedSession, event: MessageCompletedEvent): void {
+  const existingMessage = session.messages.find((message) => message.id === event.messageId)
   const nextMessage = {
     id: event.messageId,
     role: event.role,
     content: event.content,
+    rewindBoundaryMessageId:
+      event.rewindBoundaryMessageId ?? existingMessage?.rewindBoundaryMessageId,
     contentBlocks: cloneContentBlocks(event.contentBlocks),
   }
   const existingIndex = session.messages.findIndex((message) => message.id === event.messageId)

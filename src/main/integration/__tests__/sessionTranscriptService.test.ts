@@ -136,6 +136,34 @@ describe('session transcript service', () => {
     })
   })
 
+  it('hydrates rewind boundary ids onto transcript message entries when provided', () => {
+    const transcript = parseSessionTranscript(
+      'session-rewind',
+      join(tmpdir(), 'session-rewind.jsonl'),
+      [
+        JSON.stringify({
+          type: 'message',
+          id: 'message-user-1',
+          timestamp: '2026-03-25T01:03:00.000Z',
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: 'Rewind target prompt' }],
+          },
+        }),
+      ].join('\n'),
+      new Map([['message-user-1', 'rewind-boundary-1']]),
+    )
+
+    expect(transcript.entries).toEqual([
+      expect.objectContaining({
+        kind: 'message',
+        id: 'message-user-1:0',
+        sourceMessageId: 'message-user-1',
+        rewindBoundaryMessageId: 'rewind-boundary-1',
+      }),
+    ])
+  })
+
   it('preserves image content blocks instead of serializing them as JSON', () => {
     const transcript = parseSessionTranscript(
       'session-image',

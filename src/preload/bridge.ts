@@ -4,6 +4,7 @@ import type {
   FoundationBootstrap,
   FoundationChangedPayload,
   LiveSessionCompactResult,
+  LiveSessionContextStatsInfo,
   LiveSessionExecuteRewindResult,
   LiveSessionMcpServerInfo,
   LiveSessionRewindInfo,
@@ -153,6 +154,12 @@ export function createOxoxBridge(
         invokeTyped<LiveSessionMcpServerInfo[]>(
           invoke,
           IPC_CHANNELS.sessionListMcpServers,
+          sessionId,
+        ),
+      getContextStats: (sessionId) =>
+        invokeTyped<LiveSessionContextStatsInfo | null>(
+          invoke,
+          IPC_CHANNELS.sessionGetContextStats,
           sessionId,
         ),
       updateSettings: (sessionId, settings) =>

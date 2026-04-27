@@ -64,6 +64,7 @@ export class RootStore {
     )
     this.pluginHostStore = new PluginHostStore(listHosts ? () => listHosts() : async () => [])
     this.sessionRuntimeCatalogStore = new SessionRuntimeCatalogStore({
+      getContextStats: this.api.session.getContextStats,
       listMcpServers: this.api.session.listMcpServers,
       listSkills: this.api.session.listSkills,
       listTools: this.api.session.listTools,

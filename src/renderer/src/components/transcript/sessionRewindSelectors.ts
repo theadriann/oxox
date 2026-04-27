@@ -14,10 +14,20 @@ export function resolveSessionRewindTimelineItems({
 export function buildSessionRewindMessageOptions(
   timelineItems: TimelineItem[],
 ): SessionRewindMessageOption[] {
+  const seenRewindTargetIds = new Set<string>()
+
   return timelineItems.flatMap((item) => {
-    if (item.kind !== 'message') {
+    if (item.kind !== 'message' || item.role !== 'user') {
       return []
     }
+
+    const rewindTargetId = item.rewindBoundaryMessageId ?? item.messageId
+
+    if (seenRewindTargetIds.has(rewindTargetId)) {
+      return []
+    }
+
+    seenRewindTargetIds.add(rewindTargetId)
 
     const preview = item.content.replace(/\s+/gu, ' ').trim()
     const clippedPreview =
@@ -25,7 +35,7 @@ export function buildSessionRewindMessageOptions(
 
     return [
       {
-        value: item.messageId,
+        value: rewindTargetId,
         label: `${capitalizeRole(item.role)} · ${clippedPreview}`,
       },
     ]

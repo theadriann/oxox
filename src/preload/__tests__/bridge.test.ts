@@ -174,6 +174,14 @@ describe('createOxoxBridge', () => {
               isManaged: false,
             },
           ])
+        case IPC_CHANNELS.sessionGetContextStats:
+          return Promise.resolve({
+            used: 12_345,
+            remaining: 87_655,
+            limit: 100_000,
+            accuracy: 'exact',
+            updatedAt: '2026-04-23T21:13:04.000Z',
+          })
         case IPC_CHANNELS.sessionInterrupt:
         case IPC_CHANNELS.appOpenWindow:
           return Promise.resolve(undefined)
@@ -289,6 +297,13 @@ describe('createOxoxBridge', () => {
         isManaged: false,
       },
     ])
+    await expect(bridge.session.getContextStats('session-live-1')).resolves.toEqual({
+      used: 12_345,
+      remaining: 87_655,
+      limit: 100_000,
+      accuracy: 'exact',
+      updatedAt: '2026-04-23T21:13:04.000Z',
+    })
     await expect(
       bridge.session.updateSettings('session-live-1', {
         modelId: 'gpt-5.4-mini',

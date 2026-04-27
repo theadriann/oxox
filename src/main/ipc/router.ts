@@ -162,6 +162,8 @@ export function registerAppIpcHandlers({
       service.listSessionSkills(sessionId),
     [IPC_CHANNELS.sessionListMcpServers]: (_event, sessionId: string) =>
       service.listSessionMcpServers(sessionId),
+    [IPC_CHANNELS.sessionGetContextStats]: (_event, sessionId: string) =>
+      service.getSessionContextStats(sessionId),
     [IPC_CHANNELS.sessionUpdateSettings]: (
       _event,
       sessionId: string,

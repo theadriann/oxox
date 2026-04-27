@@ -9,6 +9,7 @@ export function buildHistoricalTimeline(entries: TranscriptEntry[]): TimelineIte
           kind: 'message',
           id: entry.id,
           messageId: entry.sourceMessageId ?? entry.id,
+          rewindBoundaryMessageId: entry.rewindBoundaryMessageId,
           role: entry.role,
           content: entry.markdown,
           status: 'completed',

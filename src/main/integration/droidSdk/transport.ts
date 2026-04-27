@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   type AskUserRequestParams,
   convertNotificationToStreamMessage,
@@ -11,6 +12,7 @@ import {
   StreamStateTracker,
 } from '@factory/droid-sdk'
 import type {
+  LiveSessionContextStatsInfo,
   LiveSessionMcpServerInfo,
   LiveSessionSkillInfo,
   LiveSessionToolInfo,
@@ -56,13 +58,15 @@ type AskUserResult = {
   }>
 }
 
-type JsonRpcMessageObserver = (message: object) => void
+type JsonRpcMessage = Record<string, unknown>
+type JsonRpcMessageObserver = (message: JsonRpcMessage) => void
 type JsonRpcErrorObserver = (error: Error) => void
 
 class ObservedDroidClientTransport implements DroidClientTransport {
-  private messageHandler: ((message: object) => void) | null = null
+  private messageHandler: ((message: JsonRpcMessage) => void) | null = null
   private errorHandler: ((error: Error) => void) | null = null
   private readonly messageObservers = new Set<JsonRpcMessageObserver>()
+  private readonly sentMessageObservers = new Set<JsonRpcMessageObserver>()
   private readonly errorObservers = new Set<JsonRpcErrorObserver>()
 
   constructor(private readonly inner: DroidClientTransport) {
@@ -96,11 +100,15 @@ class ObservedDroidClientTransport implements DroidClientTransport {
     await this.inner.connect?.()
   }
 
-  send(message: object): void {
+  send(message: JsonRpcMessage): void {
+    for (const observer of this.sentMessageObservers) {
+      observer(message)
+    }
+
     this.inner.send(message)
   }
 
-  onMessage(callback: (message: object) => void): void {
+  onMessage(callback: (message: JsonRpcMessage) => void): void {
     this.messageHandler = callback
   }
 
@@ -119,6 +127,13 @@ class ObservedDroidClientTransport implements DroidClientTransport {
     }
   }
 
+  observeSentMessages(observer: JsonRpcMessageObserver): () => void {
+    this.sentMessageObservers.add(observer)
+    return () => {
+      this.sentMessageObservers.delete(observer)
+    }
+  }
+
   observeErrors(observer: JsonRpcErrorObserver): () => void {
     this.errorObservers.add(observer)
     return () => {
@@ -134,6 +149,7 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
   private readonly sinks = new Set<SessionEventSink>()
   private readonly permissionRequestIdQueue: string[] = []
   private readonly askUserRequestIdQueue: string[] = []
+  private readonly rewindBoundaryMessageIdByRequestId = new Map<string, string>()
   private readonly pendingPermissions = new Map<
     string,
     {
@@ -168,6 +184,9 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
 
     this.observedTransport.observeMessages((message) => {
       this.captureServerRequestIds(message)
+    })
+    this.observedTransport.observeSentMessages((message) => {
+      this.captureClientRequestIds(message)
     })
     this.observedTransport.observeErrors((error) => {
       void this.handleTransportError(error)
@@ -239,7 +258,10 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
 
   async addUserMessage(_requestId: RequestId, text: string): Promise<void> {
     await this.ready
-    await this.client.addUserMessage({ text })
+    await this.client.addUserMessage({
+      text,
+      messageId: randomUUID(),
+    })
   }
 
   async forkSession(_requestId: RequestId): Promise<{ newSessionId: string }> {
@@ -294,6 +316,11 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
     await this.ready
     const result = await this.client.listMcpServers()
     return result.servers
+  }
+
+  async getContextStats(_requestId: RequestId): Promise<LiveSessionContextStatsInfo> {
+    await this.ready
+    return this.client.getContextStats()
   }
 
   async updateSessionSettings(
@@ -364,6 +391,7 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
       await this.ready.catch(() => undefined)
       await this.observedTransport.close().catch(() => undefined)
     } finally {
+      this.rewindBoundaryMessageIdByRequestId.clear()
       await this.emit({
         type: 'stream.completed',
         sessionId: this.currentSessionId ?? undefined,
@@ -391,6 +419,22 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
     }
   }
 
+  private captureClientRequestIds(message: object): void {
+    if (!isRecord(message) || message.type !== 'request' || typeof message.id !== 'string') {
+      return
+    }
+
+    if (message.method !== 'droid.add_user_message' || !isRecord(message.params)) {
+      return
+    }
+
+    const rewindBoundaryMessageId = toOptionalString(message.params.messageId)
+
+    if (rewindBoundaryMessageId) {
+      this.rewindBoundaryMessageIdByRequestId.set(message.id, rewindBoundaryMessageId)
+    }
+  }
+
   private async handleNotification(notification: Record<string, unknown>): Promise<void> {
     const payload = extractNotificationPayload(notification)
 
@@ -412,6 +456,13 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
     }
 
     const messages = toDroidMessages(convertNotificationToStreamMessage(payload))
+    const rewindBoundaryMessageId =
+      isRecord(payload) &&
+      payload.type === 'create_message' &&
+      isRecord(payload.message) &&
+      payload.message.role === 'user'
+        ? this.consumeRewindBoundaryMessageId(toOptionalString(payload.requestId))
+        : undefined
 
     for (const message of messages) {
       const trackedMessages = this.streamStateTracker.processMessage(message)
@@ -429,6 +480,9 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
         const event = mapDroidMessageToSessionEvent(
           trackedMessage,
           this.currentSessionId ?? this.client.sessionId ?? undefined,
+          trackedMessage.type === 'create_message' && trackedMessage.role === 'user'
+            ? { rewindBoundaryMessageId }
+            : undefined,
         )
 
         if (event) {
@@ -436,6 +490,21 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
         }
       }
     }
+  }
+
+  private consumeRewindBoundaryMessageId(requestId: string | null): string | undefined {
+    if (!requestId) {
+      return undefined
+    }
+
+    const rewindBoundaryMessageId = this.rewindBoundaryMessageIdByRequestId.get(requestId)
+
+    if (!rewindBoundaryMessageId) {
+      return undefined
+    }
+
+    this.rewindBoundaryMessageIdByRequestId.delete(requestId)
+    return rewindBoundaryMessageId
   }
 
   private async handlePermissionRequest(params: Record<string, unknown>): Promise<string> {
@@ -585,6 +654,10 @@ function extractNotificationPayload(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object'
+}
+
+function toOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
 
 function toDroidMessages(result: ReturnType<typeof convertNotificationToStreamMessage>) {

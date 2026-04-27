@@ -65,12 +65,17 @@ export function mergeMessages(
   const orderedIds: string[] = []
 
   for (const message of [...existingMessages, ...nextMessages]) {
+    const previousMessage = messagesById.get(message.id)
+
     if (!messagesById.has(message.id)) {
       orderedIds.push(message.id)
     }
 
     messagesById.set(message.id, {
+      ...previousMessage,
       ...message,
+      rewindBoundaryMessageId:
+        message.rewindBoundaryMessageId ?? previousMessage?.rewindBoundaryMessageId,
       contentBlocks: cloneContentBlocks(message.contentBlocks),
     })
   }

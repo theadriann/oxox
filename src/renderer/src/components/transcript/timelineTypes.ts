@@ -14,6 +14,7 @@ export interface MessageTimelineItem {
   kind: 'message'
   id: string
   messageId: string
+  rewindBoundaryMessageId?: string
   role: MessageRole
   content: string
   status: MessageStatus

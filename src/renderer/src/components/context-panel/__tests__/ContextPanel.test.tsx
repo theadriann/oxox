@@ -170,6 +170,13 @@ describe('ContextPanel', () => {
               hasAuthTokens: true,
             },
           ],
+          contextStats: {
+            used: 12_345,
+            remaining: 87_655,
+            limit: 100_000,
+            accuracy: 'exact',
+            updatedAt: '2026-04-23T21:13:04.000Z',
+          },
           updatingToolLlmId: null,
           onToggleTool,
         }}
@@ -181,6 +188,9 @@ describe('ContextPanel', () => {
     expect(screen.getByLabelText('Context panel').className).toContain('h-full')
     expect(screen.getByText('Session settings')).toBeTruthy()
     expect(screen.getByText('Tool controls')).toBeTruthy()
+    expect(screen.getByText('Context window')).toBeTruthy()
+    expect(screen.getByText('12% used')).toBeTruthy()
+    expect(screen.getByText('87,655 remaining')).toBeTruthy()
     expect(screen.getByText('Skills')).toBeTruthy()
     expect(screen.getByText('MCP servers')).toBeTruthy()
     expect(screen.getByText('vault-knowledge')).toBeTruthy()

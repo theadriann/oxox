@@ -286,6 +286,8 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
         kind: 'message',
         id: key,
         messageId,
+        rewindBoundaryMessageId:
+          existing?.kind === 'message' ? existing.rewindBoundaryMessageId : undefined,
         role: normalizeRole(event.channel),
         content:
           existing?.kind === 'message' && existing.status === 'streaming'
@@ -323,6 +325,7 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
         kind: 'message',
         id: key,
         messageId,
+        rewindBoundaryMessageId: toOptionalString(event.rewindBoundaryMessageId),
         role: normalizeRole(event.role),
         content: adjustedContent ?? '',
         status: 'completed',
@@ -652,6 +655,7 @@ function completedMessageFromSnapshot(message: LiveSessionMessage, key: string):
     kind: 'message',
     id: key,
     messageId: message.id,
+    rewindBoundaryMessageId: message.rewindBoundaryMessageId,
     role: normalizeRole(message.role),
     content: message.content,
     status: 'completed' as MessageStatus,

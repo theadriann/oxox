@@ -1455,12 +1455,13 @@ describe('createSessionProcessManager', () => {
     await waitFor(() => process.writes.length === 2)
     const addMessageRequest = JSON.parse(process.writes[1] ?? '{}') as {
       method?: string
-      params?: { text?: string }
+      params?: { text?: string; messageId?: string }
       id?: string
     }
 
     expect(addMessageRequest.method).toBe('droid.add_user_message')
     expect(addMessageRequest.params?.text).toBe('Plan the launch checklist')
+    expect(addMessageRequest.params?.messageId).toEqual(expect.any(String))
 
     process.emitStdout(createResponse(addMessageRequest.id ?? 'session:message:1', {}))
     process.emitStdout(
@@ -1473,6 +1474,7 @@ describe('createSessionProcessManager', () => {
           updatedAt: 1,
           content: [{ type: 'text', text: 'Plan the launch checklist' }],
         },
+        requestId: addMessageRequest.id,
       }),
     )
     process.emitStdout(
@@ -1518,6 +1520,7 @@ describe('createSessionProcessManager', () => {
           id: 'message-user-1',
           role: 'user',
           content: 'Plan the launch checklist',
+          rewindBoundaryMessageId: addMessageRequest.params?.messageId,
         },
         {
           id: 'message-assistant-1',
@@ -1530,6 +1533,12 @@ describe('createSessionProcessManager', () => {
       'message.completed',
       'message.delta',
       'message.completed',
+    ])
+    expect(database.listSessionRewindBoundaries('session-live-2')).toEqual([
+      expect.objectContaining({
+        messageId: 'message-user-1',
+        rewindBoundaryMessageId: addMessageRequest.params?.messageId,
+      }),
     ])
     expect(database.getSession('session-live-2')).toMatchObject({
       id: 'session-live-2',

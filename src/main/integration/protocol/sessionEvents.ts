@@ -46,6 +46,7 @@ export interface MessageCompletedEvent extends BaseSessionEvent {
   readonly type: 'message.completed'
   readonly messageId: string
   readonly content: string
+  readonly rewindBoundaryMessageId?: string
   readonly contentBlocks?: readonly TranscriptMessageContentBlock[]
   readonly role?: SessionEventRole
 }

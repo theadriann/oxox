@@ -21,10 +21,21 @@ export interface FoundationQueries {
   getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
 }
 
-type LoadSessionTranscript = (sessionId: string, sourcePath: string) => Promise<SessionTranscript>
+type LoadSessionTranscript = (
+  sessionId: string,
+  sourcePath: string,
+  rewindBoundaryMessageIdsByMessageId?: ReadonlyMap<string, string>,
+) => Promise<SessionTranscript>
+type SessionRewindBoundary = {
+  messageId: string
+  rewindBoundaryMessageId: string
+}
 
 export interface CreateFoundationQueriesOptions {
-  database: Pick<DatabaseService, 'getDiagnostics' | 'listProjects' | 'listSyncMetadata'>
+  database: Pick<
+    DatabaseService,
+    'getDiagnostics' | 'listProjects' | 'listSessionRewindBoundaries' | 'listSyncMetadata'
+  >
   sessionCatalog: Pick<FoundationSessionCatalog, 'listSessions'>
   daemonTransport: Pick<DaemonTransport, 'getStatus'>
   droidCliStatus: DroidCliStatus
@@ -68,7 +79,16 @@ export function createFoundationQueries(
         throw new Error(`Transcript artifact unavailable for session "${sessionId}".`)
       }
 
-      return loadSessionTranscript(sessionId, sourcePath)
+      const rewindBoundaryMessageIdsByMessageId = new Map<string, string>(
+        options.database
+          .listSessionRewindBoundaries(sessionId)
+          .map((boundary: SessionRewindBoundary) => [
+            boundary.messageId,
+            boundary.rewindBoundaryMessageId,
+          ]),
+      )
+
+      return loadSessionTranscript(sessionId, sourcePath, rewindBoundaryMessageIdsByMessageId)
     },
   }
 }

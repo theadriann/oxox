@@ -1,6 +1,7 @@
 import type {
   LiveSessionAskUserAnswerRecord,
   LiveSessionCompactResult,
+  LiveSessionContextStatsInfo,
   LiveSessionEventRecord,
   LiveSessionExecuteRewindParams,
   LiveSessionExecuteRewindResult,
@@ -39,6 +40,7 @@ interface SessionProcessManagerLike {
   listSessionTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
   listSessionSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
   listSessionMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
+  getSessionContextStats?: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
   updateSessionSettings: (
     sessionId: string,
     settings: Partial<RuntimeLiveSessionSettings>,
@@ -94,6 +96,7 @@ export interface FoundationLiveSessionRuntime {
   listSessionTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
   listSessionSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
   listSessionMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
+  getSessionContextStats: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
   updateSessionSettings: (
     sessionId: string,
     settings: Partial<LiveSessionSettings>,
@@ -199,6 +202,8 @@ export function createFoundationLiveSessionRuntime({
     listSessionTools: (sessionId) => sessionProcessManager.listSessionTools(sessionId),
     listSessionSkills: (sessionId) => sessionProcessManager.listSessionSkills(sessionId),
     listSessionMcpServers: (sessionId) => sessionProcessManager.listSessionMcpServers(sessionId),
+    getSessionContextStats: (sessionId) =>
+      sessionProcessManager.getSessionContextStats?.(sessionId) ?? Promise.resolve(null),
     updateSessionSettings: (sessionId, settings) =>
       sessionProcessManager.updateSessionSettings(sessionId, settings).then(() => {
         emitSnapshot(sessionId)

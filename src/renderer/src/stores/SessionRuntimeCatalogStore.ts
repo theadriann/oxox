@@ -1,4 +1,5 @@
 import type {
+  LiveSessionContextStatsInfo,
   LiveSessionMcpServerInfo,
   LiveSessionSettings,
   LiveSessionSkillInfo,
@@ -10,6 +11,7 @@ interface SessionRuntimeCatalogApi {
   listTools?: (sessionId: string) => Promise<LiveSessionToolInfo[]>
   listSkills?: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
   listMcpServers?: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
+  getContextStats?: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
   updateSettings?: (sessionId: string, settings: Partial<LiveSessionSettings>) => Promise<void>
 }
 
@@ -18,6 +20,7 @@ export class SessionRuntimeCatalogStore {
   private lastRefreshKey: string | null = null
 
   readonly stateNode = observable({
+    contextStats: null as LiveSessionContextStatsInfo | null,
     mcpServers: [] as LiveSessionMcpServerInfo[],
     refreshError: null as string | null,
     sessionId: null as string | null,
@@ -63,6 +66,14 @@ export class SessionRuntimeCatalogStore {
     writeField(this.stateNode, 'mcpServers', value)
   }
 
+  get contextStats(): LiveSessionContextStatsInfo | null {
+    return readField(this.stateNode, 'contextStats')
+  }
+
+  set contextStats(value: LiveSessionContextStatsInfo | null) {
+    writeField(this.stateNode, 'contextStats', value)
+  }
+
   get refreshError(): string | null {
     return readField(this.stateNode, 'refreshError')
   }
@@ -85,6 +96,7 @@ export class SessionRuntimeCatalogStore {
       this.tools = []
       this.skills = []
       this.mcpServers = []
+      this.contextStats = null
       this.refreshError = null
       this.updatingToolLlmId = null
     })
@@ -97,10 +109,11 @@ export class SessionRuntimeCatalogStore {
     }
 
     try {
-      const [tools, skills, mcpServers] = await Promise.all([
+      const [tools, skills, mcpServers, contextStats] = await Promise.all([
         this.api.listTools?.(sessionId) ?? Promise.resolve([]),
         this.api.listSkills?.(sessionId) ?? Promise.resolve([]),
         this.api.listMcpServers?.(sessionId) ?? Promise.resolve([]),
+        this.api.getContextStats?.(sessionId) ?? Promise.resolve(null),
       ])
 
       batch(() => {
@@ -108,6 +121,7 @@ export class SessionRuntimeCatalogStore {
         this.tools = tools
         this.skills = skills
         this.mcpServers = mcpServers
+        this.contextStats = contextStats
         this.refreshError = null
       })
       this.lastRefreshKey = refreshKey
@@ -117,6 +131,7 @@ export class SessionRuntimeCatalogStore {
         this.tools = []
         this.skills = []
         this.mcpServers = []
+        this.contextStats = null
         this.refreshError =
           error instanceof Error ? error.message : 'Unable to load session runtime catalog.'
       })

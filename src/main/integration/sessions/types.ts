@@ -2,6 +2,7 @@ import type { Readable } from 'node:stream'
 import type {
   LiveSessionAskUserAnswerRecord,
   LiveSessionCompactResult,
+  LiveSessionContextStatsInfo,
   LiveSessionExecuteRewindParams,
   LiveSessionExecuteRewindResult,
   LiveSessionMcpServerInfo,
@@ -103,6 +104,7 @@ export interface LiveSessionMessage {
   id: string
   role?: SessionEventRole
   content: string
+  rewindBoundaryMessageId?: string
   contentBlocks?: TranscriptMessageContentBlock[]
 }
 
@@ -231,6 +233,7 @@ export interface StreamJsonRpcProcessTransportLike {
   listTools?(requestId: RequestId): Promise<LiveSessionToolInfo[]>
   listSkills?(requestId: RequestId): Promise<LiveSessionSkillInfo[]>
   listMcpServers?(requestId: RequestId): Promise<LiveSessionMcpServerInfo[]>
+  getContextStats?(requestId: RequestId): Promise<LiveSessionContextStatsInfo>
   updateSessionSettings(requestId: RequestId, settings: Partial<LiveSessionSettings>): Promise<void>
   resolvePermissionRequest(requestId: RequestId, selectedOption: string): Promise<void>
   resolveAskUserRequest(

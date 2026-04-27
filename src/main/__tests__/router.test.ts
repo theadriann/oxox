@@ -40,6 +40,13 @@ describe('registerAppIpcHandlers', () => {
         .fn()
         .mockResolvedValue([{ name: 'vault-knowledge', location: 'personal' }]),
       listSessionMcpServers: vi.fn().mockResolvedValue([{ name: 'figma', status: 'connected' }]),
+      getSessionContextStats: vi.fn().mockResolvedValue({
+        used: 12_345,
+        remaining: 87_655,
+        limit: 100_000,
+        accuracy: 'exact',
+        updatedAt: '2026-04-23T21:13:04.000Z',
+      }),
       interruptSession: vi.fn(),
       forkSession: vi.fn(),
       forkSessionViaDaemon: vi.fn().mockResolvedValue({ sessionId: 'session-daemon-fork' }),
@@ -177,9 +184,19 @@ describe('registerAppIpcHandlers', () => {
     expect(
       await ipcMain.handlers.get(IPC_CHANNELS.sessionListMcpServers)?.(undefined, 'session-1'),
     ).toEqual([{ name: 'figma', status: 'connected' }])
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.sessionGetContextStats)?.(undefined, 'session-1'),
+    ).toEqual({
+      used: 12_345,
+      remaining: 87_655,
+      limit: 100_000,
+      accuracy: 'exact',
+      updatedAt: '2026-04-23T21:13:04.000Z',
+    })
     expect(service.listSessionTools).toHaveBeenCalledWith('session-1')
     expect(service.listSessionSkills).toHaveBeenCalledWith('session-1')
     expect(service.listSessionMcpServers).toHaveBeenCalledWith('session-1')
+    expect(service.getSessionContextStats).toHaveBeenCalledWith('session-1')
     expect(
       await ipcMain.handlers.get(IPC_CHANNELS.sessionForkViaDaemon)?.(
         { sender: { id: 42, once: vi.fn() } },

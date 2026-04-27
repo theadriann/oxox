@@ -196,6 +196,12 @@ describe('createFoundationQueries', () => {
       database: {
         getDiagnostics: vi.fn(),
         listProjects: vi.fn(() => []),
+        listSessionRewindBoundaries: vi.fn(() => [
+          {
+            messageId: 'message-user-1',
+            rewindBoundaryMessageId: 'rewind-boundary-1',
+          },
+        ]),
         listSyncMetadata: vi.fn(() => syncMetadata),
       },
       sessionCatalog: {
@@ -222,6 +228,7 @@ describe('createFoundationQueries', () => {
     expect(loadSessionTranscript).toHaveBeenCalledWith(
       'session-1',
       '/tmp/session-1/transcript.jsonl',
+      new Map([['message-user-1', 'rewind-boundary-1']]),
     )
   })
 
@@ -230,6 +237,7 @@ describe('createFoundationQueries', () => {
       database: {
         getDiagnostics: vi.fn(),
         listProjects: vi.fn(() => []),
+        listSessionRewindBoundaries: vi.fn(() => []),
         listSyncMetadata: vi.fn(() => []),
       },
       sessionCatalog: {
@@ -272,6 +280,7 @@ describe('createFoundationQueries', () => {
           tableNames: [],
         })),
         listProjects: vi.fn(() => []),
+        listSessionRewindBoundaries: vi.fn(() => []),
         listSyncMetadata: vi.fn(() => []),
       },
       sessionCatalog: {

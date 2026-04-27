@@ -86,6 +86,7 @@ class FakeDroidClient {
   readonly executeRewindCalls: Array<Record<string, unknown>> = []
   readonly compactSessionCalls: Array<Record<string, unknown>> = []
   readonly renameSessionCalls: Array<Record<string, unknown>> = []
+  getContextStatsCalls = 0
   listMcpServersCalls = 0
   listSkillsCalls = 0
   listToolsCalls = 0
@@ -205,6 +206,17 @@ class FakeDroidClient {
     this.renameSessionCalls.push(params)
     return {
       success: true,
+    }
+  }
+
+  async getContextStats() {
+    this.getContextStatsCalls += 1
+    return {
+      used: 12_345,
+      remaining: 87_655,
+      limit: 100_000,
+      accuracy: 'exact',
+      updatedAt: '2026-04-23T21:13:04.000Z',
     }
   }
 
@@ -889,5 +901,27 @@ describe('DroidSdkSessionTransport', () => {
     expect(client.listToolsCalls).toBe(1)
     expect(client.listSkillsCalls).toBe(1)
     expect(client.listMcpServersCalls).toBe(1)
+  })
+
+  it('gets context stats through the SDK client', async () => {
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+        droidPath: '/opt/factory/bin/droid',
+        sessionId: 'session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    await expect(sessionTransport.getContextStats('context:1')).resolves.toEqual({
+      used: 12_345,
+      remaining: 87_655,
+      limit: 100_000,
+      accuracy: 'exact',
+      updatedAt: '2026-04-23T21:13:04.000Z',
+    })
+    expect(client.getContextStatsCalls).toBe(1)
   })
 })

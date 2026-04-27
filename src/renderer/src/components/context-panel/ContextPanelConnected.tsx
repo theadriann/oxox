@@ -64,6 +64,7 @@ export function ContextPanelConnected({
       onResizeStart,
       panelRef,
       sessionRuntimeCatalogStore: {
+        contextStats: sessionRuntimeCatalogStore.contextStats,
         mcpServers: sessionRuntimeCatalogStore.mcpServers,
         onToggleTool: (toolLlmId, allowed) => {
           const selectedSnapshot = liveSessionStore.selectedSnapshot

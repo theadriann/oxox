@@ -43,9 +43,15 @@ describe('resolveSessionRewindTimelineItems', () => {
 })
 
 describe('buildSessionRewindMessageOptions', () => {
-  it('builds clipped message labels from timeline message items only', () => {
+  it('builds clipped message labels from rewindable user timeline message items only', () => {
     const options = buildSessionRewindMessageOptions([
-      createMessageItem(),
+      createMessageItem({ role: 'user' }),
+      createMessageItem({
+        id: 'assistant-message-1',
+        messageId: 'assistant-message-1',
+        role: 'assistant',
+        content: 'Assistant replies should not be rewind targets',
+      }),
       {
         id: 'tool-1',
         kind: 'tool_call',
@@ -57,7 +63,50 @@ describe('buildSessionRewindMessageOptions', () => {
 
     expect(options).toHaveLength(1)
     expect(options[0]?.value).toBe('message-1')
-    expect(options[0]?.label).toContain('Assistant · ')
+    expect(options[0]?.label).toContain('User · ')
     expect(options[0]?.label.endsWith('…')).toBe(true)
+  })
+
+  it('deduplicates repeated timeline segments for the same user message id', () => {
+    const options = buildSessionRewindMessageOptions([
+      createMessageItem({
+        id: 'message-1:0',
+        role: 'user',
+        content: 'First transcript chunk',
+      }),
+      createMessageItem({
+        id: 'message-1:1',
+        role: 'user',
+        content: 'Second transcript chunk',
+      }),
+    ])
+
+    expect(options).toEqual([
+      {
+        value: 'message-1',
+        label: 'User · First transcript chunk',
+      },
+    ])
+  })
+
+  it('uses rewind boundary ids when available', () => {
+    const options = buildSessionRewindMessageOptions([
+      {
+        ...createMessageItem({
+          id: 'message-1:0',
+          messageId: 'message-1',
+          role: 'user',
+          content: 'First rewindable user message',
+        }),
+        rewindBoundaryMessageId: 'rewind-boundary-1',
+      } as TimelineItem,
+    ])
+
+    expect(options).toEqual([
+      {
+        value: 'rewind-boundary-1',
+        label: 'User · First rewindable user message',
+      },
+    ])
   })
 })

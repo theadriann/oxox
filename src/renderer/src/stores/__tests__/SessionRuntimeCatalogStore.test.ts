@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
+  LiveSessionContextStatsInfo,
   LiveSessionMcpServerInfo,
   LiveSessionSettings,
   LiveSessionSkillInfo,
@@ -51,6 +52,19 @@ function createMcpServer(
   }
 }
 
+function createContextStats(
+  overrides: Partial<LiveSessionContextStatsInfo> = {},
+): LiveSessionContextStatsInfo {
+  return {
+    used: 12_345,
+    remaining: 87_655,
+    limit: 100_000,
+    accuracy: 'exact',
+    updatedAt: '2026-04-23T21:13:04.000Z',
+    ...overrides,
+  }
+}
+
 describe('buildToolSelectionSettingsPatch', () => {
   it('adds disabled tool overrides for default-allowed tools', () => {
     expect(
@@ -89,11 +103,13 @@ describe('buildToolSelectionSettingsPatch', () => {
 })
 
 describe('SessionRuntimeCatalogStore', () => {
-  it('refreshes tools, skills, and MCP servers through the injected loaders', async () => {
+  it('refreshes tools, skills, MCP servers, and context stats through the injected loaders', async () => {
     const listTools = vi.fn().mockResolvedValue([createTool()])
     const listSkills = vi.fn().mockResolvedValue([createSkill()])
     const listMcpServers = vi.fn().mockResolvedValue([createMcpServer()])
+    const getContextStats = vi.fn().mockResolvedValue(createContextStats())
     const store = new SessionRuntimeCatalogStore({
+      getContextStats,
       listMcpServers,
       listSkills,
       listTools,
@@ -104,9 +120,11 @@ describe('SessionRuntimeCatalogStore', () => {
     expect(listTools).toHaveBeenCalledWith('session-1')
     expect(listSkills).toHaveBeenCalledWith('session-1')
     expect(listMcpServers).toHaveBeenCalledWith('session-1')
+    expect(getContextStats).toHaveBeenCalledWith('session-1')
     expect(store.tools).toEqual([createTool()])
     expect(store.skills).toEqual([createSkill()])
     expect(store.mcpServers).toEqual([createMcpServer()])
+    expect(store.contextStats).toEqual(createContextStats())
     expect(store.refreshError).toBeNull()
   })
 

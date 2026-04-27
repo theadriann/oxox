@@ -27,15 +27,22 @@ const TOOL_ERROR_PREFIX = /^error\b|^failed\b/i
 export async function loadSessionTranscriptFromFile(
   sessionId: string,
   sourcePath: string,
+  rewindBoundaryMessageIdsByMessageId?: ReadonlyMap<string, string>,
 ): Promise<SessionTranscript> {
   const parsed = await parseTranscriptFileFromPath(sourcePath)
-  return buildSessionTranscript(sessionId, sourcePath, parsed.records)
+  return buildSessionTranscript(
+    sessionId,
+    sourcePath,
+    parsed.records,
+    rewindBoundaryMessageIdsByMessageId,
+  )
 }
 
 export function parseSessionTranscript(
   sessionId: string,
   sourcePath: string,
   transcriptText: string,
+  rewindBoundaryMessageIdsByMessageId?: ReadonlyMap<string, string>,
 ): SessionTranscript {
   const records = transcriptText
     .split(/\r?\n/u)
@@ -60,13 +67,14 @@ export function parseSessionTranscript(
       },
     }))
 
-  return buildSessionTranscript(sessionId, sourcePath, records)
+  return buildSessionTranscript(sessionId, sourcePath, records, rewindBoundaryMessageIdsByMessageId)
 }
 
 function buildSessionTranscript(
   sessionId: string,
   sourcePath: string,
   records: TranscriptRecord[],
+  rewindBoundaryMessageIdsByMessageId?: ReadonlyMap<string, string>,
 ): SessionTranscript {
   const entries: TranscriptEntry[] = []
   const toolCalls = new Map<string, TranscriptToolCallEntry>()
@@ -85,6 +93,10 @@ function buildSessionTranscript(
       message,
       messageId: typeof record.payload.id === 'string' ? record.payload.id : `message-${lineIndex}`,
       occurredAt: record.timestamp,
+      rewindBoundaryMessageId:
+        typeof record.payload.id === 'string'
+          ? rewindBoundaryMessageIdsByMessageId?.get(record.payload.id)
+          : undefined,
       toolCalls,
     })
   }
@@ -102,6 +114,7 @@ interface AppendMessageEntriesOptions {
   message: TranscriptEnvelope['message']
   messageId: string
   occurredAt: string | null
+  rewindBoundaryMessageId?: string
   toolCalls: Map<string, TranscriptToolCallEntry>
 }
 
@@ -110,6 +123,7 @@ function appendMessageEntries({
   message,
   messageId,
   occurredAt,
+  rewindBoundaryMessageId,
   toolCalls,
 }: AppendMessageEntriesOptions): void {
   const role = toMessageRole(message?.role)
@@ -133,6 +147,7 @@ function appendMessageEntries({
       kind: 'message',
       id: `${messageId}:${pendingTextStartIndex}`,
       sourceMessageId: messageId,
+      rewindBoundaryMessageId,
       occurredAt,
       role,
       markdown,

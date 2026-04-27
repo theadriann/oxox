@@ -58,14 +58,23 @@ const FOUNDATION_SCHEMA = `
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS session_rewind_boundaries (
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    message_id TEXT NOT NULL,
+    rewind_boundary_message_id TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (session_id, message_id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_sessions_project_id ON sessions(project_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_last_activity_at ON sessions(last_activity_at);
   CREATE INDEX IF NOT EXISTS idx_sync_metadata_session_id ON sync_metadata(session_id);
   CREATE INDEX IF NOT EXISTS idx_session_runtime_status ON session_runtime(status);
   CREATE INDEX IF NOT EXISTS idx_session_lineage_parent_session_id ON session_lineage(parent_session_id);
+  CREATE INDEX IF NOT EXISTS idx_session_rewind_boundaries_session_id ON session_rewind_boundaries(session_id);
 `
 
-const CURRENT_SCHEMA_VERSION = 4
+const CURRENT_SCHEMA_VERSION = 5
 
 const require = createRequire(import.meta.url)
 
@@ -136,6 +145,20 @@ export interface SessionRuntimeRecord {
   updatedAt: string
 }
 
+export interface SessionRewindBoundaryUpsert {
+  sessionId: string
+  messageId: string
+  rewindBoundaryMessageId: string
+  updatedAt: string
+}
+
+export interface SessionRewindBoundaryRecord {
+  sessionId: string
+  messageId: string
+  rewindBoundaryMessageId: string
+  updatedAt: string
+}
+
 export interface DatabaseService {
   close: () => void
   getDiagnostics: () => DatabaseDiagnostics
@@ -144,6 +167,7 @@ export interface DatabaseService {
   listProjects: () => ProjectRecord[]
   listPersistedSessions: () => SessionRecord[]
   listSessionRuntimes: () => SessionRuntimeRecord[]
+  listSessionRewindBoundaries: (sessionId: string) => SessionRewindBoundaryRecord[]
   listSessions: () => SessionRecord[]
   listSyncMetadata: () => SyncMetadataRecord[]
   linkSessionParent: (
@@ -154,6 +178,7 @@ export interface DatabaseService {
   ) => void
   listSessionLineageIds: () => string[]
   clearSessionRuntime: (sessionId: string) => void
+  upsertSessionRewindBoundary: (boundary: SessionRewindBoundaryUpsert) => void
   upsertSession: (session: SessionUpsert) => void
   upsertSessionRuntime: (runtime: SessionRuntimeUpsert) => void
   upsertArtifactSession: (session: ArtifactSessionUpsert) => void
@@ -341,6 +366,17 @@ export function createDatabaseService({
     ORDER BY updated_at DESC, session_id ASC
   `)
 
+  const sessionRewindBoundaryStatement = database.prepare<SessionRewindBoundaryRecord>(`
+    SELECT
+      session_id AS sessionId,
+      message_id AS messageId,
+      rewind_boundary_message_id AS rewindBoundaryMessageId,
+      updated_at AS updatedAt
+    FROM session_rewind_boundaries
+    WHERE session_id = ?
+    ORDER BY updated_at ASC, message_id ASC
+  `)
+
   const tableNamesStatement = database.prepare<TableNameRow>(`
     SELECT name
     FROM sqlite_master
@@ -455,6 +491,19 @@ export function createDatabaseService({
     ON CONFLICT(session_id) DO NOTHING
   `)
 
+  const upsertSessionRewindBoundaryStatement = database.prepare(`
+    INSERT INTO session_rewind_boundaries (
+      session_id,
+      message_id,
+      rewind_boundary_message_id,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(session_id, message_id) DO UPDATE SET
+      rewind_boundary_message_id = excluded.rewind_boundary_message_id,
+      updated_at = excluded.updated_at
+  `)
+
   const persistSessionRow = (session: SessionUpsert): void => {
     if (session.projectWorkspacePath) {
       const project: ProjectMutationInput = {
@@ -549,6 +598,7 @@ export function createDatabaseService({
     listProjects: () => projectStatement.all(),
     listPersistedSessions: () => persistedSessionStatement.all().map(normalizeSessionRecord),
     listSessionRuntimes: () => sessionRuntimeStatement.all(),
+    listSessionRewindBoundaries: (sessionId) => sessionRewindBoundaryStatement.all(sessionId),
     listSessions: () => sessionStatement.all().map(normalizeSessionRecord),
     listSyncMetadata: () => syncMetadataStatement.all(),
     linkSessionParent: (sessionId, parentSessionId, relationship, createdAt) => {
@@ -562,6 +612,14 @@ export function createDatabaseService({
     },
     clearSessionRuntime: (sessionId) => {
       deleteSessionRuntimeStatement.run(sessionId)
+    },
+    upsertSessionRewindBoundary: (boundary) => {
+      upsertSessionRewindBoundaryStatement.run(
+        boundary.sessionId,
+        boundary.messageId,
+        boundary.rewindBoundaryMessageId,
+        boundary.updatedAt,
+      )
     },
     upsertSession: (session) => {
       upsertSessionTransaction(session)
