@@ -83,6 +83,7 @@ export class RootStore {
       this.foundationStore,
       this.api.session,
       persistence,
+      () => this.sessionRuntimeCatalogStore.contextStats,
     )
   }
 

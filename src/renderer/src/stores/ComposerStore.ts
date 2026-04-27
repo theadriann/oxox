@@ -1,4 +1,4 @@
-import type { LiveSessionModel } from '../../../shared/ipc/contracts'
+import type { LiveSessionContextStatsInfo, LiveSessionModel } from '../../../shared/ipc/contracts'
 import type { PlatformApiClient } from '../platform/apiClient'
 import { createLocalStoragePort, type PersistencePort } from '../platform/persistence'
 import {
@@ -61,6 +61,7 @@ export class ComposerStore {
   private readonly liveSessionStore: LiveSessionStore
   private readonly foundationStore: FoundationStore
   private readonly sessionApi: ComposerSessionGateway
+  private readonly getSelectedContextStats: () => LiveSessionContextStatsInfo | null
   private readonly persistence: PersistencePort
   private preferencesReactionDisposer: (() => void) | null = null
   private lastSessionId: string | null
@@ -71,11 +72,13 @@ export class ComposerStore {
     foundationStore: FoundationStore,
     sessionApi: ComposerSessionGateway,
     persistence: PersistencePort = createLocalStoragePort(),
+    getSelectedContextStats: () => LiveSessionContextStatsInfo | null = () => null,
   ) {
     this.sessionStore = sessionStore
     this.liveSessionStore = liveSessionStore
     this.foundationStore = foundationStore
     this.sessionApi = sessionApi
+    this.getSelectedContextStats = getSelectedContextStats
     this.persistence = persistence
     this.lastSessionId = sessionStore.selectedSessionId || null
 
@@ -270,6 +273,7 @@ export class ComposerStore {
     const compactionTokenLimit = this.foundationStore.factoryDefaultSettings.compactionTokenLimit
 
     return deriveComposerContextUsage({
+      contextStats: this.getSelectedContextStats(),
       compactionTokenLimit:
         typeof compactionTokenLimit === 'number' && Number.isFinite(compactionTokenLimit)
           ? compactionTokenLimit

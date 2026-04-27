@@ -17,6 +17,7 @@ import type {
 } from '../../../../shared/ipc/contracts'
 import { useTimeTick } from '../../hooks/useTimeTick'
 import { formatAbsoluteSessionTime, formatElapsedDuration } from '../../lib/sessionTime'
+import { normalizeContextStats } from '../../stores/composerContextUsage'
 import type { SessionPreview } from '../../stores/SessionStore'
 import { Button } from '../ui/button'
 import { SkeletonBlock } from '../ui/skeleton'
@@ -51,6 +52,7 @@ export interface ContextPanelProps {
 type TokenUsageSnapshot = {
   inputTokens: number
   outputTokens: number
+  cacheCreationTokens: number
   cacheReadTokens: number
   thinkingTokens: number
 }
@@ -81,8 +83,12 @@ export function ContextPanel({
     ? latestTokenUsage.inputTokens +
       latestTokenUsage.outputTokens +
       latestTokenUsage.cacheReadTokens +
+      latestTokenUsage.cacheCreationTokens +
       latestTokenUsage.thinkingTokens
     : 0
+  const contextStats = runtimeCatalog?.contextStats
+    ? normalizeContextStats(runtimeCatalog.contextStats)
+    : null
 
   return (
     <aside
@@ -240,10 +246,10 @@ export function ContextPanel({
 
               {/* Token usage */}
               {liveSession && latestTokenUsage ? (
-                <DetailSection title="Token usage">
+                <DetailSection title="Token processing">
                   <div className="rounded-md border border-fd-border-subtle bg-fd-panel/50 p-2">
                     <div className="flex items-baseline justify-between">
-                      <span className="text-[10px] text-fd-tertiary">Total</span>
+                      <span className="text-[10px] text-fd-tertiary">Total processed</span>
                       <span className="font-mono text-xs font-medium tabular-nums text-fd-primary">
                         {totalTokens.toLocaleString()}
                       </span>
@@ -251,16 +257,24 @@ export function ContextPanel({
                     <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1">
                       <TokenMetric label="Input" value={latestTokenUsage.inputTokens} />
                       <TokenMetric label="Output" value={latestTokenUsage.outputTokens} />
-                      <TokenMetric label="Cache" value={latestTokenUsage.cacheReadTokens} />
+                      <TokenMetric label="Cache read" value={latestTokenUsage.cacheReadTokens} />
+                      <TokenMetric
+                        label="Cache write"
+                        value={latestTokenUsage.cacheCreationTokens}
+                      />
                       <TokenMetric label="Thinking" value={latestTokenUsage.thinkingTokens} />
                     </div>
+                    <p className="mt-1.5 text-[10px] leading-snug text-fd-quaternary">
+                      Processing totals can include cache reads/writes and are separate from actual
+                      context in use.
+                    </p>
                   </div>
                 </DetailSection>
               ) : null}
 
-              {liveSession && runtimeCatalog?.contextStats ? (
+              {liveSession && contextStats ? (
                 <DetailSection title="Context window">
-                  <ContextStatsCard stats={runtimeCatalog.contextStats} />
+                  <ContextStatsCard stats={contextStats} />
                 </DetailSection>
               ) : null}
 
@@ -424,14 +438,21 @@ function TokenMetric({ label, value }: { label: string; value: number }) {
 }
 
 function ContextStatsCard({ stats }: { stats: LiveSessionContextStatsInfo }) {
-  const usedPercentage = stats.limit > 0 ? Math.round((stats.used / stats.limit) * 100) : 0
+  const normalizedStats = normalizeContextStats(stats)
+
+  if (!normalizedStats) {
+    return null
+  }
+
+  const usedPercentage =
+    normalizedStats.limit > 0 ? Math.round((normalizedStats.used / normalizedStats.limit) * 100) : 0
   const clampedPercentage = Math.max(0, Math.min(100, usedPercentage))
 
   return (
     <div className="rounded-md border border-fd-border-subtle bg-fd-panel/50 p-2">
       <div className="flex items-baseline justify-between">
         <span className="text-[10px] text-fd-tertiary">
-          {formatContextAccuracy(stats.accuracy)}
+          {formatContextAccuracy(normalizedStats.accuracy)}
         </span>
         <span className="font-mono text-xs font-medium tabular-nums text-fd-primary">
           {clampedPercentage}% used
@@ -445,10 +466,10 @@ function ContextStatsCard({ stats }: { stats: LiveSessionContextStatsInfo }) {
       </div>
       <div className="mt-1.5 flex items-center justify-between">
         <span className="font-mono text-[10px] tabular-nums text-fd-secondary">
-          {stats.used.toLocaleString()} used
+          {normalizedStats.used.toLocaleString()} used
         </span>
         <span className="font-mono text-[10px] tabular-nums text-fd-secondary">
-          {stats.remaining.toLocaleString()} remaining
+          {normalizedStats.remaining.toLocaleString()} remaining
         </span>
       </div>
     </div>
@@ -540,6 +561,7 @@ function getLatestTokenUsage(events: LiveSessionEventRecord[]): TokenUsageSnapsh
     return {
       inputTokens: toSafeNumber(tokenUsage.inputTokens),
       outputTokens: toSafeNumber(tokenUsage.outputTokens),
+      cacheCreationTokens: toSafeNumber(tokenUsage.cacheCreationTokens),
       cacheReadTokens: toSafeNumber(tokenUsage.cacheReadTokens),
       thinkingTokens: toSafeNumber(tokenUsage.thinkingTokens),
     }

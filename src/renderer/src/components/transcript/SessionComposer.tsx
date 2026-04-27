@@ -336,7 +336,15 @@ function ContextUsageIndicator({
         ? `${formatCompactTokens(usage.usedContext)}/${formatCompactTokens(usage.contextLimit)}`
         : `${usage.usedPercentage}%`
   const tooltipSummary = usage
-    ? `${usage.usedPercentage}% · ${formatCompactTokens(usage.usedContext)}/${formatCompactTokens(usage.contextLimit)} context used\nTotal processed: ${formatCompactTokens(usage.totalProcessedTokens)} tokens`
+    ? [
+        `${usage.usedPercentage}% · ${formatCompactTokens(usage.usedContext)}/${formatCompactTokens(usage.contextLimit)} context used`,
+        formatContextUsageAccuracy(usage),
+        usage.totalProcessedTokens === null
+          ? null
+          : `Total processed: ${formatCompactTokens(usage.totalProcessedTokens)} tokens`,
+      ]
+        .filter((line): line is string => line !== null)
+        .join('\n')
     : 'Context usage is unavailable yet.'
 
   return (
@@ -358,10 +366,15 @@ function ContextUsageIndicator({
               <p className="font-medium">
                 {`${usage.usedPercentage}% · ${formatCompactTokens(usage.usedContext)}/${formatCompactTokens(usage.contextLimit)} context used`}
               </p>
-              <p className="opacity-70">
-                Total processed: {formatCompactTokens(usage.totalProcessedTokens)} tokens
+              <p className="opacity-70">{formatContextUsageAccuracy(usage)}</p>
+              {usage.totalProcessedTokens === null ? null : (
+                <p className="opacity-70">
+                  Total processed: {formatCompactTokens(usage.totalProcessedTokens)} tokens
+                </p>
+              )}
+              <p className="opacity-50">
+                Token processing can include cached reads without increasing context in use.
               </p>
-              <p className="opacity-50">Automatically compacts its context when needed.</p>
             </div>
           ) : (
             <p className="text-[11px] opacity-70">Context usage is unavailable yet.</p>
@@ -370,6 +383,16 @@ function ContextUsageIndicator({
       </Tooltip>
     </TooltipProvider>
   )
+}
+
+function formatContextUsageAccuracy(usage: ComposerContextUsageState): string {
+  if (usage.source !== 'sdk-context-stats') {
+    return 'Estimated from the latest token usage event.'
+  }
+
+  return usage.accuracy === 'exact'
+    ? 'Exact actual context in use from Droid.'
+    : 'Estimated actual context in use from Droid.'
 }
 
 function formatCompactTokens(value: number): string {

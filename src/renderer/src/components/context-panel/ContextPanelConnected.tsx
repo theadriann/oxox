@@ -17,6 +17,43 @@ interface ContextPanelConnectedProps {
   panelRef: RefObject<HTMLElement | null>
 }
 
+interface RuntimeCatalogRefreshSnapshot {
+  sessionId: string
+  transcriptRevision?: number
+  events: Array<{ type?: string }>
+  settings: {
+    autonomyLevel?: string
+    autonomyMode?: string
+    disabledToolIds?: readonly string[]
+    enabledToolIds?: readonly string[]
+    interactionMode?: string
+    modelId?: string
+    specModeModelId?: string
+    specModeReasoningEffort?: string
+  }
+}
+
+export function buildSessionRuntimeCatalogRefreshKey(
+  snapshot: RuntimeCatalogRefreshSnapshot,
+): string {
+  return JSON.stringify({
+    sessionId: snapshot.sessionId,
+    transcriptRevision: snapshot.transcriptRevision ?? 0,
+    eventCount: snapshot.events.length,
+    lastEventType: snapshot.events.at(-1)?.type ?? null,
+    settings: {
+      autonomyLevel: snapshot.settings.autonomyLevel,
+      autonomyMode: snapshot.settings.autonomyMode,
+      disabledToolIds: snapshot.settings.disabledToolIds ?? [],
+      enabledToolIds: snapshot.settings.enabledToolIds ?? [],
+      interactionMode: snapshot.settings.interactionMode,
+      modelId: snapshot.settings.modelId,
+      specModeModelId: snapshot.settings.specModeModelId,
+      specModeReasoningEffort: snapshot.settings.specModeReasoningEffort,
+    },
+  })
+}
+
 export function ContextPanelConnected({
   onBrowseSessions,
   onResizeStart,
@@ -32,17 +69,8 @@ export function ContextPanelConnected({
     const isContextPanelHidden = uiStore.isContextPanelHidden
     const selectedSnapshot = liveSessionStore.selectedSnapshot
     const selectedSessionId = selectedSnapshot?.sessionId ?? null
-    const settingsSignature = selectedSnapshot
-      ? JSON.stringify({
-          autonomyLevel: selectedSnapshot.settings.autonomyLevel,
-          autonomyMode: selectedSnapshot.settings.autonomyMode,
-          disabledToolIds: selectedSnapshot.settings.disabledToolIds ?? [],
-          enabledToolIds: selectedSnapshot.settings.enabledToolIds ?? [],
-          interactionMode: selectedSnapshot.settings.interactionMode,
-          modelId: selectedSnapshot.settings.modelId,
-          specModeModelId: selectedSnapshot.settings.specModeModelId,
-          specModeReasoningEffort: selectedSnapshot.settings.specModeReasoningEffort,
-        })
+    const refreshKey = selectedSnapshot
+      ? buildSessionRuntimeCatalogRefreshKey(selectedSnapshot)
       : ''
 
     if (isContextPanelHidden || !selectedSessionId) {
@@ -50,10 +78,7 @@ export function ContextPanelConnected({
       return
     }
 
-    void sessionRuntimeCatalogStore.refresh(
-      selectedSessionId,
-      `${selectedSessionId}:${settingsSignature}`,
-    )
+    void sessionRuntimeCatalogStore.refresh(selectedSessionId, refreshKey)
   })
 
   const props = useValue(() =>

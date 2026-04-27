@@ -190,6 +190,8 @@ describe('SessionComposer', () => {
           usedContext: 78000,
           remainingContext: 180000,
           usedPercentage: 30,
+          accuracy: 'estimated',
+          source: 'sdk-context-stats',
           totalProcessedTokens: 298000,
         }}
       />,
@@ -199,7 +201,29 @@ describe('SessionComposer', () => {
     const contextUsageButton = screen.getByRole('button', { name: /Context usage/i })
 
     expect(contextUsageButton.getAttribute('title')).toMatch(/78k\/258k context used/i)
+    expect(contextUsageButton.getAttribute('title')).toMatch(/Estimated actual context in use/i)
     expect(contextUsageButton.getAttribute('title')).toMatch(/Total processed: 298k tokens/i)
+  })
+
+  it('omits total processed from the context tooltip when token processing totals are unavailable', () => {
+    render(
+      <ControlledComposer
+        composerContextUsage={{
+          contextLimit: 300000,
+          usedContext: 300000,
+          remainingContext: 0,
+          usedPercentage: 100,
+          accuracy: 'estimated',
+          source: 'sdk-context-stats',
+          totalProcessedTokens: null,
+        }}
+      />,
+    )
+
+    const contextUsageButton = screen.getByRole('button', { name: /Context usage/i })
+
+    expect(contextUsageButton.getAttribute('title')).toMatch(/300k\/300k context used/i)
+    expect(contextUsageButton.getAttribute('title')).not.toMatch(/Total processed/i)
   })
 
   it('shows a placeholder instead of guessing when exact context usage is unavailable', () => {

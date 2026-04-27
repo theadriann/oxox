@@ -771,13 +771,13 @@ describe('renderer store providers and sidebar shell', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /^Attach$/i }))
-    expect(await screen.findByText('Token usage')).toBeTruthy()
+    expect(await screen.findByText('Token processing')).toBeTruthy()
     expect(screen.getByText('Elapsed')).toBeTruthy()
 
     fireEvent.keyDown(window, { key: 'k', metaKey: true })
     fireEvent.click(await screen.findByText('Detach from Session'))
     expect(await screen.findByText('Model')).toBeTruthy()
-    expect(screen.queryByText('Token usage')).toBeNull()
+    expect(screen.queryByText('Token processing')).toBeNull()
 
     view.unmount()
 

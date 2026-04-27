@@ -147,4 +147,24 @@ describe('SessionRuntimeCatalogStore', () => {
     expect(store.tools).toEqual([createTool({ currentlyAllowed: false })])
     expect(store.updatingToolLlmId).toBeNull()
   })
+
+  it('refreshes context stats when the refresh key changes after session activity', async () => {
+    const getContextStats = vi
+      .fn()
+      .mockResolvedValueOnce(createContextStats({ used: 24_612, remaining: 165_388 }))
+      .mockResolvedValueOnce(createContextStats({ used: 25_100, remaining: 164_900 }))
+    const store = new SessionRuntimeCatalogStore({
+      getContextStats,
+      listMcpServers: vi.fn().mockResolvedValue([]),
+      listSkills: vi.fn().mockResolvedValue([]),
+      listTools: vi.fn().mockResolvedValue([]),
+    })
+
+    await store.refresh('session-1', 'session-1:revision-1')
+    await store.refresh('session-1', 'session-1:revision-1')
+    await store.refresh('session-1', 'session-1:revision-2')
+
+    expect(getContextStats).toHaveBeenCalledTimes(2)
+    expect(store.contextStats).toEqual(createContextStats({ used: 25_100, remaining: 164_900 }))
+  })
 })

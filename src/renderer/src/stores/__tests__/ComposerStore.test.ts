@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   FoundationBootstrap,
+  LiveSessionContextStatsInfo,
   LiveSessionRewindInfo,
   LiveSessionSnapshot,
   OxoxBridge,
@@ -116,6 +117,7 @@ function createStores(
     sessions?: SessionRecord[]
     selectedSessionId?: string
     snapshot?: LiveSessionSnapshot | null
+    getSelectedContextStats?: () => LiveSessionContextStatsInfo | null
     snapshotLoader?: (sessionId: string) => Promise<LiveSessionSnapshot | null>
     sessionApi?: Partial<OxoxBridge['session']>
     foundationBridge?: FoundationStoreBridge
@@ -158,6 +160,7 @@ function createStores(
       (window.oxox?.session as ComposerSessionGateway | undefined) ??
       {}) as ComposerSessionGateway,
     persistence,
+    options.getSelectedContextStats,
   )
 
   return {
@@ -352,6 +355,46 @@ describe('ComposerStore', () => {
       contextLimit: 100000,
       usedContext: 50000,
       usedPercentage: 50,
+    })
+  })
+
+  it('uses SDK context stats as the source of truth instead of cache-read token usage', () => {
+    const { composerStore } = createStores({
+      snapshot: createLiveSnapshot({
+        events: [
+          {
+            type: 'session.tokenUsageChanged',
+            tokenUsage: {
+              inputTokens: 17739,
+              outputTokens: 184,
+              cacheCreationTokens: 0,
+              cacheReadTokens: 28729,
+              thinkingTokens: 0,
+            },
+            lastCallTokenUsage: {
+              inputTokens: 17739,
+              cacheReadTokens: 28729,
+            },
+          },
+        ],
+      }),
+      getSelectedContextStats: () => ({
+        used: 24612,
+        remaining: 165388,
+        limit: 190000,
+        accuracy: 'estimated',
+        updatedAt: '2026-04-27T08:49:56.115Z',
+      }),
+    })
+
+    expect(composerStore.selectedComposerContextUsage).toMatchObject({
+      contextLimit: 190000,
+      usedContext: 24612,
+      remainingContext: 165388,
+      usedPercentage: 13,
+      accuracy: 'estimated',
+      source: 'sdk-context-stats',
+      totalProcessedTokens: 46652,
     })
   })
 

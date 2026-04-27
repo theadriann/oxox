@@ -95,7 +95,18 @@ describe('ContextPanel', () => {
           settings: { modelId: 'gpt-5.4', interactionMode: 'auto' },
           availableModels: [{ id: 'gpt-5.4', name: 'GPT 5.4' }],
           messages: [],
-          events: [],
+          events: [
+            {
+              type: 'session.tokenUsageChanged',
+              tokenUsage: {
+                inputTokens: 1000,
+                outputTokens: 500,
+                cacheCreationTokens: 50,
+                cacheReadTokens: 200,
+                thinkingTokens: 100,
+              },
+            },
+          ],
         }}
         onResizeStart={() => undefined}
         selectedSession={selectedSession}
@@ -132,7 +143,18 @@ describe('ContextPanel', () => {
           },
           availableModels: [{ id: 'gpt-5.4', name: 'GPT 5.4' }],
           messages: [],
-          events: [],
+          events: [
+            {
+              type: 'session.tokenUsageChanged',
+              tokenUsage: {
+                inputTokens: 1000,
+                outputTokens: 500,
+                cacheCreationTokens: 50,
+                cacheReadTokens: 200,
+                thinkingTokens: 100,
+              },
+            },
+          ],
         }}
         onResizeStart={() => undefined}
         runtimeCatalog={{
@@ -191,6 +213,10 @@ describe('ContextPanel', () => {
     expect(screen.getByText('Context window')).toBeTruthy()
     expect(screen.getByText('12% used')).toBeTruthy()
     expect(screen.getByText('87,655 remaining')).toBeTruthy()
+    expect(screen.getByText('Token processing')).toBeTruthy()
+    expect(screen.getByText('Cache read')).toBeTruthy()
+    expect(screen.getByText('Cache write')).toBeTruthy()
+    expect(screen.getByText('1,850')).toBeTruthy()
     expect(screen.getByText('Skills')).toBeTruthy()
     expect(screen.getByText('MCP servers')).toBeTruthy()
     expect(screen.getByText('vault-knowledge')).toBeTruthy()
@@ -198,5 +224,43 @@ describe('ContextPanel', () => {
 
     fireEvent.click(screen.getByRole('switch', { name: 'Toggle Read tool' }))
     expect(onToggleTool).toHaveBeenCalledWith('Read', false)
+  })
+
+  it('hides over-limit estimated context stats because Droid can overestimate compacted sessions', () => {
+    render(
+      <ContextPanel
+        liveSession={{
+          id: 'live-session-1',
+          title: 'Long-running session',
+          projectWorkspacePath: '/tmp/project-alpha',
+          status: 'active',
+          settings: { modelId: 'gpt-5.4', interactionMode: 'auto' },
+          availableModels: [{ id: 'gpt-5.4', name: 'GPT 5.4' }],
+          messages: [],
+          events: [],
+        }}
+        onResizeStart={() => undefined}
+        runtimeCatalog={{
+          refreshError: null,
+          tools: [],
+          skills: [],
+          mcpServers: [],
+          contextStats: {
+            used: 889_897,
+            remaining: 0,
+            limit: 300_000,
+            accuracy: 'estimated',
+            updatedAt: '2026-04-27T12:00:00.000Z',
+          },
+          updatingToolLlmId: null,
+        }}
+        selectedSession={selectedSession}
+        width={320}
+      />,
+    )
+
+    expect(screen.queryByText('Context window')).toBeNull()
+    expect(screen.queryByText('100% used')).toBeNull()
+    expect(screen.queryByText('889,897 used')).toBeNull()
   })
 })
