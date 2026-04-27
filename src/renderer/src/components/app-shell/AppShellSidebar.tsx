@@ -7,6 +7,7 @@ import {
   useComposerStore,
   useFoundationStore,
   useLiveSessionStore,
+  useRootStore,
   useSessionStore,
   useUIStore,
 } from '../../stores/StoreProvider'
@@ -25,6 +26,7 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
   const composerStore = useComposerStore()
   const foundationStore = useFoundationStore()
   const liveSessionStore = useLiveSessionStore()
+  const rootStore = useRootStore()
   const sessionStore = useSessionStore()
   const uiStore = useUIStore()
   const { newSessionForm, startSidebarResize } = useAppShellControllerContext()
@@ -103,7 +105,10 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
       onBack={uiStore.closeSettings}
     />
   ) : (
-    <SessionSidebarConnected {...sidebarState.sidebar} />
+    <SessionSidebarConnected
+      {...sidebarState.sidebar}
+      searchSessions={rootStore.api.search.sessions}
+    />
   )
 
   if (!shouldAnimate) {

@@ -127,6 +127,51 @@ describe('filterSessionGroups', () => {
     expect(result.pinnedSessions.map((session) => session.id)).toEqual(['session-replay-audit'])
     expect(result.activeFilterCount).toBe(4)
   })
+
+  it('uses main-process search result IDs and ordering while preserving sidebar filters', () => {
+    const activeMatch = createSession({
+      id: 'active-match',
+      title: 'Local title that does not contain the query',
+      projectKey: 'project-alpha',
+      projectLabel: 'project-alpha',
+      status: 'active',
+    })
+    const completedMatch = createSession({
+      id: 'completed-match',
+      title: 'Another local title',
+      projectKey: 'project-alpha',
+      projectLabel: 'project-alpha',
+      status: 'completed',
+    })
+    const activeSecond = createSession({
+      id: 'active-second',
+      title: 'Second local title',
+      projectKey: 'project-alpha',
+      projectLabel: 'project-alpha',
+      status: 'active',
+    })
+    const groups = [createGroup('project-alpha', [activeSecond, activeMatch, completedMatch])]
+
+    const result = filterSessionGroups(
+      groups,
+      [],
+      {
+        ...DEFAULT_SIDEBAR_FILTERS,
+        query: 'content:auth',
+        status: 'active',
+      },
+      [
+        { sessionId: 'active-match', score: 10, reasons: [] },
+        { sessionId: 'completed-match', score: 9, reasons: [] },
+        { sessionId: 'active-second', score: 8, reasons: [] },
+      ],
+    )
+
+    expect(result.groups[0]?.sessions.map((session) => session.id)).toEqual([
+      'active-match',
+      'active-second',
+    ])
+  })
 })
 
 describe('parseMetaQuery', () => {

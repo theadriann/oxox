@@ -23,6 +23,7 @@ export const IPC_CHANNELS = {
   databaseListProjects: 'database:list-projects',
   databaseListSessions: 'database:list-sessions',
   databaseListSyncMetadata: 'database:list-sync-metadata',
+  sessionSearch: 'session:search',
   transcriptGetSessionTranscript: 'transcript:get-session-transcript',
   sessionCreate: 'session:create',
   sessionGetSnapshot: 'session:get-snapshot',
@@ -196,6 +197,27 @@ export interface SessionTranscript {
   sourcePath: string
   loadedAt: string
   entries: TranscriptEntry[]
+}
+
+export interface SessionSearchRequest {
+  query: string
+  limit?: number
+}
+
+export interface SessionSearchReason {
+  field: 'title' | 'content' | 'project' | 'path' | 'status' | 'id' | 'tool'
+  snippet: string
+}
+
+export interface SessionSearchMatch {
+  sessionId: string
+  score: number
+  reasons: SessionSearchReason[]
+}
+
+export interface SessionSearchResponse {
+  query: string
+  matches: SessionSearchMatch[]
 }
 
 export interface DatabaseDiagnostics {
@@ -577,6 +599,9 @@ export interface OxoxBridge {
   }
   transcript: {
     getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
+  }
+  search: {
+    sessions: (request: SessionSearchRequest) => Promise<SessionSearchResponse>
   }
   session: {
     create: (cwd: string) => Promise<LiveSessionSnapshot>

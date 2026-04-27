@@ -20,6 +20,8 @@ import type {
   ProjectRecord,
   RuntimeInfo,
   SessionRecord,
+  SessionSearchRequest,
+  SessionSearchResponse,
   SessionTranscript,
   SyncMetadataRecord,
 } from '../shared/ipc/contracts'
@@ -133,6 +135,10 @@ export function createOxoxBridge(
           IPC_CHANNELS.transcriptGetSessionTranscript,
           sessionId,
         ),
+    },
+    search: {
+      sessions: (request: SessionSearchRequest) =>
+        invokeTyped<SessionSearchResponse>(invoke, IPC_CHANNELS.sessionSearch, request),
     },
     session: {
       create: (cwd) => invokeTyped<LiveSessionSnapshot>(invoke, IPC_CHANNELS.sessionCreate, cwd),

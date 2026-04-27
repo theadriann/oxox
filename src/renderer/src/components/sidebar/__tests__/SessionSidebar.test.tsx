@@ -219,6 +219,33 @@ describe('SessionSidebar', () => {
     expect(onNewSession).toHaveBeenCalledWith('/tmp/project-alpha')
   })
 
+  it('notifies the main-process search controller when the query changes', () => {
+    const onSearchQueryChange = vi.fn()
+
+    render(
+      <SessionSidebar
+        groups={[]}
+        selectedSessionId=""
+        activeCount={0}
+        isProjectCollapsed={() => false}
+        onToggleProject={() => undefined}
+        onSelectSession={() => undefined}
+        onTogglePinnedSession={() => undefined}
+        onSetProjectDisplayName={() => undefined}
+        pinnedSessions={[]}
+        onNewSession={() => undefined}
+        onResizeStart={() => undefined}
+        onSearchQueryChange={onSearchQueryChange}
+      />,
+    )
+
+    fireEvent.change(screen.getByRole('searchbox', { name: /search sessions/i }), {
+      target: { value: 'content:auth' },
+    })
+
+    expect(onSearchQueryChange).toHaveBeenCalledWith('content:auth')
+  })
+
   it('offers a session archive action from the row menu', async () => {
     const onArchiveSession = vi.fn()
 

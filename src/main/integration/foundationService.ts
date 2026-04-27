@@ -19,6 +19,8 @@ import type {
   LiveSessionToolInfo,
   ProjectRecord,
   SessionRecord,
+  SessionSearchRequest,
+  SessionSearchResponse,
   SessionTranscript,
   SyncMetadataRecord,
 } from '../../shared/ipc/contracts'
@@ -40,6 +42,7 @@ import { createFoundationChangeBroadcaster } from './foundation/changeBroadcaste
 import { createFoundationLiveSessionRuntime } from './foundation/liveSessionRuntime'
 import { createFoundationQueries } from './foundation/queries'
 import { createFoundationSessionCatalog } from './foundation/sessionCatalog'
+import { createSessionSearchService } from './search/sessionSearchService'
 import { createSessionProcessManager } from './sessions/processManager'
 
 export interface FoundationService {
@@ -91,6 +94,7 @@ export interface FoundationService {
   listSessions: () => SessionRecord[]
   listSyncMetadata: () => SyncMetadataRecord[]
   getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
+  searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
   subscribeToFoundationUpdates: (
     listener: (payload: FoundationChangedPayload) => void,
   ) => (() => void) | undefined
@@ -149,9 +153,16 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
     droidCliStatus,
     getFactorySettingsBootstrap: foundationBootstrapState.getSnapshot,
   })
+  const searchService = createSessionSearchService({
+    bootstrap: queries.getBootstrap(),
+    loadSessionTranscript: queries.getSessionTranscript,
+  })
   foundationChangeBroadcaster = createFoundationChangeBroadcaster({
     getSnapshot: queries.getBootstrap,
-    emit: emitPayload,
+    emit: (payload) => {
+      searchService.replaceFoundation(queries.getBootstrap())
+      emitPayload(payload)
+    },
   })
   const daemonSessionControl = createDaemonSessionControl({
     daemonTransport,
@@ -160,12 +171,20 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
     sessionsRoot,
   })
   foundationChangeBroadcaster.prime()
+  const unsubscribeSearchLiveSnapshots = liveSessionRuntime.subscribeToSnapshots((sessionId) => {
+    const snapshot = liveSessionRuntime.getSessionSnapshot(sessionId)
+    if (snapshot) {
+      searchService.scheduleLiveSnapshotUpdate(snapshot)
+    }
+  })
   daemonTransport.start()
   void foundationBootstrapState.refreshFromDroidCli()
 
   return {
     close: () => {
       sessionCatalog.close()
+      unsubscribeSearchLiveSnapshots()
+      searchService.dispose()
       void daemonTransport.stop()
       void liveSessionRuntime.dispose()
       database.close()
@@ -220,6 +239,7 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
     listSessions: queries.listSessions,
     listSyncMetadata: queries.listSyncMetadata,
     getSessionTranscript: queries.getSessionTranscript,
+    searchSessions: searchService.searchSessions,
     subscribeToFoundationUpdates: (listener) => {
       foundationUpdateListeners.add(listener)
 

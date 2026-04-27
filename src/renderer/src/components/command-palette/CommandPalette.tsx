@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Command } from 'cmdk'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Command as CommandIcon, FolderSearch, Hash, Search, Zap } from 'lucide-react'
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '../../lib/utils'
 import type { SessionPreview } from '../../stores/SessionStore'
 
@@ -51,6 +51,8 @@ export interface CommandPaletteProps {
   sessions: SessionPreview[]
   onOpenChange: (open: boolean) => void
   onSelectSession: (sessionId: string) => void
+  onSearchChange?: (query: string) => void
+  forceMountSessionResults?: boolean
 }
 
 export function CommandPalette({
@@ -59,6 +61,8 @@ export function CommandPalette({
   sessions,
   onOpenChange,
   onSelectSession,
+  onSearchChange,
+  forceMountSessionResults = false,
 }: CommandPaletteProps) {
   const [search, setSearch] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -77,29 +81,41 @@ export function CommandPalette({
     [hasQuery, sessions],
   )
 
-  const handleValueChange = useCallback((value: string) => {
-    setSearch(value)
-  }, [])
+  const handleValueChange = useCallback(
+    (value: string) => {
+      setSearch(value)
+      onSearchChange?.(value)
+    },
+    [onSearchChange],
+  )
 
-  useEffect(() => {
-    if (!open) {
-      setSearch('')
-      return
-    }
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        setSearch('')
+        onSearchChange?.('')
+      }
 
-    const focusFrame = window.requestAnimationFrame(() => {
-      inputRef.current?.focus()
-    })
+      onOpenChange(nextOpen)
+    },
+    [onOpenChange, onSearchChange],
+  )
 
-    return () => {
-      window.cancelAnimationFrame(focusFrame)
-    }
-  }, [open])
+  const setInputRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      inputRef.current = node
+
+      if (node && open) {
+        window.requestAnimationFrame(() => node.focus())
+      }
+    },
+    [open],
+  )
 
   return (
     <Command.Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       filter={substringFilter}
       label="Command palette"
       loop={true}
@@ -119,7 +135,7 @@ export function CommandPalette({
             <Search className="size-[15px] text-fd-tertiary transition-colors duration-150" />
           </div>
           <Command.Input
-            ref={inputRef}
+            ref={setInputRef}
             aria-label="Search commands and sessions"
             value={search}
             onValueChange={handleValueChange}
@@ -150,6 +166,7 @@ export function CommandPalette({
           />
           <CommandPaletteSessionResults
             sessions={sessionsToRender}
+            forceMountSessionResults={forceMountSessionResults}
             onOpenChange={onOpenChange}
             onSelectSession={onSelectSession}
           />
@@ -212,10 +229,12 @@ const CommandPaletteCommandGroups = memo(function CommandPaletteCommandGroups({
 })
 
 const CommandPaletteSessionResults = memo(function CommandPaletteSessionResults({
+  forceMountSessionResults,
   onOpenChange,
   onSelectSession,
   sessions,
 }: {
+  forceMountSessionResults: boolean
   onOpenChange: (open: boolean) => void
   onSelectSession: (sessionId: string) => void
   sessions: SessionPreview[]
@@ -230,6 +249,7 @@ const CommandPaletteSessionResults = memo(function CommandPaletteSessionResults(
         <SessionItem
           key={session.id}
           session={session}
+          forceMount={forceMountSessionResults}
           onSelect={() => {
             onSelectSession(session.id)
             onOpenChange(false)
@@ -304,14 +324,17 @@ function ItemTrail() {
 }
 
 const SessionItem = memo(function SessionItem({
+  forceMount,
   session,
   onSelect,
 }: {
+  forceMount: boolean
   session: SessionPreview
   onSelect: () => void
 }) {
   return (
     <PaletteItem
+      forceMount={forceMount}
       value={`${session.id} ${session.title}`}
       keywords={[
         session.title,

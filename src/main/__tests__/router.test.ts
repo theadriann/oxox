@@ -25,6 +25,10 @@ describe('registerAppIpcHandlers', () => {
       listProjects: vi.fn().mockReturnValue([{ id: 'project-1' }]),
       listSessions: vi.fn().mockReturnValue([]),
       listSyncMetadata: vi.fn().mockReturnValue([]),
+      searchSessions: vi.fn().mockReturnValue({
+        query: 'sdk',
+        matches: [{ sessionId: 'session-1', score: 10, reasons: [] }],
+      }),
       getSessionTranscript: vi.fn(),
       createSession: vi.fn(),
       getSessionSnapshot: vi.fn(),
@@ -173,6 +177,13 @@ describe('registerAppIpcHandlers', () => {
     expect(await ipcMain.handlers.get(IPC_CHANNELS.databaseListProjects)?.()).toEqual([
       { id: 'project-1' },
     ])
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.sessionSearch)?.(undefined, { query: 'sdk' }),
+    ).toEqual({
+      query: 'sdk',
+      matches: [{ sessionId: 'session-1', score: 10, reasons: [] }],
+    })
+    expect(service.searchSessions).toHaveBeenCalledWith({ query: 'sdk' })
     await ipcMain.handlers.get(IPC_CHANNELS.sessionRename)?.(undefined, 'session-1', 'Renamed live')
     expect(service.renameSession).toHaveBeenCalledWith('session-1', 'Renamed live')
     expect(

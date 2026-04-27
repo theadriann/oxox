@@ -68,6 +68,17 @@ describe('createOxoxBridge', () => {
         case IPC_CHANNELS.databaseListSessions:
         case IPC_CHANNELS.databaseListSyncMetadata:
           return Promise.resolve([])
+        case IPC_CHANNELS.sessionSearch:
+          return Promise.resolve({
+            query: 'sdk',
+            matches: [
+              {
+                sessionId: 'session-live-1',
+                score: 42,
+                reasons: [{ field: 'title', snippet: 'sdk runtime' }],
+              },
+            ],
+          })
         case IPC_CHANNELS.pluginListHosts:
           return Promise.resolve([
             {
@@ -208,6 +219,16 @@ describe('createOxoxBridge', () => {
     await expect(bridge.database.listProjects()).resolves.toEqual([])
     await expect(bridge.database.listSessions()).resolves.toEqual([])
     await expect(bridge.database.listSyncMetadata()).resolves.toEqual([])
+    await expect(bridge.search.sessions({ query: 'sdk' })).resolves.toEqual({
+      query: 'sdk',
+      matches: [
+        {
+          sessionId: 'session-live-1',
+          score: 42,
+          reasons: [{ field: 'title', snippet: 'sdk runtime' }],
+        },
+      ],
+    })
     await expect(bridge.plugin?.listCapabilities()).resolves.toEqual([
       {
         qualifiedId: 'plugin.example:summarize',
@@ -329,6 +350,7 @@ describe('createOxoxBridge', () => {
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.databaseListProjects)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.databaseListSessions)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.databaseListSyncMetadata)
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionSearch, { query: 'sdk' })
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.pluginListCapabilities)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.pluginListHosts)
     expect(invoke).toHaveBeenCalledWith(

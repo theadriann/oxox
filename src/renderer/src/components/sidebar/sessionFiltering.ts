@@ -1,3 +1,4 @@
+import type { SessionSearchMatch } from '../../../../shared/ipc/contracts'
 import type {
   ExtendedSessionStatus,
   ProjectSessionGroup,
@@ -78,8 +79,12 @@ export function filterSessionGroups(
   groups: ProjectSessionGroup[],
   pinnedSessions: SessionPreview[],
   filters: SidebarFilters,
-  now = Date.now(),
+  searchMatchesOrNow?: readonly SessionSearchMatch[] | number | null,
+  maybeNow = Date.now(),
 ): FilteredSessionGroupsResult {
+  const hasServerSearchMatches = Array.isArray(searchMatchesOrNow)
+  const searchMatches = hasServerSearchMatches ? searchMatchesOrNow : null
+  const now = typeof searchMatchesOrNow === 'number' ? searchMatchesOrNow : maybeNow
   const uniqueSessions = dedupeSessions(groups)
   const availableProjects = groups.map((group) => ({
     value: group.key,
@@ -91,9 +96,27 @@ export function filterSessionGroups(
   const parsed = parseMetaQuery(filters.query)
   const hasMeta = Object.keys(parsed.meta).length > 0
   const normalizedQuery = normalize(parsed.freeText)
+  const serverSearchOrder = searchMatches
+    ? new Map(searchMatches.map((match, index) => [match.sessionId, { index, score: match.score }]))
+    : null
+  const useServerSearch = Boolean(normalize(filters.query)) && Boolean(serverSearchOrder)
 
   for (const session of uniqueSessions) {
     if (!matchesAdvancedFilters(session, filters, now)) {
+      continue
+    }
+
+    if (useServerSearch) {
+      const searchMatch = serverSearchOrder?.get(session.id)
+
+      if (!searchMatch) {
+        continue
+      }
+
+      rankedSessions.set(session.id, {
+        session,
+        score: searchMatch.score,
+      })
       continue
     }
 
@@ -118,7 +141,9 @@ export function filterSessionGroups(
       const matchingSessions = group.sessions
         .map((session) => rankedSessions.get(session.id))
         .filter((session): session is RankedSession => Boolean(session))
-        .sort((left, right) => compareRankedSessions(left, right, Boolean(normalizedQuery)))
+        .sort((left, right) =>
+          compareRankedSessions(left, right, Boolean(normalizedQuery), serverSearchOrder),
+        )
 
       if (matchingSessions.length === 0) {
         return null
@@ -142,6 +167,16 @@ export function filterSessionGroups(
       } => Boolean(group),
     )
     .sort((left, right) => {
+      if (useServerSearch && serverSearchOrder) {
+        const leftIndex = Math.min(
+          ...left.sessions.map((session) => serverSearchOrder.get(session.id)?.index ?? Infinity),
+        )
+        const rightIndex = Math.min(
+          ...right.sessions.map((session) => serverSearchOrder.get(session.id)?.index ?? Infinity),
+        )
+        return leftIndex - rightIndex || right.latestActivityAt - left.latestActivityAt
+      }
+
       if (normalizedQuery) {
         return right.topScore - left.topScore || right.latestActivityAt - left.latestActivityAt
       }
@@ -159,7 +194,9 @@ export function filterSessionGroups(
   const rankedPinnedSessions = pinnedSessions
     .map((session) => rankedSessions.get(session.id))
     .filter((session): session is RankedSession => Boolean(session))
-    .sort((left, right) => compareRankedSessions(left, right, Boolean(normalizedQuery)))
+    .sort((left, right) =>
+      compareRankedSessions(left, right, Boolean(normalizedQuery), serverSearchOrder),
+    )
     .map((entry) => entry.session)
 
   return {
@@ -430,7 +467,16 @@ function compareRankedSessions(
   left: RankedSession,
   right: RankedSession,
   sortByScore: boolean,
+  serverSearchOrder?: Map<string, { index: number; score: number }> | null,
 ): number {
+  if (serverSearchOrder) {
+    return (
+      (serverSearchOrder.get(left.session.id)?.index ?? Infinity) -
+        (serverSearchOrder.get(right.session.id)?.index ?? Infinity) ||
+      right.session.lastActivityTimestamp - left.session.lastActivityTimestamp
+    )
+  }
+
   if (sortByScore) {
     return (
       right.score - left.score ||

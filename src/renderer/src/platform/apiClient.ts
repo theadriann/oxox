@@ -17,6 +17,7 @@ export interface PlatformApiClient {
   foundation: OptionalGroup<OxoxBridge['foundation']>
   database: OptionalGroup<OxoxBridge['database']>
   transcript: OptionalGroup<OxoxBridge['transcript']>
+  search: OptionalGroup<OxoxBridge['search']>
   session: OptionalGroup<OxoxBridge['session']>
 }
 
@@ -56,6 +57,7 @@ function buildPlatformApiClient(bridge: OxoxBridge | null): PlatformApiClient {
     foundation: bridge?.foundation ?? {},
     database: bridge?.database ?? {},
     transcript: bridge?.transcript ?? {},
+    search: bridge?.search ?? {},
     session: bridge?.session ?? {},
   }
 }

@@ -1,5 +1,7 @@
+import { useRef } from 'react'
 import { useValue } from '../../stores/legend'
-import { useSessionStore, useUIStore } from '../../stores/StoreProvider'
+import { SessionSearchController } from '../../stores/SessionSearchController'
+import { useRootStore, useSessionStore, useUIStore } from '../../stores/StoreProvider'
 import type { CommandPaletteAction } from '../command-palette/CommandPalette'
 import { CommandPalette } from '../command-palette/CommandPalette'
 import { useOptionalAppShellControllerContext } from './AppShellControllerContext'
@@ -14,12 +16,28 @@ interface CommandPaletteConnectedProps {
 }
 
 export function CommandPaletteConnected({ commandPalette }: CommandPaletteConnectedProps) {
+  const rootStore = useRootStore()
   const sessionStore = useSessionStore()
   const uiStore = useUIStore()
+  const searchControllerRef = useRef(new SessionSearchController(rootStore.api.search.sessions))
+  const searchController = searchControllerRef.current
   const controller = useOptionalAppShellControllerContext()
   const resolvedCommandPalette = commandPalette ?? controller?.commandPalette
   const open = useValue(() => uiStore.isCommandPaletteOpen)
-  const sessions = useValue(() => (open ? sessionStore.sessions : []))
+  const sessions = useValue(() => {
+    if (!open) {
+      return []
+    }
+
+    if (!rootStore.api.search.sessions || searchController.lastQuery.length === 0) {
+      return sessionStore.sessions
+    }
+
+    const sessionsById = new Map(sessionStore.sessions.map((session) => [session.id, session]))
+    return searchController.matches
+      .map((match) => sessionsById.get(match.sessionId))
+      .filter((session): session is NonNullable<typeof session> => Boolean(session))
+  })
   const commands = useValue(() => (open ? (resolvedCommandPalette?.getCommands() ?? []) : []))
 
   if (!resolvedCommandPalette) {
@@ -37,6 +55,8 @@ export function CommandPaletteConnected({ commandPalette }: CommandPaletteConnec
         open ? resolvedCommandPalette.openPalette() : resolvedCommandPalette.closePalette()
       }
       onSelectSession={resolvedCommandPalette.handleSessionSelection}
+      onSearchChange={searchController.search}
+      forceMountSessionResults={Boolean(rootStore.api.search.sessions)}
     />
   )
 }

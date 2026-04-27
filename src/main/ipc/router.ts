@@ -131,6 +131,10 @@ export function registerAppIpcHandlers({
     [IPC_CHANNELS.databaseListProjects]: () => service.listProjects(),
     [IPC_CHANNELS.databaseListSessions]: () => service.listSessions(),
     [IPC_CHANNELS.databaseListSyncMetadata]: () => service.listSyncMetadata(),
+    [IPC_CHANNELS.sessionSearch]: (
+      _event,
+      request: Parameters<FoundationService['searchSessions']>[0],
+    ) => service.searchSessions(request),
     [IPC_CHANNELS.transcriptGetSessionTranscript]: (_event, sessionId: string) =>
       service.getSessionTranscript(sessionId),
     [IPC_CHANNELS.sessionCreate]: async (event: IpcInvokeEventLike, cwd: string) => {

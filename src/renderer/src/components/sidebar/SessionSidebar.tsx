@@ -1,6 +1,7 @@
 import { ChevronsLeft, FolderSearch, GripVertical, Plus, Search } from 'lucide-react'
 import type { ChangeEvent, KeyboardEvent } from 'react'
 import { memo, type PointerEvent, useCallback, useMemo, useRef } from 'react'
+import type { SessionSearchMatch } from '../../../../shared/ipc/contracts'
 import { useValue } from '../../stores/legend'
 import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
 import { Badge } from '../ui/badge'
@@ -48,6 +49,8 @@ export interface SessionSidebarProps {
   onNewSession: (workspacePath?: string) => void
   onHideSidebar?: () => void
   onResizeStart: (event: PointerEvent<HTMLDivElement>) => void
+  searchMatches?: readonly SessionSearchMatch[] | null
+  onSearchQueryChange?: (query: string) => void
 }
 
 interface SessionSidebarViewProps extends SessionSidebarProps {
@@ -77,6 +80,8 @@ export function SessionSidebar({
   onNewSession,
   onHideSidebar,
   onResizeStart,
+  searchMatches,
+  onSearchQueryChange,
 }: SessionSidebarViewProps) {
   const sessionRefs = useRef(new Map<string, HTMLButtonElement>())
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
@@ -88,8 +93,8 @@ export function SessionSidebar({
   const isFilterPanelOpen = useValue(() => store.isFilterPanelOpen)
   const now = useValue(() => store.now)
   const filteredSidebar = useMemo(
-    () => filterSessionGroups(groups, pinnedSessions, filters, now),
-    [filters, groups, now, pinnedSessions],
+    () => filterSessionGroups(groups, pinnedSessions, filters, searchMatches, now),
+    [filters, groups, now, pinnedSessions, searchMatches],
   )
 
   const visibleItems = useValue(() =>
@@ -156,14 +161,17 @@ export function SessionSidebar({
   // Stable handlers for filter updates (rerender-functional-setstate / stable refs)
   const handleQueryChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-      store.updateFilters({ query: event.target.value }, scrollAreaRef.current)
+      const query = event.target.value
+      store.updateFilters({ query }, scrollAreaRef.current)
+      onSearchQueryChange?.(query)
     },
-    [store],
+    [onSearchQueryChange, store],
   )
 
   const handleClearQuery = useCallback(() => {
     store.updateFilters({ query: '' }, scrollAreaRef.current)
-  }, [store])
+    onSearchQueryChange?.('')
+  }, [onSearchQueryChange, store])
 
   const handleUpdateFilters = useCallback(
     (nextFilters: Partial<SidebarFilters>) => {
