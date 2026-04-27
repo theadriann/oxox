@@ -72,8 +72,8 @@ function UserMessageCard({ item }: { item: MessageTimelineItem }) {
 function AssistantMessageCard({ item }: { item: MessageTimelineItem }) {
   const contentBlocks = item.contentBlocks ?? [{ type: 'text' as const, text: item.content }]
   const contentSegments = useMemo(
-    () => parseJsonRenderContentSegments(item.content),
-    [item.content],
+    () => (item.status === 'streaming' ? [] : parseJsonRenderContentSegments(item.content)),
+    [item.content, item.status],
   )
   const imageBlocks = contentBlocks.filter(
     (block): block is Extract<TranscriptMessageContentBlock, { type: 'image' }> =>
@@ -97,24 +97,39 @@ function AssistantMessageCard({ item }: { item: MessageTimelineItem }) {
         </span>
       ) : null}
       <div className="text-[14px] leading-[1.7]">
-        {contentSegments.map((segment, index) =>
-          segment.kind === 'json-render' ? (
-            <JsonRenderMessage
-              key={createAssistantSegmentKey(item.id, index, segment)}
-              spec={segment.spec}
-            />
-          ) : (
-            <MarkdownRenderer
-              key={createAssistantSegmentKey(item.id, index, segment)}
-              markdown={segment.content}
-            />
-          ),
+        {item.status === 'streaming' ? (
+          <StreamingMessagePreview content={item.content} />
+        ) : (
+          contentSegments.map((segment, index) =>
+            segment.kind === 'json-render' ? (
+              <JsonRenderMessage
+                key={createAssistantSegmentKey(item.id, index, segment)}
+                spec={segment.spec}
+              />
+            ) : (
+              <MarkdownRenderer
+                key={createAssistantSegmentKey(item.id, index, segment)}
+                markdown={segment.content}
+              />
+            ),
+          )
         )}
         {imageBlocks.length > 0 ? (
           <div className="mt-2">{renderImageBlocks(item.id, imageBlocks, 'Assistant')}</div>
         ) : null}
       </div>
     </div>
+  )
+}
+
+function StreamingMessagePreview({ content }: { content: string }) {
+  return (
+    <p
+      data-testid="streaming-message-preview"
+      className="my-2 whitespace-pre-wrap break-words text-[14px] leading-[1.7] text-fd-primary/95"
+    >
+      {content}
+    </p>
   )
 }
 

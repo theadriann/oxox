@@ -23,6 +23,9 @@ export function useLiveSessionPoll({
 }: UseLiveSessionPollOptions): void {
   useObserveEffect(() => {
     const selectedSnapshotId = liveSessionStore.selectedSnapshotId
+    let latestSnapshot: LiveSessionSnapshot | null = null
+    let pendingFrameId: number | null = null
+    let pendingTimeoutId: ReturnType<typeof setTimeout> | null = null
 
     if (!selectedSnapshotId) {
       return
@@ -30,12 +33,51 @@ export function useLiveSessionPoll({
 
     void liveSessionStore.refreshSnapshot(selectedSnapshotId)
 
-    return sessionApi?.onSnapshotChanged?.(({ snapshot }) => {
+    const flushLatestSnapshot = () => {
+      pendingFrameId = null
+      pendingTimeoutId = null
+
+      if (!latestSnapshot) {
+        return
+      }
+
+      const snapshot = latestSnapshot
+      latestSnapshot = null
+      liveSessionStore.upsertSnapshot(snapshot)
+    }
+
+    const scheduleFlush = () => {
+      if (pendingFrameId !== null || pendingTimeoutId !== null) {
+        return
+      }
+
+      if (typeof requestAnimationFrame === 'function') {
+        pendingFrameId = requestAnimationFrame(flushLatestSnapshot)
+        return
+      }
+
+      pendingTimeoutId = setTimeout(flushLatestSnapshot, 16)
+    }
+
+    const unsubscribe = sessionApi?.onSnapshotChanged?.(({ snapshot }) => {
       if (snapshot.sessionId !== selectedSnapshotId) {
         return
       }
 
-      liveSessionStore.upsertSnapshot(snapshot)
+      latestSnapshot = snapshot
+      scheduleFlush()
     })
+
+    return () => {
+      unsubscribe?.()
+
+      if (pendingFrameId !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(pendingFrameId)
+      }
+
+      if (pendingTimeoutId !== null) {
+        clearTimeout(pendingTimeoutId)
+      }
+    }
   })
 }

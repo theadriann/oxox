@@ -4,22 +4,13 @@ import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const lifecycle = vi.hoisted(() => ({
-  markdownMounts: 0,
-  markdownUnmounts: 0,
+  markdownRenders: 0,
 }))
 
-vi.mock('../MarkdownRenderer', async () => {
-  const React = await import('react')
-
+vi.mock('../MarkdownRenderer', () => {
   return {
     MarkdownRenderer: ({ markdown }: { markdown: string }) => {
-      React.useEffect(() => {
-        lifecycle.markdownMounts += 1
-
-        return () => {
-          lifecycle.markdownUnmounts += 1
-        }
-      }, [])
+      lifecycle.markdownRenders += 1
 
       return <div data-testid="markdown-renderer">{markdown}</div>
     },
@@ -37,11 +28,10 @@ import { MessageCard } from '../MessageCard'
 
 describe('MessageCard', () => {
   beforeEach(() => {
-    lifecycle.markdownMounts = 0
-    lifecycle.markdownUnmounts = 0
+    lifecycle.markdownRenders = 0
   })
 
-  it('keeps assistant markdown mounted while streaming content grows', () => {
+  it('renders streaming assistant content as lightweight text until completion', () => {
     const { rerender } = render(
       <MessageCard
         item={{
@@ -56,9 +46,9 @@ describe('MessageCard', () => {
       />,
     )
 
-    expect(screen.getByTestId('markdown-renderer').textContent).toBe('First chunk')
-    expect(lifecycle.markdownMounts).toBe(1)
-    expect(lifecycle.markdownUnmounts).toBe(0)
+    expect(screen.getByTestId('streaming-message-preview').textContent).toBe('First chunk')
+    expect(screen.queryByTestId('markdown-renderer')).toBeNull()
+    expect(lifecycle.markdownRenders).toBe(0)
 
     rerender(
       <MessageCard
@@ -74,8 +64,26 @@ describe('MessageCard', () => {
       />,
     )
 
+    expect(screen.getByTestId('streaming-message-preview').textContent).toBe(
+      'First chunk with more output',
+    )
+    expect(lifecycle.markdownRenders).toBe(0)
+
+    rerender(
+      <MessageCard
+        item={{
+          kind: 'message',
+          id: 'assistant-1',
+          messageId: 'assistant-1',
+          role: 'assistant',
+          content: 'First chunk with more output',
+          status: 'completed',
+          occurredAt: null,
+        }}
+      />,
+    )
+
     expect(screen.getByTestId('markdown-renderer').textContent).toBe('First chunk with more output')
-    expect(lifecycle.markdownMounts).toBe(1)
-    expect(lifecycle.markdownUnmounts).toBe(0)
+    expect(lifecycle.markdownRenders).toBe(1)
   })
 })
