@@ -228,6 +228,90 @@ export function mapDroidMessageToSessionEvent(
         title: message.title,
       }
 
+    case 'mcp_status_changed':
+      return {
+        type: 'mcp.statusChanged',
+        sessionId,
+        servers: message.servers,
+        summary: message.summary,
+      }
+
+    case 'mcp_auth_required':
+      return {
+        type: 'mcp.authRequired',
+        sessionId,
+        serverName: message.serverName,
+        authUrl: message.authUrl,
+        message: message.message,
+        state: message.state,
+      }
+
+    case 'mcp_auth_completed':
+      return {
+        type: 'mcp.authCompleted',
+        sessionId,
+        serverName: message.serverName,
+        outcome: message.outcome,
+        message: message.message,
+      }
+
+    case 'mission_state_changed':
+      return {
+        type: 'mission.stateChanged',
+        sessionId,
+        state: message.state,
+      }
+
+    case 'mission_features_changed':
+      return {
+        type: 'mission.featuresChanged',
+        sessionId,
+        features: message.features,
+      }
+
+    case 'mission_progress_entry':
+      return {
+        type: 'mission.progressEntry',
+        sessionId,
+        progressLog: message.progressLog,
+      }
+
+    case 'mission_heartbeat':
+      return {
+        type: 'mission.heartbeat',
+        sessionId,
+        timestamp: message.timestamp,
+      }
+
+    case 'mission_worker_started':
+      return {
+        type: 'mission.workerStarted',
+        sessionId,
+        workerSessionId: message.workerSessionId,
+      }
+
+    case 'mission_worker_completed':
+      return {
+        type: 'mission.workerCompleted',
+        sessionId,
+        workerSessionId: message.workerSessionId,
+        exitCode: message.exitCode,
+      }
+
+    case 'result':
+      return {
+        type: 'session.result',
+        sessionId,
+        success: message.success,
+        text: message.text,
+        durationMs: message.durationMs,
+        turnCount: message.turnCount,
+        structuredOutput: message.structuredOutput,
+        structuredOutputError: message.structuredOutputError,
+        tokenUsage: message.tokenUsage,
+        error: message.error?.message ?? null,
+      }
+
     case 'error':
       return {
         type: 'stream.error',

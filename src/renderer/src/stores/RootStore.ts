@@ -65,9 +65,19 @@ export class RootStore {
     this.pluginHostStore = new PluginHostStore(listHosts ? () => listHosts() : async () => [])
     this.sessionRuntimeCatalogStore = new SessionRuntimeCatalogStore({
       getContextStats: this.api.session.getContextStats,
+      addMcpServer: this.api.session.addMcpServer,
+      authenticateMcpServer: this.api.session.authenticateMcpServer,
+      cancelMcpAuth: this.api.session.cancelMcpAuth,
+      clearMcpAuth: this.api.session.clearMcpAuth,
+      listMcpRegistry: this.api.session.listMcpRegistry,
       listMcpServers: this.api.session.listMcpServers,
+      listMcpTools: this.api.session.listMcpTools,
       listSkills: this.api.session.listSkills,
       listTools: this.api.session.listTools,
+      removeMcpServer: this.api.session.removeMcpServer,
+      submitMcpAuthCode: this.api.session.submitMcpAuthCode,
+      toggleMcpServer: this.api.session.toggleMcpServer,
+      toggleMcpTool: this.api.session.toggleMcpTool,
       updateSettings: this.api.session.updateSettings,
     })
     this.updateStore = new UpdateStore(this.api.app)

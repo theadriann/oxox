@@ -65,6 +65,10 @@ export function applyEventToSession(
         event.recoverable && session.viewerIds.size > 0 ? 'reconnecting' : 'error'
       return
 
+    case 'session.result':
+      session.workingStatus = event.success ? 'idle' : 'error'
+      return
+
     default:
       return
   }

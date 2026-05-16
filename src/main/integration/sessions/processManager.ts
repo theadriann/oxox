@@ -1,9 +1,16 @@
 import type {
+  LiveSessionAddUserMessageRequest,
   LiveSessionAskUserAnswerRecord,
+  LiveSessionBugReportRequest,
+  LiveSessionBugReportResult,
   LiveSessionCompactResult,
   LiveSessionContextStatsInfo,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpAuthCodeRequest,
+  LiveSessionMcpRegistryServerInfo,
+  LiveSessionMcpServerConfig,
   LiveSessionMcpServerInfo,
+  LiveSessionMcpToolInfo,
   LiveSessionRewindInfo,
   LiveSessionSkillInfo,
   LiveSessionToolInfo,
@@ -369,9 +376,15 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
       await requireManagedTransport(session).interruptSession(nextRequestId('session:interrupt'))
     },
 
-    async addUserMessage(sessionId: string, text: string): Promise<void> {
+    async addUserMessage(
+      sessionId: string,
+      message: string | LiveSessionAddUserMessageRequest,
+    ): Promise<void> {
       const session = requireTrackedSession(sessionId)
-      await requireManagedTransport(session).addUserMessage(nextRequestId('session:message'), text)
+      await requireManagedTransport(session).addUserMessage(
+        nextRequestId('session:message'),
+        message,
+      )
     },
 
     async renameSession(sessionId: string, title: string): Promise<void> {
@@ -402,6 +415,124 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
         (await requireManagedTransport(session).listMcpServers?.(nextRequestId('session:mcp'))) ??
         []
       )
+    },
+
+    async listSessionMcpTools(sessionId: string): Promise<LiveSessionMcpToolInfo[]> {
+      const session = requireTrackedSession(sessionId)
+      return (
+        (await requireManagedTransport(session).listMcpTools?.(
+          nextRequestId('session:mcp:tools'),
+        )) ?? []
+      )
+    },
+
+    async listSessionMcpRegistry(sessionId: string): Promise<LiveSessionMcpRegistryServerInfo[]> {
+      const session = requireTrackedSession(sessionId)
+      return (
+        (await requireManagedTransport(session).listMcpRegistry?.(
+          nextRequestId('session:mcp:registry'),
+        )) ?? []
+      )
+    },
+
+    async addMcpServer(sessionId: string, config: LiveSessionMcpServerConfig): Promise<void> {
+      const session = requireTrackedSession(sessionId)
+      await requireManagedTransport(session).addMcpServer?.(
+        nextRequestId('session:mcp:add'),
+        config,
+      )
+    },
+
+    async removeMcpServer(sessionId: string, serverName: string): Promise<void> {
+      const session = requireTrackedSession(sessionId)
+      await requireManagedTransport(session).removeMcpServer?.(
+        nextRequestId('session:mcp:remove'),
+        serverName,
+      )
+    },
+
+    async toggleMcpServer(sessionId: string, serverName: string, enabled: boolean): Promise<void> {
+      const session = requireTrackedSession(sessionId)
+      await requireManagedTransport(session).toggleMcpServer?.(
+        nextRequestId('session:mcp:toggle'),
+        serverName,
+        enabled,
+      )
+    },
+
+    async authenticateMcpServer(sessionId: string, serverName: string): Promise<void> {
+      const session = requireTrackedSession(sessionId)
+      await requireManagedTransport(session).authenticateMcpServer?.(
+        nextRequestId('session:mcp:auth'),
+        serverName,
+      )
+    },
+
+    async cancelMcpAuth(sessionId: string, serverName: string): Promise<void> {
+      const session = requireTrackedSession(sessionId)
+      await requireManagedTransport(session).cancelMcpAuth?.(
+        nextRequestId('session:mcp:cancel-auth'),
+        serverName,
+      )
+    },
+
+    async clearMcpAuth(sessionId: string, serverName: string): Promise<void> {
+      const session = requireTrackedSession(sessionId)
+      await requireManagedTransport(session).clearMcpAuth?.(
+        nextRequestId('session:mcp:clear-auth'),
+        serverName,
+      )
+    },
+
+    async submitMcpAuthCode(
+      sessionId: string,
+      request: LiveSessionMcpAuthCodeRequest,
+    ): Promise<void> {
+      const session = requireTrackedSession(sessionId)
+      await requireManagedTransport(session).submitMcpAuthCode?.(
+        nextRequestId('session:mcp:submit-auth-code'),
+        request,
+      )
+    },
+
+    async toggleMcpTool(
+      sessionId: string,
+      serverName: string,
+      toolName: string,
+      enabled: boolean,
+    ): Promise<void> {
+      const session = requireTrackedSession(sessionId)
+      await requireManagedTransport(session).toggleMcpTool?.(
+        nextRequestId('session:mcp:toggle-tool'),
+        serverName,
+        toolName,
+        enabled,
+      )
+    },
+
+    async killWorkerSession(sessionId: string, workerSessionId: string): Promise<void> {
+      const session = requireTrackedSession(sessionId)
+      await requireManagedTransport(session).killWorkerSession?.(
+        nextRequestId('session:worker:kill'),
+        workerSessionId,
+      )
+    },
+
+    async submitBugReport(
+      sessionId: string,
+      request: LiveSessionBugReportRequest,
+    ): Promise<LiveSessionBugReportResult> {
+      const session = requireTrackedSession(sessionId)
+      const result = await requireManagedTransport(session).submitBugReport?.(
+        nextRequestId('session:bug-report'),
+        request,
+      )
+
+      if (!result) {
+        throw new Error('Bug reporting is not supported by this session transport.')
+      }
+
+      return result
     },
 
     async getSessionContextStats(sessionId: string): Promise<LiveSessionContextStatsInfo | null> {

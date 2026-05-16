@@ -1,6 +1,7 @@
-import { AlertTriangle, Check, Copy, Layers3 } from 'lucide-react'
+import { AlertTriangle, Check, Copy, KeyRound, Layers3, Plus, Power, Trash2 } from 'lucide-react'
 import {
   memo,
+  type ReactNode,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
   useCallback,
@@ -10,7 +11,9 @@ import {
 import type {
   LiveSessionContextStatsInfo,
   LiveSessionEventRecord,
+  LiveSessionMcpRegistryServerInfo,
   LiveSessionMcpServerInfo,
+  LiveSessionMcpToolInfo,
   LiveSessionSkillInfo,
   LiveSessionSnapshot,
   LiveSessionToolInfo,
@@ -32,8 +35,18 @@ export interface ContextPanelProps {
     tools: LiveSessionToolInfo[]
     skills: LiveSessionSkillInfo[]
     mcpServers: LiveSessionMcpServerInfo[]
+    mcpTools: LiveSessionMcpToolInfo[]
+    mcpRegistry: LiveSessionMcpRegistryServerInfo[]
     updatingToolLlmId: string | null
+    updatingMcpServerName: string | null
+    updatingMcpToolKey: string | null
     onToggleTool?: (toolLlmId: string, allowed: boolean) => void
+    onAddMcpServer?: (server: LiveSessionMcpRegistryServerInfo) => void
+    onRemoveMcpServer?: (serverName: string) => void
+    onToggleMcpServer?: (serverName: string, enabled: boolean) => void
+    onAuthenticateMcpServer?: (serverName: string) => void
+    onClearMcpAuth?: (serverName: string) => void
+    onToggleMcpTool?: (serverName: string, toolName: string, enabled: boolean) => void
   }
   isLoading?: boolean
   errorState?: {
@@ -89,6 +102,8 @@ export function ContextPanel({
   const contextStats = runtimeCatalog?.contextStats
     ? normalizeContextStats(runtimeCatalog.contextStats)
     : null
+  const latestResult = getLatestResult(liveSession?.events ?? [])
+  const latestMcpAuthRequest = getLatestMcpAuthRequest(liveSession?.events ?? [])
 
   return (
     <aside
@@ -278,6 +293,24 @@ export function ContextPanel({
                 </DetailSection>
               ) : null}
 
+              {liveSession && latestResult ? (
+                <DetailSection title="Latest result">
+                  <ResultSummaryCard result={latestResult} />
+                </DetailSection>
+              ) : null}
+
+              {liveSession && latestMcpAuthRequest ? (
+                <DetailSection title="MCP authentication">
+                  <McpAuthCard
+                    request={latestMcpAuthRequest}
+                    isUpdating={
+                      runtimeCatalog?.updatingMcpServerName === latestMcpAuthRequest.serverName
+                    }
+                    onAuthenticate={runtimeCatalog?.onAuthenticateMcpServer}
+                  />
+                </DetailSection>
+              ) : null}
+
               {liveSession && runtimeCatalog ? (
                 <DetailSection title="Tool controls">
                   {runtimeCatalog.refreshError ? (
@@ -321,22 +354,60 @@ export function ContextPanel({
                 </DetailSection>
               ) : null}
 
-              {liveSession && runtimeCatalog?.mcpServers.length ? (
+              {liveSession && runtimeCatalog ? (
                 <DetailSection title="MCP servers">
+                  {runtimeCatalog.mcpServers?.length ? (
+                    <div className="flex flex-col gap-1">
+                      {runtimeCatalog.mcpServers.map((server) => (
+                        <McpServerRow
+                          key={server.name}
+                          server={server}
+                          isUpdating={runtimeCatalog.updatingMcpServerName === server.name}
+                          onAuthenticate={runtimeCatalog.onAuthenticateMcpServer}
+                          onClearAuth={runtimeCatalog.onClearMcpAuth}
+                          onRemove={runtimeCatalog.onRemoveMcpServer}
+                          onToggle={runtimeCatalog.onToggleMcpServer}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="px-1 py-1 text-[11px] text-fd-tertiary">
+                      No MCP servers are configured for this session.
+                    </p>
+                  )}
+                </DetailSection>
+              ) : null}
+
+              {liveSession && runtimeCatalog?.mcpTools?.length ? (
+                <DetailSection title="MCP tools">
                   <div className="flex flex-col gap-1">
-                    {runtimeCatalog.mcpServers.map((server) => (
-                      <div
+                    {runtimeCatalog.mcpTools.map((tool) => (
+                      <McpToolRow
+                        key={`${tool.serverName}:${tool.name}`}
+                        tool={tool}
+                        isUpdating={
+                          runtimeCatalog.updatingMcpToolKey === `${tool.serverName}:${tool.name}`
+                        }
+                        onToggle={runtimeCatalog.onToggleMcpTool}
+                      />
+                    ))}
+                  </div>
+                </DetailSection>
+              ) : null}
+
+              {liveSession && runtimeCatalog?.mcpRegistry?.length ? (
+                <DetailSection title="MCP registry">
+                  <div className="flex flex-col gap-1">
+                    {runtimeCatalog.mcpRegistry.slice(0, 6).map((server) => (
+                      <McpRegistryRow
                         key={server.name}
-                        className="flex items-center justify-between gap-2 px-1 py-1"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-[11px] text-fd-primary">{server.name}</p>
-                          <p className="text-[10px] text-fd-tertiary">{formatMcpSummary(server)}</p>
-                        </div>
-                        <span className="rounded bg-fd-panel px-1.5 py-0.5 text-[9px] uppercase text-fd-tertiary">
-                          {server.status}
-                        </span>
-                      </div>
+                        server={server}
+                        isInstalled={(runtimeCatalog.mcpServers ?? []).some(
+                          (installed) => installed.name === server.name,
+                        )}
+                        isUpdating={runtimeCatalog.updatingMcpServerName === server.name}
+                        onAdd={runtimeCatalog.onAddMcpServer}
+                      />
                     ))}
                   </div>
                 </DetailSection>
@@ -515,6 +586,213 @@ function ToolToggleRow({
   )
 }
 
+function McpServerRow({
+  server,
+  isUpdating,
+  onAuthenticate,
+  onClearAuth,
+  onRemove,
+  onToggle,
+}: {
+  server: LiveSessionMcpServerInfo
+  isUpdating: boolean
+  onAuthenticate?: (serverName: string) => void
+  onClearAuth?: (serverName: string) => void
+  onRemove?: (serverName: string) => void
+  onToggle?: (serverName: string, enabled: boolean) => void
+}) {
+  const isEnabled = server.status !== 'disabled'
+
+  return (
+    <div className="rounded-md border border-fd-border-subtle bg-fd-panel/40 px-2 py-1.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-[11px] text-fd-primary">{server.name}</p>
+          <p className="text-[10px] text-fd-tertiary">{formatMcpSummary(server)}</p>
+          {server.error ? (
+            <p className="mt-0.5 text-[10px] text-fd-danger">{server.error}</p>
+          ) : null}
+        </div>
+        <span className="rounded bg-fd-surface px-1.5 py-0.5 text-[9px] uppercase text-fd-tertiary">
+          {server.status}
+        </span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        <McpActionButton
+          label={isEnabled ? 'Disable' : 'Enable'}
+          icon={<Power className="size-2.5" />}
+          disabled={isUpdating}
+          onClick={() => onToggle?.(server.name, !isEnabled)}
+        />
+        {!server.hasAuthTokens ? (
+          <McpActionButton
+            label="Auth"
+            icon={<KeyRound className="size-2.5" />}
+            disabled={isUpdating}
+            onClick={() => onAuthenticate?.(server.name)}
+          />
+        ) : (
+          <McpActionButton
+            label="Clear auth"
+            icon={<KeyRound className="size-2.5" />}
+            disabled={isUpdating}
+            onClick={() => onClearAuth?.(server.name)}
+          />
+        )}
+        {server.isManaged ? (
+          <McpActionButton
+            label="Remove"
+            icon={<Trash2 className="size-2.5" />}
+            disabled={isUpdating}
+            onClick={() => onRemove?.(server.name)}
+          />
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function McpToolRow({
+  tool,
+  isUpdating,
+  onToggle,
+}: {
+  tool: LiveSessionMcpToolInfo
+  isUpdating: boolean
+  onToggle?: (serverName: string, toolName: string, enabled: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-fd-border-subtle bg-fd-panel/40 px-2 py-1.5">
+      <div className="min-w-0">
+        <p className="truncate text-[11px] text-fd-primary">{tool.name}</p>
+        <p className="text-[10px] text-fd-tertiary">
+          {tool.serverName}
+          {tool.isReadOnly ? ' · read-only' : ''}
+        </p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={tool.isEnabled}
+        aria-label={`Toggle ${tool.name} MCP tool`}
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          tool.isEnabled ? 'bg-fd-ember-400' : 'bg-fd-tertiary/30'
+        }`}
+        disabled={isUpdating}
+        onClick={() => onToggle?.(tool.serverName, tool.name, !tool.isEnabled)}
+      >
+        <span
+          className={`pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform ${
+            tool.isEnabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
+          }`}
+        />
+      </button>
+    </div>
+  )
+}
+
+function McpRegistryRow({
+  server,
+  isInstalled,
+  isUpdating,
+  onAdd,
+}: {
+  server: LiveSessionMcpRegistryServerInfo
+  isInstalled: boolean
+  isUpdating: boolean
+  onAdd?: (server: LiveSessionMcpRegistryServerInfo) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-fd-border-subtle bg-fd-panel/30 px-2 py-1.5">
+      <div className="min-w-0">
+        <p className="truncate text-[11px] text-fd-primary">{server.name}</p>
+        <p className="line-clamp-2 text-[10px] text-fd-tertiary">{server.description}</p>
+      </div>
+      <McpActionButton
+        label={isInstalled ? 'Added' : 'Add'}
+        icon={<Plus className="size-2.5" />}
+        disabled={isInstalled || isUpdating}
+        onClick={() => onAdd?.(server)}
+      />
+    </div>
+  )
+}
+
+function McpAuthCard({
+  request,
+  isUpdating,
+  onAuthenticate,
+}: {
+  request: Extract<LiveSessionEventRecord, { type: 'mcp.authRequired' }>
+  isUpdating: boolean
+  onAuthenticate?: (serverName: string) => void
+}) {
+  return (
+    <div className="rounded-md border border-fd-border-subtle bg-fd-panel/50 p-2">
+      <p className="text-[11px] text-fd-primary">{request.message}</p>
+      <p className="mt-0.5 truncate text-[10px] text-fd-tertiary">{request.serverName}</p>
+      <div className="mt-1.5 flex gap-1">
+        <McpActionButton
+          label="Start auth"
+          icon={<KeyRound className="size-2.5" />}
+          disabled={isUpdating}
+          onClick={() => onAuthenticate?.(request.serverName)}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ResultSummaryCard({
+  result,
+}: {
+  result: Extract<LiveSessionEventRecord, { type: 'session.result' }>
+}) {
+  return (
+    <div className="rounded-md border border-fd-border-subtle bg-fd-panel/50 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={result.success ? 'text-[11px] text-fd-ready' : 'text-[11px] text-fd-danger'}
+        >
+          {result.success ? 'Succeeded' : 'Failed'}
+        </span>
+        <span className="font-mono text-[10px] text-fd-tertiary">
+          {Math.round(result.durationMs / 100) / 10}s · {result.turnCount} turns
+        </span>
+      </div>
+      {typeof result.structuredOutput !== 'undefined' ? (
+        <pre className="mt-1.5 max-h-28 overflow-auto rounded bg-fd-surface px-2 py-1 text-[10px] text-fd-secondary">
+          {formatJson(result.structuredOutput)}
+        </pre>
+      ) : null}
+    </div>
+  )
+}
+
+function McpActionButton({
+  label,
+  icon,
+  disabled,
+  onClick,
+}: {
+  label: string
+  icon: ReactNode
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 rounded border border-fd-border-subtle bg-fd-surface px-1.5 py-0.5 text-[10px] text-fd-tertiary transition-colors hover:text-fd-primary disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
 function formatStatusLabel(value: string): string {
   return value
     .split(/[\s_-]+/)
@@ -543,6 +821,43 @@ function formatMcpSummary(server: LiveSessionMcpServerInfo): string {
   ].filter((value): value is string => Boolean(value))
 
   return parts.join(' · ')
+}
+
+function getLatestResult(
+  events: LiveSessionEventRecord[],
+): Extract<LiveSessionEventRecord, { type: 'session.result' }> | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    if (event?.type === 'session.result') {
+      return event
+    }
+  }
+
+  return null
+}
+
+function getLatestMcpAuthRequest(
+  events: LiveSessionEventRecord[],
+): Extract<LiveSessionEventRecord, { type: 'mcp.authRequired' }> | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    if (event?.type === 'mcp.authCompleted') {
+      return null
+    }
+    if (event?.type === 'mcp.authRequired') {
+      return event
+    }
+  }
+
+  return null
+}
+
+function formatJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
 }
 
 function getLatestTokenUsage(events: LiveSessionEventRecord[]): TokenUsageSnapshot | null {

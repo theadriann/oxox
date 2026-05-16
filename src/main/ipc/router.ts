@@ -167,6 +167,48 @@ export function registerAppIpcHandlers({
       service.listSessionSkills(sessionId),
     [IPC_CHANNELS.sessionListMcpServers]: (_event, sessionId: string) =>
       service.listSessionMcpServers(sessionId),
+    [IPC_CHANNELS.sessionListMcpTools]: (_event, sessionId: string) =>
+      service.listSessionMcpTools(sessionId),
+    [IPC_CHANNELS.sessionListMcpRegistry]: (_event, sessionId: string) =>
+      service.listSessionMcpRegistry(sessionId),
+    [IPC_CHANNELS.sessionAddMcpServer]: (
+      _event,
+      sessionId: string,
+      config: Parameters<FoundationService['addMcpServer']>[1],
+    ) => service.addMcpServer(sessionId, config),
+    [IPC_CHANNELS.sessionRemoveMcpServer]: (_event, sessionId: string, serverName: string) =>
+      service.removeMcpServer(sessionId, serverName),
+    [IPC_CHANNELS.sessionToggleMcpServer]: (
+      _event,
+      sessionId: string,
+      serverName: string,
+      enabled: boolean,
+    ) => service.toggleMcpServer(sessionId, serverName, enabled),
+    [IPC_CHANNELS.sessionAuthenticateMcpServer]: (_event, sessionId: string, serverName: string) =>
+      service.authenticateMcpServer(sessionId, serverName),
+    [IPC_CHANNELS.sessionCancelMcpAuth]: (_event, sessionId: string, serverName: string) =>
+      service.cancelMcpAuth(sessionId, serverName),
+    [IPC_CHANNELS.sessionClearMcpAuth]: (_event, sessionId: string, serverName: string) =>
+      service.clearMcpAuth(sessionId, serverName),
+    [IPC_CHANNELS.sessionSubmitMcpAuthCode]: (
+      _event,
+      sessionId: string,
+      request: Parameters<FoundationService['submitMcpAuthCode']>[1],
+    ) => service.submitMcpAuthCode(sessionId, request),
+    [IPC_CHANNELS.sessionToggleMcpTool]: (
+      _event,
+      sessionId: string,
+      serverName: string,
+      toolName: string,
+      enabled: boolean,
+    ) => service.toggleMcpTool(sessionId, serverName, toolName, enabled),
+    [IPC_CHANNELS.sessionKillWorkerSession]: (_event, sessionId: string, workerSessionId: string) =>
+      service.killWorkerSession(sessionId, workerSessionId),
+    [IPC_CHANNELS.sessionSubmitBugReport]: (
+      _event,
+      sessionId: string,
+      request: Parameters<FoundationService['submitBugReport']>[1],
+    ) => service.submitBugReport(sessionId, request),
     [IPC_CHANNELS.sessionGetContextStats]: (_event, sessionId: string) =>
       service.getSessionContextStats(sessionId),
     [IPC_CHANNELS.sessionUpdateSettings]: (

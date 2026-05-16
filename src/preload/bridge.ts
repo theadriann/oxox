@@ -6,7 +6,9 @@ import type {
   LiveSessionCompactResult,
   LiveSessionContextStatsInfo,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpRegistryServerInfo,
   LiveSessionMcpServerInfo,
+  LiveSessionMcpToolInfo,
   LiveSessionRewindInfo,
   LiveSessionSkillInfo,
   LiveSessionSnapshot,
@@ -168,6 +170,52 @@ export function createOxoxBridge(
           IPC_CHANNELS.sessionListMcpServers,
           sessionId,
         ),
+      listMcpTools: (sessionId) =>
+        invokeTyped<LiveSessionMcpToolInfo[]>(invoke, IPC_CHANNELS.sessionListMcpTools, sessionId),
+      listMcpRegistry: (sessionId) =>
+        invokeTyped<LiveSessionMcpRegistryServerInfo[]>(
+          invoke,
+          IPC_CHANNELS.sessionListMcpRegistry,
+          sessionId,
+        ),
+      addMcpServer: (sessionId, config) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.sessionAddMcpServer, sessionId, config),
+      removeMcpServer: (sessionId, serverName) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.sessionRemoveMcpServer, sessionId, serverName),
+      toggleMcpServer: (sessionId, serverName, enabled) =>
+        invokeTyped<void>(
+          invoke,
+          IPC_CHANNELS.sessionToggleMcpServer,
+          sessionId,
+          serverName,
+          enabled,
+        ),
+      authenticateMcpServer: (sessionId, serverName) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.sessionAuthenticateMcpServer, sessionId, serverName),
+      cancelMcpAuth: (sessionId, serverName) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.sessionCancelMcpAuth, sessionId, serverName),
+      clearMcpAuth: (sessionId, serverName) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.sessionClearMcpAuth, sessionId, serverName),
+      submitMcpAuthCode: (sessionId, request) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.sessionSubmitMcpAuthCode, sessionId, request),
+      toggleMcpTool: (sessionId, serverName, toolName, enabled) =>
+        invokeTyped<void>(
+          invoke,
+          IPC_CHANNELS.sessionToggleMcpTool,
+          sessionId,
+          serverName,
+          toolName,
+          enabled,
+        ),
+      killWorkerSession: (sessionId, workerSessionId) =>
+        invokeTyped<void>(
+          invoke,
+          IPC_CHANNELS.sessionKillWorkerSession,
+          sessionId,
+          workerSessionId,
+        ),
+      submitBugReport: (sessionId, request) =>
+        invokeTyped(invoke, IPC_CHANNELS.sessionSubmitBugReport, sessionId, request),
       getContextStats: (sessionId) =>
         invokeTyped<LiveSessionContextStatsInfo | null>(
           invoke,

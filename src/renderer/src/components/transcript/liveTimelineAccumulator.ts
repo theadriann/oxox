@@ -460,6 +460,98 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
       sealMessageSegments(accumulator)
       break
 
+    case 'session.result':
+      sealMessageSegments(accumulator)
+      setItem(
+        accumulator,
+        eventKey(event.type, accumulator.timelineItems.length),
+        systemEventItem({
+          event,
+          title: event.success ? 'Turn completed' : 'Turn failed',
+          body:
+            event.text ||
+            (event.success ? 'Droid finished responding.' : 'Droid reported an error.'),
+          details: [
+            `Duration: ${Math.round(event.durationMs / 100) / 10}s`,
+            `Turns: ${event.turnCount}`,
+            event.error ? `Error: ${event.error}` : null,
+            typeof event.structuredOutput !== 'undefined'
+              ? `Structured output: ${formatUnknownValue(event.structuredOutput)}`
+              : null,
+          ],
+          tone: event.success ? 'success' : 'danger',
+        }),
+      )
+      break
+
+    case 'mcp.statusChanged':
+      sealMessageSegments(accumulator)
+      setItem(
+        accumulator,
+        eventKey(event.type, accumulator.timelineItems.length),
+        systemEventItem({
+          event,
+          title: 'MCP status changed',
+          body: `${event.summary.connected}/${event.summary.total} servers connected`,
+          details: event.servers.map((server) => `${server.name}: ${server.status}`),
+          tone: event.summary.failed > 0 ? 'warning' : 'default',
+        }),
+      )
+      break
+
+    case 'mcp.authRequired':
+      sealMessageSegments(accumulator)
+      setItem(
+        accumulator,
+        eventKey(event.type, accumulator.timelineItems.length),
+        systemEventItem({
+          event,
+          title: 'MCP authentication required',
+          body: event.message,
+          details: [`Server: ${event.serverName}`, event.authUrl],
+          tone: 'warning',
+        }),
+      )
+      break
+
+    case 'mcp.authCompleted':
+      sealMessageSegments(accumulator)
+      setItem(
+        accumulator,
+        eventKey(event.type, accumulator.timelineItems.length),
+        systemEventItem({
+          event,
+          title: 'MCP authentication completed',
+          body: event.message,
+          details: [`Server: ${event.serverName}`, `Outcome: ${event.outcome}`],
+          tone: event.outcome === 'success' ? 'success' : 'warning',
+        }),
+      )
+      break
+
+    case 'mission.stateChanged':
+    case 'mission.featuresChanged':
+    case 'mission.progressEntry':
+    case 'mission.heartbeat':
+    case 'mission.workerStarted':
+    case 'mission.workerCompleted':
+      sealMessageSegments(accumulator)
+      setItem(
+        accumulator,
+        eventKey(event.type, accumulator.timelineItems.length),
+        systemEventItem({
+          event,
+          title: formatMissionTitle(event.type),
+          body: formatMissionBody(event),
+          details: formatMissionDetails(event),
+          tone:
+            event.type === 'mission.workerCompleted' && event.exitCode !== 0
+              ? 'warning'
+              : 'default',
+        }),
+      )
+      break
+
     case 'stream.warning':
       sealMessageSegments(accumulator)
       setItem(
@@ -858,6 +950,55 @@ function extractErrorMessage(value: unknown): string | null {
 function optionalDetail(label: string, value: unknown): string | null {
   const resolvedValue = toOptionalString(value)
   return resolvedValue ? `${label}: ${resolvedValue}` : null
+}
+
+function formatMissionTitle(type: string): string {
+  switch (type) {
+    case 'mission.stateChanged':
+      return 'Mission state changed'
+    case 'mission.featuresChanged':
+      return 'Mission features updated'
+    case 'mission.progressEntry':
+      return 'Mission progress updated'
+    case 'mission.heartbeat':
+      return 'Mission heartbeat'
+    case 'mission.workerStarted':
+      return 'Mission worker started'
+    case 'mission.workerCompleted':
+      return 'Mission worker completed'
+    default:
+      return 'Mission event'
+  }
+}
+
+function formatMissionBody(event: LiveSessionEventRecord): string {
+  switch (event.type) {
+    case 'mission.stateChanged':
+      return `State: ${event.state}`
+    case 'mission.featuresChanged':
+      return `${event.features.length} feature${event.features.length === 1 ? '' : 's'} tracked`
+    case 'mission.progressEntry':
+      return `${event.progressLog.length} progress entr${event.progressLog.length === 1 ? 'y' : 'ies'}`
+    case 'mission.heartbeat':
+      return event.timestamp
+    case 'mission.workerStarted':
+      return `Worker ${event.workerSessionId} started`
+    case 'mission.workerCompleted':
+      return `Worker ${event.workerSessionId} exited with ${event.exitCode}`
+    default:
+      return 'Mission status changed.'
+  }
+}
+
+function formatMissionDetails(event: LiveSessionEventRecord): string[] {
+  switch (event.type) {
+    case 'mission.featuresChanged':
+      return event.features.map(formatUnknownValue)
+    case 'mission.progressEntry':
+      return event.progressLog.map(formatUnknownValue)
+    default:
+      return []
+  }
 }
 
 function normalizeRiskLevel(value: unknown): RiskLevel {

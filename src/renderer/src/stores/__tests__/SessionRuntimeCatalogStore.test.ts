@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type {
   LiveSessionContextStatsInfo,
+  LiveSessionMcpRegistryServerInfo,
   LiveSessionMcpServerInfo,
+  LiveSessionMcpToolInfo,
   LiveSessionSettings,
   LiveSessionSkillInfo,
   LiveSessionToolInfo,
@@ -48,6 +50,30 @@ function createMcpServer(
     toolCount: 12,
     serverType: 'http',
     hasAuthTokens: true,
+    ...overrides,
+  }
+}
+
+function createMcpTool(overrides: Partial<LiveSessionMcpToolInfo> = {}): LiveSessionMcpToolInfo {
+  return {
+    serverName: 'figma',
+    name: 'get_design_context',
+    description: 'Read Figma design context',
+    isEnabled: true,
+    isReadOnly: true,
+    ...overrides,
+  }
+}
+
+function createMcpRegistryServer(
+  overrides: Partial<LiveSessionMcpRegistryServerInfo> = {},
+): LiveSessionMcpRegistryServerInfo {
+  return {
+    name: 'playwright',
+    description: 'Browser automation',
+    type: 'stdio',
+    command: 'npx',
+    args: ['@playwright/mcp'],
     ...overrides,
   }
 }
@@ -103,14 +129,18 @@ describe('buildToolSelectionSettingsPatch', () => {
 })
 
 describe('SessionRuntimeCatalogStore', () => {
-  it('refreshes tools, skills, MCP servers, and context stats through the injected loaders', async () => {
+  it('refreshes tools, skills, MCP catalogs, and context stats through the injected loaders', async () => {
     const listTools = vi.fn().mockResolvedValue([createTool()])
     const listSkills = vi.fn().mockResolvedValue([createSkill()])
     const listMcpServers = vi.fn().mockResolvedValue([createMcpServer()])
+    const listMcpTools = vi.fn().mockResolvedValue([createMcpTool()])
+    const listMcpRegistry = vi.fn().mockResolvedValue([createMcpRegistryServer()])
     const getContextStats = vi.fn().mockResolvedValue(createContextStats())
     const store = new SessionRuntimeCatalogStore({
       getContextStats,
+      listMcpRegistry,
       listMcpServers,
+      listMcpTools,
       listSkills,
       listTools,
     })
@@ -120,12 +150,77 @@ describe('SessionRuntimeCatalogStore', () => {
     expect(listTools).toHaveBeenCalledWith('session-1')
     expect(listSkills).toHaveBeenCalledWith('session-1')
     expect(listMcpServers).toHaveBeenCalledWith('session-1')
+    expect(listMcpTools).toHaveBeenCalledWith('session-1')
+    expect(listMcpRegistry).toHaveBeenCalledWith('session-1')
     expect(getContextStats).toHaveBeenCalledWith('session-1')
     expect(store.tools).toEqual([createTool()])
     expect(store.skills).toEqual([createSkill()])
     expect(store.mcpServers).toEqual([createMcpServer()])
+    expect(store.mcpTools).toEqual([createMcpTool()])
+    expect(store.mcpRegistry).toEqual([createMcpRegistryServer()])
     expect(store.contextStats).toEqual(createContextStats())
     expect(store.refreshError).toBeNull()
+  })
+
+  it('runs MCP server management actions and refreshes the catalog', async () => {
+    const addMcpServer = vi.fn().mockResolvedValue(undefined)
+    const toggleMcpServer = vi.fn().mockResolvedValue(undefined)
+    const removeMcpServer = vi.fn().mockResolvedValue(undefined)
+    const authenticateMcpServer = vi.fn().mockResolvedValue(undefined)
+    const clearMcpAuth = vi.fn().mockResolvedValue(undefined)
+    const listMcpServers = vi
+      .fn()
+      .mockResolvedValueOnce([createMcpServer({ name: 'playwright', isManaged: true })])
+      .mockResolvedValue([])
+    const store = new SessionRuntimeCatalogStore({
+      addMcpServer,
+      authenticateMcpServer,
+      clearMcpAuth,
+      listMcpRegistry: vi.fn().mockResolvedValue([createMcpRegistryServer()]),
+      listMcpServers,
+      listMcpTools: vi.fn().mockResolvedValue([]),
+      listSkills: vi.fn().mockResolvedValue([]),
+      listTools: vi.fn().mockResolvedValue([]),
+      removeMcpServer,
+      toggleMcpServer,
+    })
+
+    await store.refresh('session-1')
+    await store.addRegistryMcpServer('session-1', createMcpRegistryServer())
+    await store.setMcpServerEnabled('session-1', 'playwright', false)
+    await store.authenticateMcpServer('session-1', 'playwright')
+    await store.clearMcpAuth('session-1', 'playwright')
+    await store.removeMcpServer('session-1', 'playwright')
+
+    expect(addMcpServer).toHaveBeenCalledWith('session-1', {
+      name: 'playwright',
+      type: 'stdio',
+      command: 'npx',
+      args: ['@playwright/mcp'],
+    })
+    expect(toggleMcpServer).toHaveBeenCalledWith('session-1', 'playwright', false)
+    expect(authenticateMcpServer).toHaveBeenCalledWith('session-1', 'playwright')
+    expect(clearMcpAuth).toHaveBeenCalledWith('session-1', 'playwright')
+    expect(removeMcpServer).toHaveBeenCalledWith('session-1', 'playwright')
+    expect(store.updatingMcpServerName).toBeNull()
+  })
+
+  it('toggles MCP tools optimistically after the SDK call succeeds', async () => {
+    const toggleMcpTool = vi.fn().mockResolvedValue(undefined)
+    const store = new SessionRuntimeCatalogStore({
+      listMcpServers: vi.fn().mockResolvedValue([]),
+      listMcpTools: vi.fn().mockResolvedValue([createMcpTool()]),
+      listSkills: vi.fn().mockResolvedValue([]),
+      listTools: vi.fn().mockResolvedValue([]),
+      toggleMcpTool,
+    })
+
+    await store.refresh('session-1')
+    await store.setMcpToolEnabled('session-1', 'figma', 'get_design_context', false)
+
+    expect(toggleMcpTool).toHaveBeenCalledWith('session-1', 'figma', 'get_design_context', false)
+    expect(store.mcpTools).toEqual([createMcpTool({ isEnabled: false })])
+    expect(store.updatingMcpToolKey).toBeNull()
   })
 
   it('updates tool permissions through session settings and reflects the new tool state', async () => {

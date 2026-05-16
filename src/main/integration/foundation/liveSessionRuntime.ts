@@ -1,11 +1,18 @@
 import type {
+  LiveSessionAddUserMessageRequest,
   LiveSessionAskUserAnswerRecord,
+  LiveSessionBugReportRequest,
+  LiveSessionBugReportResult,
   LiveSessionCompactResult,
   LiveSessionContextStatsInfo,
   LiveSessionEventRecord,
   LiveSessionExecuteRewindParams,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpAuthCodeRequest,
+  LiveSessionMcpRegistryServerInfo,
+  LiveSessionMcpServerConfig,
   LiveSessionMcpServerInfo,
+  LiveSessionMcpToolInfo,
   LiveSessionNotificationSummary,
   LiveSessionRewindInfo,
   LiveSessionSettings,
@@ -35,11 +42,34 @@ interface SessionProcessManagerLike {
     },
   ) => Promise<RuntimeLiveSessionSnapshot>
   detachSession: (sessionId: string, viewerId?: string) => Promise<RuntimeLiveSessionSnapshot>
-  addUserMessage: (sessionId: string, text: string) => Promise<void>
+  addUserMessage: (
+    sessionId: string,
+    message: string | LiveSessionAddUserMessageRequest,
+  ) => Promise<void>
   renameSession: (sessionId: string, title: string) => Promise<void>
   listSessionTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
   listSessionSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
   listSessionMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
+  listSessionMcpTools: (sessionId: string) => Promise<LiveSessionMcpToolInfo[]>
+  listSessionMcpRegistry: (sessionId: string) => Promise<LiveSessionMcpRegistryServerInfo[]>
+  addMcpServer: (sessionId: string, config: LiveSessionMcpServerConfig) => Promise<void>
+  removeMcpServer: (sessionId: string, serverName: string) => Promise<void>
+  toggleMcpServer: (sessionId: string, serverName: string, enabled: boolean) => Promise<void>
+  authenticateMcpServer: (sessionId: string, serverName: string) => Promise<void>
+  cancelMcpAuth: (sessionId: string, serverName: string) => Promise<void>
+  clearMcpAuth: (sessionId: string, serverName: string) => Promise<void>
+  submitMcpAuthCode: (sessionId: string, request: LiveSessionMcpAuthCodeRequest) => Promise<void>
+  toggleMcpTool: (
+    sessionId: string,
+    serverName: string,
+    toolName: string,
+    enabled: boolean,
+  ) => Promise<void>
+  killWorkerSession: (sessionId: string, workerSessionId: string) => Promise<void>
+  submitBugReport: (
+    sessionId: string,
+    request: LiveSessionBugReportRequest,
+  ) => Promise<LiveSessionBugReportResult>
   getSessionContextStats?: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
   updateSessionSettings: (
     sessionId: string,
@@ -91,11 +121,34 @@ export interface FoundationLiveSessionRuntime {
   listLiveSessionNotificationSummaries: () => LiveSessionNotificationSummary[]
   attachSession: (sessionId: string, viewerId?: string) => Promise<LiveSessionSnapshot>
   detachSession: (sessionId: string, viewerId?: string) => Promise<LiveSessionSnapshot>
-  addUserMessage: (sessionId: string, text: string) => Promise<void>
+  addUserMessage: (
+    sessionId: string,
+    message: string | LiveSessionAddUserMessageRequest,
+  ) => Promise<void>
   renameSession: (sessionId: string, title: string) => Promise<void>
   listSessionTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
   listSessionSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
   listSessionMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
+  listSessionMcpTools: (sessionId: string) => Promise<LiveSessionMcpToolInfo[]>
+  listSessionMcpRegistry: (sessionId: string) => Promise<LiveSessionMcpRegistryServerInfo[]>
+  addMcpServer: (sessionId: string, config: LiveSessionMcpServerConfig) => Promise<void>
+  removeMcpServer: (sessionId: string, serverName: string) => Promise<void>
+  toggleMcpServer: (sessionId: string, serverName: string, enabled: boolean) => Promise<void>
+  authenticateMcpServer: (sessionId: string, serverName: string) => Promise<void>
+  cancelMcpAuth: (sessionId: string, serverName: string) => Promise<void>
+  clearMcpAuth: (sessionId: string, serverName: string) => Promise<void>
+  submitMcpAuthCode: (sessionId: string, request: LiveSessionMcpAuthCodeRequest) => Promise<void>
+  toggleMcpTool: (
+    sessionId: string,
+    serverName: string,
+    toolName: string,
+    enabled: boolean,
+  ) => Promise<void>
+  killWorkerSession: (sessionId: string, workerSessionId: string) => Promise<void>
+  submitBugReport: (
+    sessionId: string,
+    request: LiveSessionBugReportRequest,
+  ) => Promise<LiveSessionBugReportResult>
   getSessionContextStats: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
   updateSessionSettings: (
     sessionId: string,
@@ -202,6 +255,55 @@ export function createFoundationLiveSessionRuntime({
     listSessionTools: (sessionId) => sessionProcessManager.listSessionTools(sessionId),
     listSessionSkills: (sessionId) => sessionProcessManager.listSessionSkills(sessionId),
     listSessionMcpServers: (sessionId) => sessionProcessManager.listSessionMcpServers(sessionId),
+    listSessionMcpTools: (sessionId) => sessionProcessManager.listSessionMcpTools(sessionId),
+    listSessionMcpRegistry: (sessionId) => sessionProcessManager.listSessionMcpRegistry(sessionId),
+    addMcpServer: async (sessionId, config) => {
+      await sessionProcessManager.addMcpServer(sessionId, config)
+      emitSnapshot(sessionId)
+      onChange?.()
+    },
+    removeMcpServer: async (sessionId, serverName) => {
+      await sessionProcessManager.removeMcpServer(sessionId, serverName)
+      emitSnapshot(sessionId)
+      onChange?.()
+    },
+    toggleMcpServer: async (sessionId, serverName, enabled) => {
+      await sessionProcessManager.toggleMcpServer(sessionId, serverName, enabled)
+      emitSnapshot(sessionId)
+      onChange?.()
+    },
+    authenticateMcpServer: async (sessionId, serverName) => {
+      await sessionProcessManager.authenticateMcpServer(sessionId, serverName)
+      emitSnapshot(sessionId)
+      onChange?.()
+    },
+    cancelMcpAuth: async (sessionId, serverName) => {
+      await sessionProcessManager.cancelMcpAuth(sessionId, serverName)
+      emitSnapshot(sessionId)
+      onChange?.()
+    },
+    clearMcpAuth: async (sessionId, serverName) => {
+      await sessionProcessManager.clearMcpAuth(sessionId, serverName)
+      emitSnapshot(sessionId)
+      onChange?.()
+    },
+    submitMcpAuthCode: async (sessionId, request) => {
+      await sessionProcessManager.submitMcpAuthCode(sessionId, request)
+      emitSnapshot(sessionId)
+      onChange?.()
+    },
+    toggleMcpTool: async (sessionId, serverName, toolName, enabled) => {
+      await sessionProcessManager.toggleMcpTool(sessionId, serverName, toolName, enabled)
+      emitSnapshot(sessionId)
+      onChange?.()
+    },
+    killWorkerSession: async (sessionId, workerSessionId) => {
+      await sessionProcessManager.killWorkerSession(sessionId, workerSessionId)
+      emitSnapshot(sessionId)
+      onChange?.()
+    },
+    submitBugReport: (sessionId, request) =>
+      sessionProcessManager.submitBugReport(sessionId, request),
     getSessionContextStats: (sessionId) =>
       sessionProcessManager.getSessionContextStats?.(sessionId) ?? Promise.resolve(null),
     updateSessionSettings: (sessionId, settings) =>

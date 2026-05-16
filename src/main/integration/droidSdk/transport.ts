@@ -12,8 +12,15 @@ import {
   StreamStateTracker,
 } from '@factory/droid-sdk'
 import type {
+  LiveSessionAddUserMessageRequest,
+  LiveSessionBugReportRequest,
+  LiveSessionBugReportResult,
   LiveSessionContextStatsInfo,
+  LiveSessionMcpAuthCodeRequest,
+  LiveSessionMcpRegistryServerInfo,
+  LiveSessionMcpServerConfig,
   LiveSessionMcpServerInfo,
+  LiveSessionMcpToolInfo,
   LiveSessionSkillInfo,
   LiveSessionToolInfo,
 } from '../../../shared/ipc/contracts'
@@ -256,10 +263,14 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
     await this.client.interruptSession()
   }
 
-  async addUserMessage(_requestId: RequestId, text: string): Promise<void> {
+  async addUserMessage(
+    _requestId: RequestId,
+    message: string | LiveSessionAddUserMessageRequest,
+  ): Promise<void> {
     await this.ready
+    const normalizedMessage = typeof message === 'string' ? { text: message } : message
     await this.client.addUserMessage({
-      text,
+      ...normalizedMessage,
       messageId: randomUUID(),
     })
   }
@@ -316,6 +327,83 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
     await this.ready
     const result = await this.client.listMcpServers()
     return result.servers
+  }
+
+  async listMcpTools(_requestId: RequestId): Promise<LiveSessionMcpToolInfo[]> {
+    await this.ready
+    const result = await this.client.listMcpTools()
+    return result.tools
+  }
+
+  async listMcpRegistry(_requestId: RequestId): Promise<LiveSessionMcpRegistryServerInfo[]> {
+    await this.ready
+    const result = await this.client.listMcpRegistry()
+    return result.servers
+  }
+
+  async addMcpServer(_requestId: RequestId, config: LiveSessionMcpServerConfig): Promise<void> {
+    await this.ready
+    await this.client.addMcpServer(config)
+  }
+
+  async removeMcpServer(_requestId: RequestId, serverName: string): Promise<void> {
+    await this.ready
+    await this.client.removeMcpServer({ serverName, settingsLevel: 'user' })
+  }
+
+  async toggleMcpServer(
+    _requestId: RequestId,
+    serverName: string,
+    enabled: boolean,
+  ): Promise<void> {
+    await this.ready
+    await this.client.toggleMcpServer({ serverName, enabled, settingsLevel: 'user' })
+  }
+
+  async authenticateMcpServer(_requestId: RequestId, serverName: string): Promise<void> {
+    await this.ready
+    await this.client.authenticateMcpServer({ serverName })
+  }
+
+  async cancelMcpAuth(_requestId: RequestId, serverName: string): Promise<void> {
+    await this.ready
+    await this.client.cancelMcpAuth({ serverName })
+  }
+
+  async clearMcpAuth(_requestId: RequestId, serverName: string): Promise<void> {
+    await this.ready
+    await this.client.clearMcpAuth({ serverName })
+  }
+
+  async submitMcpAuthCode(
+    _requestId: RequestId,
+    request: LiveSessionMcpAuthCodeRequest,
+  ): Promise<void> {
+    await this.ready
+    await this.client.submitMcpAuthCode(request)
+  }
+
+  async toggleMcpTool(
+    _requestId: RequestId,
+    serverName: string,
+    toolName: string,
+    enabled: boolean,
+  ): Promise<void> {
+    await this.ready
+    await this.client.toggleMcpTool({ serverName, toolName, enabled })
+  }
+
+  async killWorkerSession(_requestId: RequestId, workerSessionId: string): Promise<void> {
+    await this.ready
+    await this.client.killWorkerSession({ workerSessionId })
+  }
+
+  async submitBugReport(
+    _requestId: RequestId,
+    request: LiveSessionBugReportRequest,
+  ): Promise<LiveSessionBugReportResult> {
+    await this.ready
+    return this.client.submitBugReport(request)
   }
 
   async getContextStats(_requestId: RequestId): Promise<LiveSessionContextStatsInfo> {

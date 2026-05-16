@@ -1,6 +1,9 @@
 import type {
   LiveSessionAskUserAnswerRecord,
   LiveSessionAskUserQuestionRecord,
+  LiveSessionMcpServerInfo,
+  LiveSessionMcpStatusSummary,
+  LiveSessionTokenUsageRecord,
   TranscriptMessageContentBlock,
 } from '../../../shared/ipc/contracts'
 
@@ -153,6 +156,70 @@ export interface StreamCompletedEvent extends BaseSessionEvent {
   readonly reason?: StreamCompletionReason
 }
 
+export interface SessionResultEvent extends BaseSessionEvent {
+  readonly type: 'session.result'
+  readonly success: boolean
+  readonly text: string
+  readonly durationMs: number
+  readonly turnCount: number
+  readonly structuredOutput?: unknown
+  readonly structuredOutputError?: unknown
+  readonly tokenUsage?: LiveSessionTokenUsageRecord | null
+  readonly error?: string | null
+}
+
+export interface McpStatusChangedEvent extends BaseSessionEvent {
+  readonly type: 'mcp.statusChanged'
+  readonly servers: readonly LiveSessionMcpServerInfo[]
+  readonly summary: LiveSessionMcpStatusSummary
+}
+
+export interface McpAuthRequiredEvent extends BaseSessionEvent {
+  readonly type: 'mcp.authRequired'
+  readonly serverName: string
+  readonly authUrl: string
+  readonly message: string
+  readonly state: string
+}
+
+export interface McpAuthCompletedEvent extends BaseSessionEvent {
+  readonly type: 'mcp.authCompleted'
+  readonly serverName: string
+  readonly outcome: string
+  readonly message: string
+}
+
+export interface MissionStateChangedEvent extends BaseSessionEvent {
+  readonly type: 'mission.stateChanged'
+  readonly state: string
+}
+
+export interface MissionFeaturesChangedEvent extends BaseSessionEvent {
+  readonly type: 'mission.featuresChanged'
+  readonly features: readonly unknown[]
+}
+
+export interface MissionProgressEntryEvent extends BaseSessionEvent {
+  readonly type: 'mission.progressEntry'
+  readonly progressLog: readonly unknown[]
+}
+
+export interface MissionHeartbeatEvent extends BaseSessionEvent {
+  readonly type: 'mission.heartbeat'
+  readonly timestamp: string
+}
+
+export interface MissionWorkerStartedEvent extends BaseSessionEvent {
+  readonly type: 'mission.workerStarted'
+  readonly workerSessionId: string
+}
+
+export interface MissionWorkerCompletedEvent extends BaseSessionEvent {
+  readonly type: 'mission.workerCompleted'
+  readonly workerSessionId: string
+  readonly exitCode: number
+}
+
 export type SessionEvent =
   | MessageDeltaEvent
   | MessageCompletedEvent
@@ -169,3 +236,13 @@ export type SessionEvent =
   | StreamWarningEvent
   | StreamErrorEvent
   | StreamCompletedEvent
+  | SessionResultEvent
+  | McpStatusChangedEvent
+  | McpAuthRequiredEvent
+  | McpAuthCompletedEvent
+  | MissionStateChangedEvent
+  | MissionFeaturesChangedEvent
+  | MissionProgressEntryEvent
+  | MissionHeartbeatEvent
+  | MissionWorkerStartedEvent
+  | MissionWorkerCompletedEvent

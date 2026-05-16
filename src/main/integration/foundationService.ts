@@ -5,12 +5,19 @@ import type {
   DatabaseDiagnostics,
   FoundationBootstrap,
   FoundationChangedPayload,
+  LiveSessionAddUserMessageRequest,
   LiveSessionAskUserAnswerRecord,
+  LiveSessionBugReportRequest,
+  LiveSessionBugReportResult,
   LiveSessionCompactResult,
   LiveSessionContextStatsInfo,
   LiveSessionExecuteRewindParams,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpAuthCodeRequest,
+  LiveSessionMcpRegistryServerInfo,
+  LiveSessionMcpServerConfig,
   LiveSessionMcpServerInfo,
+  LiveSessionMcpToolInfo,
   LiveSessionNotificationSummary,
   LiveSessionRewindInfo,
   LiveSessionSettings,
@@ -56,10 +63,33 @@ export interface FoundationService {
   listLiveSessionNotificationSummaries: () => LiveSessionNotificationSummary[]
   attachSession: (sessionId: string, viewerId?: string) => Promise<LiveSessionSnapshot>
   detachSession: (sessionId: string, viewerId?: string) => Promise<LiveSessionSnapshot>
-  addUserMessage: (sessionId: string, text: string) => Promise<void>
+  addUserMessage: (
+    sessionId: string,
+    message: string | LiveSessionAddUserMessageRequest,
+  ) => Promise<void>
   listSessionTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
   listSessionSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
   listSessionMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
+  listSessionMcpTools: (sessionId: string) => Promise<LiveSessionMcpToolInfo[]>
+  listSessionMcpRegistry: (sessionId: string) => Promise<LiveSessionMcpRegistryServerInfo[]>
+  addMcpServer: (sessionId: string, config: LiveSessionMcpServerConfig) => Promise<void>
+  removeMcpServer: (sessionId: string, serverName: string) => Promise<void>
+  toggleMcpServer: (sessionId: string, serverName: string, enabled: boolean) => Promise<void>
+  authenticateMcpServer: (sessionId: string, serverName: string) => Promise<void>
+  cancelMcpAuth: (sessionId: string, serverName: string) => Promise<void>
+  clearMcpAuth: (sessionId: string, serverName: string) => Promise<void>
+  submitMcpAuthCode: (sessionId: string, request: LiveSessionMcpAuthCodeRequest) => Promise<void>
+  toggleMcpTool: (
+    sessionId: string,
+    serverName: string,
+    toolName: string,
+    enabled: boolean,
+  ) => Promise<void>
+  killWorkerSession: (sessionId: string, workerSessionId: string) => Promise<void>
+  submitBugReport: (
+    sessionId: string,
+    request: LiveSessionBugReportRequest,
+  ) => Promise<LiveSessionBugReportResult>
   getSessionContextStats: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
   updateSessionSettings: (
     sessionId: string,
@@ -206,6 +236,18 @@ export function createFoundationService(options: CreateDatabaseServiceOptions): 
     listSessionTools: liveSessionRuntime.listSessionTools,
     listSessionSkills: liveSessionRuntime.listSessionSkills,
     listSessionMcpServers: liveSessionRuntime.listSessionMcpServers,
+    listSessionMcpTools: liveSessionRuntime.listSessionMcpTools,
+    listSessionMcpRegistry: liveSessionRuntime.listSessionMcpRegistry,
+    addMcpServer: liveSessionRuntime.addMcpServer,
+    removeMcpServer: liveSessionRuntime.removeMcpServer,
+    toggleMcpServer: liveSessionRuntime.toggleMcpServer,
+    authenticateMcpServer: liveSessionRuntime.authenticateMcpServer,
+    cancelMcpAuth: liveSessionRuntime.cancelMcpAuth,
+    clearMcpAuth: liveSessionRuntime.clearMcpAuth,
+    submitMcpAuthCode: liveSessionRuntime.submitMcpAuthCode,
+    toggleMcpTool: liveSessionRuntime.toggleMcpTool,
+    killWorkerSession: liveSessionRuntime.killWorkerSession,
+    submitBugReport: liveSessionRuntime.submitBugReport,
     getSessionContextStats: liveSessionRuntime.getSessionContextStats,
     renameSession: async (sessionId, title) => {
       await liveSessionRuntime.renameSession(sessionId, title)

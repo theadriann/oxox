@@ -35,6 +35,18 @@ export const IPC_CHANNELS = {
   sessionListTools: 'session:list-tools',
   sessionListSkills: 'session:list-skills',
   sessionListMcpServers: 'session:list-mcp-servers',
+  sessionListMcpTools: 'session:list-mcp-tools',
+  sessionListMcpRegistry: 'session:list-mcp-registry',
+  sessionAddMcpServer: 'session:add-mcp-server',
+  sessionRemoveMcpServer: 'session:remove-mcp-server',
+  sessionToggleMcpServer: 'session:toggle-mcp-server',
+  sessionAuthenticateMcpServer: 'session:authenticate-mcp-server',
+  sessionCancelMcpAuth: 'session:cancel-mcp-auth',
+  sessionClearMcpAuth: 'session:clear-mcp-auth',
+  sessionSubmitMcpAuthCode: 'session:submit-mcp-auth-code',
+  sessionToggleMcpTool: 'session:toggle-mcp-tool',
+  sessionKillWorkerSession: 'session:kill-worker-session',
+  sessionSubmitBugReport: 'session:submit-bug-report',
   sessionGetContextStats: 'session:get-context-stats',
   sessionUpdateSettings: 'session:update-settings',
   sessionInterrupt: 'session:interrupt',
@@ -144,6 +156,89 @@ export interface LiveSessionMcpServerInfo {
   toolCount?: number
   serverType?: string
   hasAuthTokens?: boolean
+}
+
+export interface LiveSessionMcpStatusSummary {
+  total: number
+  connected: number
+  connecting: number
+  failed: number
+  disabled?: number
+}
+
+export interface LiveSessionMcpToolInfo {
+  serverName: string
+  name: string
+  description?: string
+  isEnabled: boolean
+  isReadOnly?: boolean
+  inputSchema?: {
+    type?: string
+    properties?: Record<string, unknown>
+    required?: string[]
+  }
+}
+
+export interface LiveSessionMcpRegistryServerInfo {
+  name: string
+  description: string
+  type: string
+  command?: string
+  args?: string[]
+  url?: string
+  note?: string
+  logoUrl?: string
+}
+
+export interface LiveSessionMcpServerConfig {
+  name: string
+  type: string
+  url?: string
+  headers?: Record<string, string>
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+}
+
+export interface LiveSessionMcpAuthCodeRequest {
+  serverName: string
+  code: string
+  state: string
+}
+
+export interface LiveSessionMessageImageSource {
+  type: 'base64'
+  data: string
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+}
+
+export interface LiveSessionMessageDocumentSource {
+  type: string
+  mediaType: string
+  data: string
+  name?: string
+  mime?: string
+}
+
+export interface LiveSessionMessageOutputFormat {
+  type: 'json_schema'
+  schema: Record<string, unknown>
+}
+
+export interface LiveSessionAddUserMessageRequest {
+  text: string
+  images?: LiveSessionMessageImageSource[]
+  files?: LiveSessionMessageDocumentSource[]
+  outputFormat?: LiveSessionMessageOutputFormat
+}
+
+export interface LiveSessionBugReportRequest {
+  userComment: string
+  clientLogs?: string
+}
+
+export interface LiveSessionBugReportResult {
+  bugReportId: string
 }
 
 export interface LiveSessionContextStatsInfo {
@@ -522,6 +617,70 @@ export interface LiveSessionStreamCompletedEventRecord extends BaseLiveSessionEv
   reason?: string
 }
 
+export interface LiveSessionResultEventRecord extends BaseLiveSessionEventRecord {
+  type: 'session.result'
+  success: boolean
+  text: string
+  durationMs: number
+  turnCount: number
+  structuredOutput?: unknown
+  structuredOutputError?: unknown
+  tokenUsage?: LiveSessionTokenUsageRecord | null
+  error?: string | null
+}
+
+export interface LiveSessionMcpStatusChangedEventRecord extends BaseLiveSessionEventRecord {
+  type: 'mcp.statusChanged'
+  servers: LiveSessionMcpServerInfo[]
+  summary: LiveSessionMcpStatusSummary
+}
+
+export interface LiveSessionMcpAuthRequiredEventRecord extends BaseLiveSessionEventRecord {
+  type: 'mcp.authRequired'
+  serverName: string
+  authUrl: string
+  message: string
+  state: string
+}
+
+export interface LiveSessionMcpAuthCompletedEventRecord extends BaseLiveSessionEventRecord {
+  type: 'mcp.authCompleted'
+  serverName: string
+  outcome: string
+  message: string
+}
+
+export interface LiveSessionMissionStateChangedEventRecord extends BaseLiveSessionEventRecord {
+  type: 'mission.stateChanged'
+  state: string
+}
+
+export interface LiveSessionMissionFeaturesChangedEventRecord extends BaseLiveSessionEventRecord {
+  type: 'mission.featuresChanged'
+  features: unknown[]
+}
+
+export interface LiveSessionMissionProgressEntryEventRecord extends BaseLiveSessionEventRecord {
+  type: 'mission.progressEntry'
+  progressLog: unknown[]
+}
+
+export interface LiveSessionMissionHeartbeatEventRecord extends BaseLiveSessionEventRecord {
+  type: 'mission.heartbeat'
+  timestamp: string
+}
+
+export interface LiveSessionMissionWorkerStartedEventRecord extends BaseLiveSessionEventRecord {
+  type: 'mission.workerStarted'
+  workerSessionId: string
+}
+
+export interface LiveSessionMissionWorkerCompletedEventRecord extends BaseLiveSessionEventRecord {
+  type: 'mission.workerCompleted'
+  workerSessionId: string
+  exitCode: number
+}
+
 export type LiveSessionEventRecord =
   | LiveSessionMessageDeltaEventRecord
   | LiveSessionMessageCompletedEventRecord
@@ -538,6 +697,16 @@ export type LiveSessionEventRecord =
   | LiveSessionStreamWarningEventRecord
   | LiveSessionStreamErrorEventRecord
   | LiveSessionStreamCompletedEventRecord
+  | LiveSessionResultEventRecord
+  | LiveSessionMcpStatusChangedEventRecord
+  | LiveSessionMcpAuthRequiredEventRecord
+  | LiveSessionMcpAuthCompletedEventRecord
+  | LiveSessionMissionStateChangedEventRecord
+  | LiveSessionMissionFeaturesChangedEventRecord
+  | LiveSessionMissionProgressEntryEventRecord
+  | LiveSessionMissionHeartbeatEventRecord
+  | LiveSessionMissionWorkerStartedEventRecord
+  | LiveSessionMissionWorkerCompletedEventRecord
 
 export interface LiveSessionSnapshot {
   sessionId: string
@@ -617,11 +786,34 @@ export interface OxoxBridge {
     getSnapshot: (sessionId: string) => Promise<LiveSessionSnapshot | null>
     attach: (sessionId: string) => Promise<LiveSessionSnapshot>
     detach: (sessionId: string) => Promise<LiveSessionSnapshot>
-    addUserMessage: (sessionId: string, text: string) => Promise<void>
+    addUserMessage: (
+      sessionId: string,
+      message: string | LiveSessionAddUserMessageRequest,
+    ) => Promise<void>
     rename: (sessionId: string, title: string) => Promise<void>
     listTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
     listSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
     listMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>
+    listMcpTools: (sessionId: string) => Promise<LiveSessionMcpToolInfo[]>
+    listMcpRegistry: (sessionId: string) => Promise<LiveSessionMcpRegistryServerInfo[]>
+    addMcpServer: (sessionId: string, config: LiveSessionMcpServerConfig) => Promise<void>
+    removeMcpServer: (sessionId: string, serverName: string) => Promise<void>
+    toggleMcpServer: (sessionId: string, serverName: string, enabled: boolean) => Promise<void>
+    authenticateMcpServer: (sessionId: string, serverName: string) => Promise<void>
+    cancelMcpAuth: (sessionId: string, serverName: string) => Promise<void>
+    clearMcpAuth: (sessionId: string, serverName: string) => Promise<void>
+    submitMcpAuthCode: (sessionId: string, request: LiveSessionMcpAuthCodeRequest) => Promise<void>
+    toggleMcpTool: (
+      sessionId: string,
+      serverName: string,
+      toolName: string,
+      enabled: boolean,
+    ) => Promise<void>
+    killWorkerSession: (sessionId: string, workerSessionId: string) => Promise<void>
+    submitBugReport: (
+      sessionId: string,
+      request: LiveSessionBugReportRequest,
+    ) => Promise<LiveSessionBugReportResult>
     getContextStats: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
     updateSettings: (sessionId: string, settings: Partial<LiveSessionSettings>) => Promise<void>
     interrupt: (sessionId: string) => Promise<void>

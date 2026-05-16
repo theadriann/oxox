@@ -90,7 +90,75 @@ export function ContextPanelConnected({
       panelRef,
       sessionRuntimeCatalogStore: {
         contextStats: sessionRuntimeCatalogStore.contextStats,
+        mcpRegistry: sessionRuntimeCatalogStore.mcpRegistry,
         mcpServers: sessionRuntimeCatalogStore.mcpServers,
+        mcpTools: sessionRuntimeCatalogStore.mcpTools,
+        onAddMcpServer: (server) => {
+          const selectedSnapshot = liveSessionStore.selectedSnapshot
+
+          if (!selectedSnapshot) {
+            return
+          }
+
+          void sessionRuntimeCatalogStore.addRegistryMcpServer(selectedSnapshot.sessionId, server)
+        },
+        onAuthenticateMcpServer: (serverName) => {
+          const selectedSnapshot = liveSessionStore.selectedSnapshot
+
+          if (!selectedSnapshot) {
+            return
+          }
+
+          void sessionRuntimeCatalogStore.authenticateMcpServer(
+            selectedSnapshot.sessionId,
+            serverName,
+          )
+        },
+        onClearMcpAuth: (serverName) => {
+          const selectedSnapshot = liveSessionStore.selectedSnapshot
+
+          if (!selectedSnapshot) {
+            return
+          }
+
+          void sessionRuntimeCatalogStore.clearMcpAuth(selectedSnapshot.sessionId, serverName)
+        },
+        onRemoveMcpServer: (serverName) => {
+          const selectedSnapshot = liveSessionStore.selectedSnapshot
+
+          if (!selectedSnapshot) {
+            return
+          }
+
+          void sessionRuntimeCatalogStore.removeMcpServer(selectedSnapshot.sessionId, serverName)
+        },
+        onToggleMcpServer: (serverName, enabled) => {
+          const selectedSnapshot = liveSessionStore.selectedSnapshot
+
+          if (!selectedSnapshot) {
+            return
+          }
+
+          void sessionRuntimeCatalogStore.setMcpServerEnabled(
+            selectedSnapshot.sessionId,
+            serverName,
+            enabled,
+          )
+        },
+        onToggleMcpTool: (serverName, toolName, enabled) => {
+          const selectedSnapshot = liveSessionStore.selectedSnapshot
+
+          if (!selectedSnapshot) {
+            return
+          }
+
+          void sessionRuntimeCatalogStore.setMcpToolEnabled(
+            selectedSnapshot.sessionId,
+            serverName,
+            toolName,
+            enabled,
+          )
+        },
         onToggleTool: (toolLlmId, allowed) => {
           const selectedSnapshot = liveSessionStore.selectedSnapshot
 
@@ -108,6 +176,8 @@ export function ContextPanelConnected({
         refreshError: sessionRuntimeCatalogStore.refreshError,
         skills: sessionRuntimeCatalogStore.skills,
         tools: sessionRuntimeCatalogStore.tools,
+        updatingMcpServerName: sessionRuntimeCatalogStore.updatingMcpServerName,
+        updatingMcpToolKey: sessionRuntimeCatalogStore.updatingMcpToolKey,
         updatingToolLlmId: sessionRuntimeCatalogStore.updatingToolLlmId,
       },
       sessionStore,

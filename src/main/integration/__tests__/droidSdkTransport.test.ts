@@ -86,8 +86,20 @@ class FakeDroidClient {
   readonly executeRewindCalls: Array<Record<string, unknown>> = []
   readonly compactSessionCalls: Array<Record<string, unknown>> = []
   readonly renameSessionCalls: Array<Record<string, unknown>> = []
+  readonly addMcpServerCalls: Array<Record<string, unknown>> = []
+  readonly removeMcpServerCalls: Array<Record<string, unknown>> = []
+  readonly toggleMcpServerCalls: Array<Record<string, unknown>> = []
+  readonly authenticateMcpServerCalls: Array<Record<string, unknown>> = []
+  readonly cancelMcpAuthCalls: Array<Record<string, unknown>> = []
+  readonly clearMcpAuthCalls: Array<Record<string, unknown>> = []
+  readonly submitMcpAuthCodeCalls: Array<Record<string, unknown>> = []
+  readonly toggleMcpToolCalls: Array<Record<string, unknown>> = []
+  readonly killWorkerSessionCalls: Array<Record<string, unknown>> = []
+  readonly submitBugReportCalls: Array<Record<string, unknown>> = []
   getContextStatsCalls = 0
   listMcpServersCalls = 0
+  listMcpToolsCalls = 0
+  listMcpRegistryCalls = 0
   listSkillsCalls = 0
   listToolsCalls = 0
   forkSessionCalls = 0
@@ -267,7 +279,94 @@ class FakeDroidClient {
           hasAuthTokens: true,
         },
       ],
+      summary: {
+        total: 1,
+        connected: 1,
+        connecting: 0,
+        failed: 0,
+        disabled: 0,
+      },
     }
+  }
+
+  async listMcpTools() {
+    this.listMcpToolsCalls += 1
+    return {
+      tools: [
+        {
+          serverName: 'figma',
+          name: 'get_design_context',
+          description: 'Read Figma design context',
+          isEnabled: true,
+          isReadOnly: true,
+        },
+      ],
+    }
+  }
+
+  async listMcpRegistry() {
+    this.listMcpRegistryCalls += 1
+    return {
+      servers: [
+        {
+          name: 'playwright',
+          description: 'Browser automation',
+          type: 'stdio',
+          command: 'npx',
+          args: ['@playwright/mcp'],
+        },
+      ],
+    }
+  }
+
+  async addMcpServer(params: Record<string, unknown>) {
+    this.addMcpServerCalls.push(params)
+    return { success: true }
+  }
+
+  async removeMcpServer(params: Record<string, unknown>) {
+    this.removeMcpServerCalls.push(params)
+    return { success: true }
+  }
+
+  async toggleMcpServer(params: Record<string, unknown>) {
+    this.toggleMcpServerCalls.push(params)
+    return { success: true }
+  }
+
+  async authenticateMcpServer(params: Record<string, unknown>) {
+    this.authenticateMcpServerCalls.push(params)
+    return { success: true }
+  }
+
+  async cancelMcpAuth(params: Record<string, unknown>) {
+    this.cancelMcpAuthCalls.push(params)
+    return { success: true }
+  }
+
+  async clearMcpAuth(params: Record<string, unknown>) {
+    this.clearMcpAuthCalls.push(params)
+    return { success: true }
+  }
+
+  async submitMcpAuthCode(params: Record<string, unknown>) {
+    this.submitMcpAuthCodeCalls.push(params)
+    return { success: true }
+  }
+
+  async toggleMcpTool(params: Record<string, unknown>) {
+    this.toggleMcpToolCalls.push(params)
+    return { success: true }
+  }
+
+  async killWorkerSession(params: Record<string, unknown>) {
+    this.killWorkerSessionCalls.push(params)
+    return {}
+  }
+
+  async submitBugReport(params: Record<string, unknown>) {
+    this.submitBugReportCalls.push(params)
+    return { bugReportId: 'bug-1' }
   }
 
   async forkSession() {
@@ -853,6 +952,80 @@ describe('DroidSdkSessionTransport', () => {
     expect(client.renameSessionCalls).toEqual([{ title: 'Renamed from OXOX' }])
   })
 
+  it('passes latest SDK message options when adding user messages', async () => {
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+        droidPath: '/opt/factory/bin/droid',
+        sessionId: 'session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    await sessionTransport.addUserMessage('message:1', {
+      text: 'Summarize this screenshot',
+      images: [
+        {
+          type: 'base64',
+          mediaType: 'image/png',
+          data: 'ZmFrZQ==',
+        },
+      ],
+      files: [
+        {
+          type: 'base64',
+          mediaType: 'application/pdf',
+          data: 'JVBERi0=',
+          name: 'brief.pdf',
+        },
+      ],
+      outputFormat: {
+        type: 'json_schema',
+        schema: {
+          type: 'object',
+          properties: {
+            summary: { type: 'string' },
+          },
+          required: ['summary'],
+        },
+      },
+    })
+
+    expect(client.addUserMessageCalls).toEqual([
+      {
+        text: 'Summarize this screenshot',
+        messageId: expect.any(String),
+        images: [
+          {
+            type: 'base64',
+            mediaType: 'image/png',
+            data: 'ZmFrZQ==',
+          },
+        ],
+        files: [
+          {
+            type: 'base64',
+            mediaType: 'application/pdf',
+            data: 'JVBERi0=',
+            name: 'brief.pdf',
+          },
+        ],
+        outputFormat: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              summary: { type: 'string' },
+            },
+            required: ['summary'],
+          },
+        },
+      },
+    ])
+  })
+
   it('lists tool, skill, and MCP catalogs through the SDK client', async () => {
     const transport = new FakeDroidClientTransport()
     const client = new FakeDroidClient()
@@ -901,6 +1074,94 @@ describe('DroidSdkSessionTransport', () => {
     expect(client.listToolsCalls).toBe(1)
     expect(client.listSkillsCalls).toBe(1)
     expect(client.listMcpServersCalls).toBe(1)
+  })
+
+  it('exposes MCP management, worker control, and bug report SDK methods', async () => {
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+        droidPath: '/opt/factory/bin/droid',
+        sessionId: 'session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    await expect(sessionTransport.listMcpTools('mcp:tools')).resolves.toEqual([
+      {
+        serverName: 'figma',
+        name: 'get_design_context',
+        description: 'Read Figma design context',
+        isEnabled: true,
+        isReadOnly: true,
+      },
+    ])
+    await expect(sessionTransport.listMcpRegistry('mcp:registry')).resolves.toEqual([
+      {
+        name: 'playwright',
+        description: 'Browser automation',
+        type: 'stdio',
+        command: 'npx',
+        args: ['@playwright/mcp'],
+      },
+    ])
+
+    await sessionTransport.addMcpServer('mcp:add', {
+      name: 'playwright',
+      type: 'stdio',
+      command: 'npx',
+      args: ['@playwright/mcp'],
+    })
+    await sessionTransport.toggleMcpServer('mcp:toggle', 'playwright', false)
+    await sessionTransport.removeMcpServer('mcp:remove', 'playwright')
+    await sessionTransport.authenticateMcpServer('mcp:auth', 'figma')
+    await sessionTransport.cancelMcpAuth('mcp:cancel-auth', 'figma')
+    await sessionTransport.clearMcpAuth('mcp:clear-auth', 'figma')
+    await sessionTransport.submitMcpAuthCode('mcp:submit-auth', {
+      serverName: 'figma',
+      code: '123456',
+      state: 'state-1',
+    })
+    await sessionTransport.toggleMcpTool('mcp:tool', 'figma', 'get_design_context', false)
+    await sessionTransport.killWorkerSession('worker:kill', 'worker-session-1')
+    await expect(
+      sessionTransport.submitBugReport('bug:submit', {
+        userComment: 'The session stopped responding',
+        clientLogs: 'renderer logs',
+      }),
+    ).resolves.toEqual({ bugReportId: 'bug-1' })
+
+    expect(client.addMcpServerCalls).toEqual([
+      {
+        name: 'playwright',
+        type: 'stdio',
+        command: 'npx',
+        args: ['@playwright/mcp'],
+      },
+    ])
+    expect(client.toggleMcpServerCalls).toEqual([
+      { serverName: 'playwright', enabled: false, settingsLevel: 'user' },
+    ])
+    expect(client.removeMcpServerCalls).toEqual([
+      { serverName: 'playwright', settingsLevel: 'user' },
+    ])
+    expect(client.authenticateMcpServerCalls).toEqual([{ serverName: 'figma' }])
+    expect(client.cancelMcpAuthCalls).toEqual([{ serverName: 'figma' }])
+    expect(client.clearMcpAuthCalls).toEqual([{ serverName: 'figma' }])
+    expect(client.submitMcpAuthCodeCalls).toEqual([
+      { serverName: 'figma', code: '123456', state: 'state-1' },
+    ])
+    expect(client.toggleMcpToolCalls).toEqual([
+      { serverName: 'figma', toolName: 'get_design_context', enabled: false },
+    ])
+    expect(client.killWorkerSessionCalls).toEqual([{ workerSessionId: 'worker-session-1' }])
+    expect(client.submitBugReportCalls).toEqual([
+      {
+        userComment: 'The session stopped responding',
+        clientLogs: 'renderer logs',
+      },
+    ])
   })
 
   it('gets context stats through the SDK client', async () => {

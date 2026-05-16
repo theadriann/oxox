@@ -1,11 +1,18 @@
 import type { Readable } from 'node:stream'
 import type {
+  LiveSessionAddUserMessageRequest,
   LiveSessionAskUserAnswerRecord,
+  LiveSessionBugReportRequest,
+  LiveSessionBugReportResult,
   LiveSessionCompactResult,
   LiveSessionContextStatsInfo,
   LiveSessionExecuteRewindParams,
   LiveSessionExecuteRewindResult,
+  LiveSessionMcpAuthCodeRequest,
+  LiveSessionMcpRegistryServerInfo,
+  LiveSessionMcpServerConfig,
   LiveSessionMcpServerInfo,
+  LiveSessionMcpToolInfo,
   LiveSessionRewindInfo,
   LiveSessionSkillInfo,
   LiveSessionToolInfo,
@@ -218,7 +225,10 @@ export interface StreamJsonRpcProcessTransportLike {
   initializeSession(requestId: RequestId, cwd: string): Promise<StreamJsonRpcInitializeResult>
   loadSession(requestId: RequestId, sessionId: string): Promise<StreamJsonRpcLoadResult>
   interruptSession(requestId: RequestId): Promise<void>
-  addUserMessage(requestId: RequestId, text: string): Promise<void>
+  addUserMessage(
+    requestId: RequestId,
+    message: string | LiveSessionAddUserMessageRequest,
+  ): Promise<void>
   forkSession(requestId: RequestId): Promise<{ newSessionId: string }>
   getRewindInfo(requestId: RequestId, messageId: string): Promise<LiveSessionRewindInfo>
   executeRewind(
@@ -233,6 +243,26 @@ export interface StreamJsonRpcProcessTransportLike {
   listTools?(requestId: RequestId): Promise<LiveSessionToolInfo[]>
   listSkills?(requestId: RequestId): Promise<LiveSessionSkillInfo[]>
   listMcpServers?(requestId: RequestId): Promise<LiveSessionMcpServerInfo[]>
+  listMcpTools?(requestId: RequestId): Promise<LiveSessionMcpToolInfo[]>
+  listMcpRegistry?(requestId: RequestId): Promise<LiveSessionMcpRegistryServerInfo[]>
+  addMcpServer?(requestId: RequestId, config: LiveSessionMcpServerConfig): Promise<void>
+  removeMcpServer?(requestId: RequestId, serverName: string): Promise<void>
+  toggleMcpServer?(requestId: RequestId, serverName: string, enabled: boolean): Promise<void>
+  authenticateMcpServer?(requestId: RequestId, serverName: string): Promise<void>
+  cancelMcpAuth?(requestId: RequestId, serverName: string): Promise<void>
+  clearMcpAuth?(requestId: RequestId, serverName: string): Promise<void>
+  submitMcpAuthCode?(requestId: RequestId, request: LiveSessionMcpAuthCodeRequest): Promise<void>
+  toggleMcpTool?(
+    requestId: RequestId,
+    serverName: string,
+    toolName: string,
+    enabled: boolean,
+  ): Promise<void>
+  killWorkerSession?(requestId: RequestId, workerSessionId: string): Promise<void>
+  submitBugReport?(
+    requestId: RequestId,
+    request: LiveSessionBugReportRequest,
+  ): Promise<LiveSessionBugReportResult>
   getContextStats?(requestId: RequestId): Promise<LiveSessionContextStatsInfo>
   updateSessionSettings(requestId: RequestId, settings: Partial<LiveSessionSettings>): Promise<void>
   resolvePermissionRequest(requestId: RequestId, selectedOption: string): Promise<void>

@@ -234,6 +234,130 @@ describe('mapDroidMessageToSessionEvent', () => {
     })
     expect(toolOnlyMessage).toBeNull()
   })
+
+  it('maps latest SDK result, MCP auth, MCP status, and mission messages', () => {
+    expect(
+      mapDroidMessageToSessionEvent(
+        {
+          type: 'result',
+          sessionId: 'session-1',
+          durationMs: 1234,
+          numTurns: 1,
+          result: '{"status":"ok"}',
+          tokenUsage: {
+            inputTokens: 10,
+            outputTokens: 5,
+            cacheCreationTokens: 0,
+            cacheReadTokens: 2,
+            thinkingTokens: 1,
+          },
+          messages: [],
+          text: '{"status":"ok"}',
+          turnCount: 1,
+          subtype: 'success',
+          isError: false,
+          success: true,
+          structuredOutput: { status: 'ok' },
+          structuredOutputError: null,
+          error: null,
+        } satisfies DroidMessage,
+        'session-1',
+      ),
+    ).toEqual({
+      type: 'session.result',
+      sessionId: 'session-1',
+      success: true,
+      text: '{"status":"ok"}',
+      durationMs: 1234,
+      turnCount: 1,
+      structuredOutput: { status: 'ok' },
+      structuredOutputError: null,
+      tokenUsage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 2,
+        thinkingTokens: 1,
+      },
+      error: null,
+    })
+
+    expect(
+      mapDroidMessageToSessionEvent(
+        {
+          type: 'mcp_auth_required',
+          serverName: 'figma',
+          authUrl: 'https://mcp.figma.com/oauth',
+          message: 'Authenticate Figma MCP',
+          state: 'state-1',
+        } satisfies DroidMessage,
+        'session-1',
+      ),
+    ).toEqual({
+      type: 'mcp.authRequired',
+      sessionId: 'session-1',
+      serverName: 'figma',
+      authUrl: 'https://mcp.figma.com/oauth',
+      message: 'Authenticate Figma MCP',
+      state: 'state-1',
+    })
+
+    expect(
+      mapDroidMessageToSessionEvent(
+        {
+          type: 'mcp_status_changed',
+          servers: [
+            {
+              name: 'figma',
+              status: 'connected',
+              source: 'user',
+              isManaged: false,
+            },
+          ],
+          summary: {
+            total: 1,
+            connected: 1,
+            connecting: 0,
+            failed: 0,
+            disabled: 0,
+          },
+        } satisfies DroidMessage,
+        'session-1',
+      ),
+    ).toEqual({
+      type: 'mcp.statusChanged',
+      sessionId: 'session-1',
+      servers: [
+        {
+          name: 'figma',
+          status: 'connected',
+          source: 'user',
+          isManaged: false,
+        },
+      ],
+      summary: {
+        total: 1,
+        connected: 1,
+        connecting: 0,
+        failed: 0,
+        disabled: 0,
+      },
+    })
+
+    expect(
+      mapDroidMessageToSessionEvent(
+        {
+          type: 'mission_worker_started',
+          workerSessionId: 'worker-session-1',
+        } satisfies DroidMessage,
+        'session-1',
+      ),
+    ).toEqual({
+      type: 'mission.workerStarted',
+      sessionId: 'session-1',
+      workerSessionId: 'worker-session-1',
+    })
+  })
 })
 
 describe('mapDroidNotificationPayloadToSessionEvents', () => {
