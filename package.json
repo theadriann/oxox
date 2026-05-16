@@ -7,6 +7,8 @@
   "scripts": {
     "changeset": "changeset",
     "dev": "electron-vite dev",
+    "postinstall": "pnpm run rebuild:native",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "package": "pnpm run build && electron-builder --mac --dir",

@@ -63,6 +63,8 @@ describe('packaging configuration', () => {
     expect(packageJson.scripts?.['release:validate']).toBe(
       'pnpm lint && pnpm typecheck && pnpm test',
     )
+    expect(packageJson.scripts?.['rebuild:native']).toBe('electron-rebuild -f -w better-sqlite3')
+    expect(packageJson.scripts?.postinstall).toBe('pnpm run rebuild:native')
     expect(packageJson.scripts?.['release:metadata:mac']).toBe(
       'node scripts/release/update-mac-release-metadata.mjs',
     )

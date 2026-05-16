@@ -1577,7 +1577,10 @@ describe('renderer store providers and sidebar shell', () => {
 
     expect(document.activeElement).toBe(composer)
 
-    await user.type(composer, 'Ship the attach flow{enter}')
+    fireEvent.change(composer, {
+      target: { value: 'Ship the attach flow' },
+    })
+    fireEvent.keyDown(composer, { key: 'Enter', code: 'Enter' })
 
     expect(await screen.findByText('Ship the attach flow')).toBeTruthy()
     expect(addUserMessage).toHaveBeenCalledWith('session-attach-flow', 'Ship the attach flow')
