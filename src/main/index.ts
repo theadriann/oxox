@@ -6,6 +6,7 @@ import { IPC_CHANNELS } from '../shared/ipc/contracts'
 import { AppKernel } from './app/AppKernel'
 import { startPluginBootstrap } from './app/pluginBootstrap'
 import { startRuntimeCoordinator } from './app/runtimeCoordinator'
+import { createTranscriptPerformanceLogWriter } from './diagnostics/transcriptPerformanceLog'
 import { createFoundationService } from './integration/foundationService'
 import { loadLocalPluginsFromRoot } from './integration/plugins/localPluginCatalog'
 import { detachActiveSessions } from './integration/sessionRegistry'
@@ -197,6 +198,9 @@ if (hasSingleInstanceLock) {
 }
 
 app.whenReady().then(async () => {
+  const transcriptPerformanceLogWriter = createTranscriptPerformanceLogWriter({
+    userDataPath: app.getPath('userData'),
+  })
   appUpdater ??= createAppUpdater({
     appVersion: app.getVersion(),
     isPackaged: app.isPackaged,
@@ -234,6 +238,7 @@ app.whenReady().then(async () => {
         createAppWindow: () => windowCoordinator.createAppWindow({ id: randomUUID() }),
         showOpenDialog: (ownerWindow, options) => dialog.showOpenDialog(ownerWindow, options),
         resolveOwnerWindow: (sender) => BrowserWindow.fromWebContents(sender) ?? undefined,
+        logTranscriptPerformance: transcriptPerformanceLogWriter.log,
       })
     },
     installSystemIntegration: (service) =>
@@ -266,10 +271,12 @@ app.whenReady().then(async () => {
     getAllWindows: () => BrowserWindow.getAllWindows(),
     getSessionSnapshot: (sessionId) => foundationService.getSessionSnapshot(sessionId),
     isRendererAttachedToSession,
+    logPerformanceEvent: transcriptPerformanceLogWriter.log,
   })
   const liveSessionEventBroadcaster = createLiveSessionEventBroadcaster({
     getAllWindows: () => BrowserWindow.getAllWindows(),
     isRendererAttachedToSession,
+    logPerformanceEvent: transcriptPerformanceLogWriter.log,
   })
   stopRuntimeCoordinator?.()
   const stopCoordinator = startRuntimeCoordinator({

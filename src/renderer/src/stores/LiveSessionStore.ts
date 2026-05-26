@@ -11,6 +11,7 @@ import {
   syncLiveTimelineAccumulator,
 } from '../components/transcript/liveTimelineAccumulator'
 import type { TimelineItem } from '../components/transcript/timelineTypes'
+import { logTranscriptPerformanceEvent } from '../diagnostics/transcriptPerformance'
 import { batch, bindMethods, observable, readField, readMapValue, writeMapValue } from './legend'
 
 import { toSessionRecord } from './liveSessionRecord'
@@ -87,6 +88,7 @@ export class LiveSessionStore {
   }
 
   upsertSnapshot(snapshot: LiveSessionSnapshot): void {
+    const startedAt = performance.now()
     const previousSnapshot = readMapValue(this.stateNode.snapshotsById, snapshot.sessionId)
 
     if (!snapshotChanged(previousSnapshot, snapshot)) {
@@ -101,9 +103,20 @@ export class LiveSessionStore {
     this.bus.emit('session-upsert', {
       record: toSessionRecord(snapshot, this.getSessionPreview(snapshot.sessionId)),
     })
+    logTranscriptPerformanceEvent({
+      name: 'live_session_store_upsert_snapshot',
+      sessionId: snapshot.sessionId,
+      durationMs: performance.now() - startedAt,
+      details: {
+        eventCount: snapshot.events.length,
+        messageCount: snapshot.messages.length,
+        timelineItemCount: this.timelineItemsForSession(snapshot.sessionId).length,
+      },
+    })
   }
 
   applyEventBatch(payload: LiveSessionEventBatchPayload): void {
+    const startedAt = performance.now()
     if (payload.events.length === 0) {
       return
     }
@@ -123,6 +136,20 @@ export class LiveSessionStore {
 
     this.bus.emit('session-upsert', {
       record: toSessionRecord(nextSnapshot, this.getSessionPreview(nextSnapshot.sessionId)),
+    })
+    logTranscriptPerformanceEvent({
+      name: 'live_session_store_apply_event_batch',
+      sessionId: payload.sessionId,
+      durationMs: performance.now() - startedAt,
+      details: {
+        batchEventCount: payload.events.length,
+        snapshotEventCount: nextSnapshot.events.length,
+        messageCount: nextSnapshot.messages.length,
+        timelineItemCount: this.timelineItemsForSession(payload.sessionId).length,
+        deltaCharCount: sumDeltaChars(payload.events),
+        sequenceStart: payload.sequenceStart,
+        sequenceEnd: payload.sequenceEnd,
+      },
     })
   }
 
@@ -185,6 +212,16 @@ export class LiveSessionStore {
 
     writeMapValue(this.stateNode.timelineItemsById, snapshot.sessionId, [...items])
   }
+}
+
+function sumDeltaChars(events: LiveSessionEventRecord[]): number {
+  return events.reduce((total, event) => {
+    if (event.type !== 'message.delta') {
+      return total
+    }
+
+    return total + event.delta.length
+  }, 0)
 }
 
 function applyEventsToSnapshot(

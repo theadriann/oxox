@@ -12,6 +12,7 @@ export interface PlatformApiClient {
   bridge: OxoxBridge | null
   runtime: OptionalGroup<OxoxBridge['runtime']>
   app: OptionalGroup<NonNullable<OxoxBridge['app']>>
+  diagnostics: OptionalGroup<NonNullable<OxoxBridge['diagnostics']>>
   plugin: OptionalGroup<NonNullable<OxoxBridge['plugin']>>
   dialog: OptionalGroup<OxoxBridge['dialog']>
   foundation: OptionalGroup<OxoxBridge['foundation']>
@@ -52,6 +53,7 @@ function buildPlatformApiClient(bridge: OxoxBridge | null): PlatformApiClient {
     bridge,
     runtime: bridge?.runtime ?? {},
     app: bridge?.app ?? {},
+    diagnostics: bridge?.diagnostics ?? {},
     plugin: bridge?.plugin ?? {},
     dialog: bridge?.dialog ?? {},
     foundation: bridge?.foundation ?? {},

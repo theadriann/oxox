@@ -102,6 +102,10 @@ export function createOxoxBridge(
         ),
       openNewWindow: () => invokeTyped<void>(invoke, IPC_CHANNELS.appOpenWindow),
     },
+    diagnostics: {
+      logTranscriptPerformance: (events) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.diagnosticsLogTranscriptPerformance, events),
+    },
     plugin: {
       listCapabilities: () => invokeTyped(invoke, IPC_CHANNELS.pluginListCapabilities),
       listHosts: () => invokeTyped<PluginHostSnapshot[]>(invoke, IPC_CHANNELS.pluginListHosts),

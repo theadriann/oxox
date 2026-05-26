@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
   appInstallUpdate: 'app:install-update',
   appUpdateStateChanged: 'app:update-state-changed',
   appOpenWindow: 'app:open-window',
+  diagnosticsLogTranscriptPerformance: 'diagnostics:log-transcript-performance',
   pluginCapabilitiesChanged: 'plugin:capabilities-changed',
   pluginListCapabilities: 'plugin:list-capabilities',
   pluginListHosts: 'plugin:list-hosts',
@@ -397,6 +398,15 @@ export interface FoundationChangedPayload {
   changes?: FoundationChanges
 }
 
+export interface TranscriptPerformanceEvent {
+  source: 'main' | 'renderer'
+  name: string
+  timestamp: string
+  sessionId?: string
+  durationMs?: number
+  details?: Record<string, unknown>
+}
+
 export interface PluginHostChangedPayload {
   snapshot: PluginHostSnapshot
 }
@@ -755,6 +765,9 @@ export interface OxoxBridge {
       listener: (payload: AppUpdateStateChangedPayload) => void,
     ) => (() => void) | undefined
     openNewWindow: () => Promise<void>
+  }
+  diagnostics?: {
+    logTranscriptPerformance: (events: TranscriptPerformanceEvent[]) => Promise<void>
   }
   plugin?: {
     listCapabilities: () => Promise<PluginCapabilityRecord[]>

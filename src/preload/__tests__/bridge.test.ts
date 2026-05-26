@@ -23,6 +23,31 @@ describe('createOxoxBridge', () => {
     expect(result.isDarkModeForced).toBe(true)
   })
 
+  it('invokes transcript performance diagnostics through the typed bridge', async () => {
+    const invoke = vi.fn().mockResolvedValue(undefined)
+    const bridge = createOxoxBridge(invoke)
+
+    await bridge.diagnostics?.logTranscriptPerformance([
+      {
+        source: 'renderer',
+        name: 'live_session_store_apply_event_batch',
+        timestamp: '2026-05-16T00:00:00.000Z',
+        sessionId: 'session-live-1',
+        durationMs: 4.2,
+        details: {
+          eventCount: 10,
+        },
+      },
+    ])
+
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.diagnosticsLogTranscriptPerformance, [
+      expect.objectContaining({
+        name: 'live_session_store_apply_event_batch',
+        sessionId: 'session-live-1',
+      }),
+    ])
+  })
+
   it('exposes foundation and database IPC methods through the typed bridge', async () => {
     const invoke = vi.fn((channel: string) => {
       switch (channel) {

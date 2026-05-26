@@ -1,3 +1,4 @@
+import { configureTranscriptPerformanceLogger } from '../diagnostics/transcriptPerformance'
 import type { PlatformApiClient } from '../platform/apiClient'
 import { createLocalStoragePort, type PersistencePort } from '../platform/persistence'
 
@@ -34,6 +35,7 @@ export class RootStore {
   constructor(api: PlatformApiClient, persistence: PersistencePort = createLocalStoragePort()) {
     this.api = api
     this.persistence = persistence
+    configureTranscriptPerformanceLogger(api.diagnostics.logTranscriptPerformance)
     this.sessionStore = new SessionStore(persistence)
     const getSessionTranscript = this.api.transcript.getSessionTranscript
     const getSnapshot = this.api.session.getSnapshot

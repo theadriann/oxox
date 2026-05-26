@@ -1,4 +1,8 @@
-import type { AppUpdateState, RuntimeInfo } from '../../shared/ipc/contracts'
+import type {
+  AppUpdateState,
+  RuntimeInfo,
+  TranscriptPerformanceEvent,
+} from '../../shared/ipc/contracts'
 import { IPC_CHANNELS } from '../../shared/ipc/contracts'
 import type { PluginRegistry } from '../app/PluginRegistry'
 import type { FoundationService } from '../integration/foundationService'
@@ -52,6 +56,7 @@ export interface RegisterAppIpcHandlersOptions {
     },
   ) => Promise<DialogResultLike>
   resolveOwnerWindow: (sender: WebContentsLike) => unknown
+  logTranscriptPerformance?: (events: TranscriptPerformanceEvent[]) => void
 }
 
 export function registerAppIpcHandlers({
@@ -66,6 +71,7 @@ export function registerAppIpcHandlers({
   createAppWindow,
   showOpenDialog,
   resolveOwnerWindow,
+  logTranscriptPerformance = () => undefined,
 }: RegisterAppIpcHandlersOptions): () => void {
   const registeredChannels: string[] = []
   const rendererCleanupRegistered = new Set<number>()
@@ -101,6 +107,12 @@ export function registerAppIpcHandlers({
     [IPC_CHANNELS.appInstallUpdate]: () => updater.installUpdate(),
     [IPC_CHANNELS.appOpenWindow]: async () => {
       await createAppWindow()
+    },
+    [IPC_CHANNELS.diagnosticsLogTranscriptPerformance]: (
+      _event,
+      events: TranscriptPerformanceEvent[],
+    ) => {
+      logTranscriptPerformance(events)
     },
     [IPC_CHANNELS.pluginListCapabilities]: () =>
       pluginRegistry.listCapabilities().map((capability) => ({

@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
-
+import { logTranscriptPerformanceEvent } from '../../diagnostics/transcriptPerformance'
 import { Button } from '../ui/button'
 import { SkeletonBlock } from '../ui/skeleton'
 import { StateCard } from '../ui/state-card'
@@ -99,6 +99,7 @@ type RenderItem =
   | { kind: 'tool-group'; id: string; items: ToolTimelineItem[] }
 
 function buildRenderItems(items: TimelineItem[]): RenderItem[] {
+  const startedAt = performance.now()
   const result: RenderItem[] = []
   let pendingTools: ToolTimelineItem[] = []
 
@@ -126,6 +127,17 @@ function buildRenderItems(items: TimelineItem[]): RenderItem[] {
   }
 
   flushTools()
+  const durationMs = performance.now() - startedAt
+  if (items.length > 100 || durationMs > 2) {
+    logTranscriptPerformanceEvent({
+      name: 'transcript_renderer_build_render_items',
+      durationMs,
+      details: {
+        inputItemCount: items.length,
+        outputItemCount: result.length,
+      },
+    })
+  }
   return result
 }
 

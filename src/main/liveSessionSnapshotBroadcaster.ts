@@ -1,4 +1,6 @@
-import { IPC_CHANNELS } from '../shared/ipc/contracts'
+import { performance } from 'node:perf_hooks'
+
+import { IPC_CHANNELS, type TranscriptPerformanceEvent } from '../shared/ipc/contracts'
 
 interface BrowserWindowLike {
   isDestroyed: () => boolean
@@ -17,6 +19,7 @@ export interface CreateLiveSessionSnapshotBroadcasterOptions {
   schedule?: (callback: () => void, delayMs: number) => TimerHandle
   clearScheduled?: (timer: TimerHandle) => void
   coalesceWindowMs?: number
+  logPerformanceEvent?: (events: TranscriptPerformanceEvent[]) => void
 }
 
 const DEFAULT_COALESCE_WINDOW_MS = 50
@@ -27,6 +30,7 @@ export function createLiveSessionSnapshotBroadcaster({
   getAllWindows,
   getSessionSnapshot,
   isRendererAttachedToSession,
+  logPerformanceEvent,
   schedule = setTimeout,
 }: CreateLiveSessionSnapshotBroadcasterOptions) {
   const pendingSessionIds = new Set<string>()
@@ -38,6 +42,7 @@ export function createLiveSessionSnapshotBroadcaster({
     pendingSessionIds.clear()
 
     for (const sessionId of sessionIds) {
+      const startedAt = performance.now()
       const subscribedWindows = getAllWindows().filter(
         (window) =>
           !window.isDestroyed() && isRendererAttachedToSession(window.webContents.id, sessionId),
@@ -56,6 +61,25 @@ export function createLiveSessionSnapshotBroadcaster({
       for (const window of subscribedWindows) {
         window.webContents.send(IPC_CHANNELS.sessionSnapshotChanged, { snapshot })
       }
+
+      logPerformanceEvent?.([
+        {
+          source: 'main',
+          name: 'live_session_snapshot_sent',
+          timestamp: new Date().toISOString(),
+          sessionId,
+          durationMs: performance.now() - startedAt,
+          details: {
+            subscriberCount: subscribedWindows.length,
+            eventCount: Array.isArray((snapshot as { events?: unknown[] }).events)
+              ? (snapshot as { events: unknown[] }).events.length
+              : null,
+            messageCount: Array.isArray((snapshot as { messages?: unknown[] }).messages)
+              ? (snapshot as { messages: unknown[] }).messages.length
+              : null,
+          },
+        },
+      ])
     }
   }
 
