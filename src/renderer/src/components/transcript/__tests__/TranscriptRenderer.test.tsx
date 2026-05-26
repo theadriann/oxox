@@ -597,6 +597,19 @@ describe('TranscriptRenderer (live)', () => {
                 kind: 'latency',
               },
               {
+                type: 'hook.execution',
+                hookId: 'hook-1',
+                eventName: 'PostToolUse',
+                matcher: 'Read',
+                toolCallId: 'tool-1',
+                command: 'npm test',
+                timeout: 60_000,
+                status: 'completed',
+                exitCode: 0,
+                stdout: 'ok',
+                stderr: '',
+              },
+              {
                 type: 'stream.error',
                 error: 'Recoverable stream hiccup',
                 recoverable: true,
@@ -618,6 +631,7 @@ describe('TranscriptRenderer (live)', () => {
     expect(screen.getByText('Permission request')).toBeTruthy()
     expect(screen.getByText('Ask user')).toBeTruthy()
     expect(screen.getByText('Stream warning')).toBeTruthy()
+    expect(screen.getByText('Hook completed')).toBeTruthy()
     expect(screen.getByText(/Connection lost/i)).toBeTruthy()
     expect(screen.getByText('Stream completed')).toBeTruthy()
     expect(screen.queryByText('Status changed')).toBeNull()
@@ -638,6 +652,7 @@ describe('TranscriptRenderer (live)', () => {
     expect(screen.getByText('Choose the next action')).toBeTruthy()
     expect(screen.getByText('Approved')).toBeTruthy()
     expect(screen.getByText('Submitted answer')).toBeTruthy()
+    expect(screen.getByText('npm test')).toBeTruthy()
     expect(screen.getByText('Recoverable stream hiccup')).toBeTruthy()
   })
 

@@ -96,6 +96,7 @@ class FakeDroidClient {
   readonly toggleMcpToolCalls: Array<Record<string, unknown>> = []
   readonly killWorkerSessionCalls: Array<Record<string, unknown>> = []
   readonly submitBugReportCalls: Array<Record<string, unknown>> = []
+  readonly closeSessionCalls: Array<Record<string, unknown>> = []
   getContextStatsCalls = 0
   listMcpServersCalls = 0
   listMcpToolsCalls = 0
@@ -177,6 +178,11 @@ class FakeDroidClient {
 
   async interruptSession() {
     this.interruptSessionCalls += 1
+    return {}
+  }
+
+  async closeSession(params: Record<string, unknown>) {
+    this.closeSessionCalls.push(params)
     return {}
   }
 
@@ -602,6 +608,63 @@ describe('DroidSdkSessionTransport', () => {
     ])
   })
 
+  it('reconciles latest raw tool_call names onto later raw tool_result notifications', async () => {
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+        droidPath: '/opt/factory/bin/droid',
+        sessionId: 'session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    const events: Array<Record<string, unknown>> = []
+    sessionTransport.subscribe((event) => {
+      events.push(event as Record<string, unknown>)
+    })
+
+    client.emitNotification({
+      params: {
+        notification: {
+          type: 'tool_call',
+          toolUse: {
+            type: 'tool_use',
+            id: 'tool-1',
+            name: 'Read',
+            input: { file_path: '/tmp/demo.ts' },
+          },
+        },
+      },
+    })
+    client.emitNotification({
+      params: {
+        notification: {
+          type: 'tool_result',
+          toolUseId: 'tool-1',
+          content: 'Done',
+          isError: false,
+        },
+      },
+    })
+
+    await waitFor(() => events.length === 2)
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'tool.progress',
+        toolUseId: 'tool-1',
+        toolName: 'Read',
+      }),
+      expect.objectContaining({
+        type: 'tool.result',
+        toolUseId: 'tool-1',
+        toolName: 'Read',
+      }),
+    ])
+  })
+
   it('holds SDK permission handlers open until OXOX resolves the request', async () => {
     const transport = new FakeDroidClientTransport()
     const client = new FakeDroidClient()
@@ -847,6 +910,108 @@ describe('DroidSdkSessionTransport', () => {
         }),
       ]),
     )
+  })
+
+  it('uses per-turn stream tracking to derive structured output results', async () => {
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+        droidPath: '/opt/factory/bin/droid',
+        sessionId: 'session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    const events: Array<Record<string, unknown>> = []
+    sessionTransport.subscribe((event) => {
+      events.push(event as Record<string, unknown>)
+    })
+
+    await sessionTransport.addUserMessage('message:1', {
+      text: 'Return JSON',
+      outputFormat: {
+        type: 'json_schema',
+        schema: {
+          type: 'object',
+          properties: {
+            summary: { type: 'string' },
+          },
+          required: ['summary'],
+        },
+      },
+    })
+    client.emitNotification({
+      params: {
+        notification: {
+          type: 'droid_working_state_changed',
+          newState: 'executing_tool',
+        },
+      },
+    })
+    client.emitNotification({
+      params: {
+        notification: {
+          type: 'assistant_text_delta',
+          messageId: 'assistant-1',
+          blockIndex: 0,
+          textDelta: '{"summary":"ok"}',
+        },
+      },
+    })
+    client.emitNotification({
+      params: {
+        notification: {
+          type: 'droid_working_state_changed',
+          newState: 'idle',
+        },
+      },
+    })
+
+    await waitFor(() => events.some((event) => event.type === 'session.result'))
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'session.result',
+          sessionId: 'session-1',
+          success: true,
+          text: '{"summary":"ok"}',
+          turnCount: 1,
+          structuredOutput: { summary: 'ok' },
+        }),
+      ]),
+    )
+  })
+
+  it('gracefully closes the active SDK session before closing the process transport', async () => {
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+        droidPath: '/opt/factory/bin/droid',
+        sessionId: 'session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    const events: Array<Record<string, unknown>> = []
+    sessionTransport.subscribe((event) => {
+      events.push(event as Record<string, unknown>)
+    })
+
+    await sessionTransport.dispose()
+
+    expect(client.closeSessionCalls).toEqual([{ reason: 'other' }])
+    expect(transport.closeCalls).toBe(1)
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'stream.completed',
+        reason: 'disposed',
+      }),
+    ])
   })
 
   it('delegates rewind, compact, and fork operations to the SDK client', async () => {

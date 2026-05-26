@@ -647,6 +647,20 @@ export interface LiveSessionResultEventRecord extends BaseLiveSessionEventRecord
   error?: string | null
 }
 
+export interface LiveSessionHookExecutionEventRecord extends BaseLiveSessionEventRecord {
+  type: 'hook.execution'
+  hookId: string
+  eventName?: string
+  matcher?: string
+  toolCallId?: string
+  command?: string
+  timeout?: number
+  status: string
+  exitCode?: number
+  stdout?: string
+  stderr?: string
+}
+
 export interface LiveSessionMcpStatusChangedEventRecord extends BaseLiveSessionEventRecord {
   type: 'mcp.statusChanged'
   servers: LiveSessionMcpServerInfo[]
@@ -716,6 +730,7 @@ export type LiveSessionEventRecord =
   | LiveSessionStreamErrorEventRecord
   | LiveSessionStreamCompletedEventRecord
   | LiveSessionResultEventRecord
+  | LiveSessionHookExecutionEventRecord
   | LiveSessionMcpStatusChangedEventRecord
   | LiveSessionMcpAuthRequiredEventRecord
   | LiveSessionMcpAuthCompletedEventRecord

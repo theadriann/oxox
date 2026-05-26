@@ -22,6 +22,7 @@ import type {
   LiveSessionMcpServerInfo,
   LiveSessionMcpToolInfo,
   LiveSessionSkillInfo,
+  LiveSessionTokenUsageRecord,
   LiveSessionToolInfo,
 } from '../../../shared/ipc/contracts'
 
@@ -68,6 +69,17 @@ type AskUserResult = {
 type JsonRpcMessage = Record<string, unknown>
 type JsonRpcMessageObserver = (message: JsonRpcMessage) => void
 type JsonRpcErrorObserver = (error: Error) => void
+type TurnTrackingState = {
+  startedAt: number
+  hasOutputFormat: boolean
+  fullText: string
+  finalAssistantText: string
+  tokenUsage: LiveSessionTokenUsageRecord | null
+  structuredOutput: unknown
+  structuredOutputError: unknown
+  errors: string[]
+  turnCount: number
+}
 
 class ObservedDroidClientTransport implements DroidClientTransport {
   private messageHandler: ((message: JsonRpcMessage) => void) | null = null
@@ -152,7 +164,6 @@ class ObservedDroidClientTransport implements DroidClientTransport {
 export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLike {
   private readonly client: DroidClient
   private readonly observedTransport: ObservedDroidClientTransport
-  private readonly streamStateTracker = new StreamStateTracker()
   private readonly sinks = new Set<SessionEventSink>()
   private readonly permissionRequestIdQueue: string[] = []
   private readonly askUserRequestIdQueue: string[] = []
@@ -175,6 +186,8 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
   private readonly ready: Promise<void>
 
   private currentSessionId: string | null
+  private activeStreamStateTracker: StreamStateTracker | null = null
+  private activeTurnState: TurnTrackingState | null = null
   private disposed = false
   private _processId = 0
 
@@ -269,6 +282,16 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
   ): Promise<void> {
     await this.ready
     const normalizedMessage = typeof message === 'string' ? { text: message } : message
+    const startedAt = Date.now()
+    const hasOutputFormat = Boolean(normalizedMessage.outputFormat)
+    this.activeTurnState = createTurnTrackingState({
+      hasOutputFormat,
+      startedAt,
+    })
+    this.activeStreamStateTracker = this.createStreamStateTracker({
+      hasOutputFormat,
+      startedAt,
+    })
     await this.client.addUserMessage({
       ...normalizedMessage,
       messageId: randomUUID(),
@@ -477,8 +500,19 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
 
     try {
       await this.ready.catch(() => undefined)
+      const closeSession = (
+        this.client as {
+          closeSession?: (params: { reason: string }) => Promise<unknown>
+        }
+      ).closeSession
+
+      if ((this.currentSessionId ?? this.client.sessionId) && typeof closeSession === 'function') {
+        await closeSession.call(this.client, { reason: 'other' }).catch(() => undefined)
+      }
       await this.observedTransport.close().catch(() => undefined)
     } finally {
+      this.activeStreamStateTracker = null
+      this.activeTurnState = null
       this.rewindBoundaryMessageIdByRequestId.clear()
       await this.emit({
         type: 'stream.completed',
@@ -537,7 +571,7 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
 
     if (directEvents) {
       for (const event of directEvents) {
-        await this.emit(event)
+        await this.emit(this.reconcileToolEvent(event))
       }
 
       return
@@ -553,9 +587,30 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
         : undefined
 
     for (const message of messages) {
-      const trackedMessages = this.streamStateTracker.processMessage(message)
+      const startedAt = Date.now()
+      const streamStateTracker =
+        this.activeStreamStateTracker ?? this.createStreamStateTracker({ startedAt })
+      this.activeStreamStateTracker = streamStateTracker
+      this.activeTurnState ??= createTurnTrackingState({
+        hasOutputFormat: false,
+        startedAt,
+      })
+      this.recordTurnTrackingMessage(message)
+      const trackedMessages = streamStateTracker.processMessage(message)
 
       for (const trackedMessage of [trackedMessages.message, ...trackedMessages.additional]) {
+        if (!trackedMessage) {
+          continue
+        }
+
+        if (isTurnCompleteMessage(trackedMessage)) {
+          const fallbackResultEvent = this.createFallbackResultEvent()
+
+          if (fallbackResultEvent) {
+            await this.emit(fallbackResultEvent)
+          }
+        }
+
         const embeddedEvents = extractEmbeddedSessionEventsFromDroidMessage(
           trackedMessage,
           this.currentSessionId ?? this.client.sessionId ?? undefined,
@@ -568,15 +623,114 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
         const event = mapDroidMessageToSessionEvent(
           trackedMessage,
           this.currentSessionId ?? this.client.sessionId ?? undefined,
-          trackedMessage.type === 'create_message' && trackedMessage.role === 'user'
-            ? { rewindBoundaryMessageId }
-            : undefined,
+          isUserMessageEvent(trackedMessage) ? { rewindBoundaryMessageId } : undefined,
         )
 
         if (event) {
           await this.emit(this.reconcileToolEvent(event))
         }
       }
+
+      if (trackedMessages.additional.some((trackedMessage) => trackedMessage.type === 'result')) {
+        this.activeStreamStateTracker = null
+        this.activeTurnState = null
+      }
+
+      if (trackedMessages.additional.some(isTurnCompleteMessage)) {
+        this.activeStreamStateTracker = null
+        this.activeTurnState = null
+      }
+    }
+  }
+
+  private createStreamStateTracker(options: {
+    startedAt?: number
+    hasOutputFormat?: boolean
+  }): StreamStateTracker {
+    return new StreamStateTracker({
+      sessionId: this.currentSessionId ?? this.client.sessionId ?? undefined,
+      ...options,
+    })
+  }
+
+  private recordTurnTrackingMessage(message: unknown): void {
+    const turnState = this.activeTurnState
+
+    if (!turnState || !isRecord(message) || typeof message.type !== 'string') {
+      return
+    }
+
+    if (message.type === 'assistant_text_delta' && typeof message.text === 'string') {
+      turnState.fullText += message.text
+      return
+    }
+
+    if (message.type === 'assistant' && typeof message.text === 'string') {
+      turnState.finalAssistantText = message.text
+
+      if (turnState.fullText.length === 0) {
+        turnState.fullText = message.text
+      }
+      return
+    }
+
+    if (message.type === 'token_usage_update') {
+      turnState.tokenUsage = {
+        inputTokens: toNumberValue(message.inputTokens),
+        outputTokens: toNumberValue(message.outputTokens),
+        cacheCreationTokens: toNumberValue(message.cacheCreationTokens ?? message.cacheWriteTokens),
+        cacheReadTokens: toNumberValue(message.cacheReadTokens),
+        thinkingTokens: toNumberValue(message.thinkingTokens),
+      }
+      return
+    }
+
+    if (message.type === 'structured_output') {
+      turnState.structuredOutput = message.structuredOutput
+      turnState.structuredOutputError = message.structuredOutputError
+      return
+    }
+
+    if (message.type === 'error') {
+      turnState.errors.push(toOptionalString(message.message) ?? 'Unknown stream error')
+    }
+  }
+
+  private createFallbackResultEvent():
+    | import('../protocol/sessionEvents').SessionResultEvent
+    | null {
+    const turnState = this.activeTurnState
+
+    if (!turnState) {
+      return null
+    }
+
+    turnState.turnCount += 1
+
+    if (
+      turnState.hasOutputFormat &&
+      typeof turnState.structuredOutput === 'undefined' &&
+      typeof turnState.structuredOutputError === 'undefined'
+    ) {
+      turnState.structuredOutput = parseJsonObject(
+        turnState.finalAssistantText || turnState.fullText,
+      )
+    }
+
+    const text = turnState.finalAssistantText || turnState.fullText
+    const error = turnState.errors[0] ?? null
+
+    return {
+      type: 'session.result',
+      sessionId: this.currentSessionId ?? this.client.sessionId ?? undefined,
+      success: !error && !turnState.structuredOutputError,
+      text,
+      durationMs: Date.now() - turnState.startedAt,
+      turnCount: turnState.turnCount,
+      structuredOutput: turnState.structuredOutput,
+      structuredOutputError: turnState.structuredOutputError,
+      tokenUsage: turnState.tokenUsage,
+      error,
     }
   }
 
@@ -748,12 +902,56 @@ function toOptionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
 
+function toNumberValue(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
 function toDroidMessages(result: ReturnType<typeof convertNotificationToStreamMessage>) {
   if (!result) {
     return []
   }
 
   return Array.isArray(result) ? result : [result]
+}
+
+function createTurnTrackingState({
+  startedAt,
+  hasOutputFormat,
+}: {
+  startedAt: number
+  hasOutputFormat: boolean
+}): TurnTrackingState {
+  return {
+    startedAt,
+    hasOutputFormat,
+    fullText: '',
+    finalAssistantText: '',
+    tokenUsage: null,
+    structuredOutput: undefined,
+    structuredOutputError: undefined,
+    errors: [],
+    turnCount: 0,
+  }
+}
+
+function isTurnCompleteMessage(message: unknown): message is { type: 'turn_complete' } {
+  return isRecord(message) && message.type === 'turn_complete'
+}
+
+function isUserMessageEvent(message: unknown): boolean {
+  return (
+    isRecord(message) &&
+    ((message.type === 'create_message' && message.role === 'user') || message.type === 'user')
+  )
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(text) as unknown
+    return isRecord(parsed) ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 function extractAskUserQuestions(value: unknown): LiveSessionAskUserQuestionRecord[] {

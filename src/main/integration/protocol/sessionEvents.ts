@@ -168,6 +168,20 @@ export interface SessionResultEvent extends BaseSessionEvent {
   readonly error?: string | null
 }
 
+export interface HookExecutionEvent extends BaseSessionEvent {
+  readonly type: 'hook.execution'
+  readonly hookId: string
+  readonly eventName?: string
+  readonly matcher?: string
+  readonly toolCallId?: string
+  readonly command?: string
+  readonly timeout?: number
+  readonly status: 'started' | 'completed' | 'error' | (string & {})
+  readonly exitCode?: number
+  readonly stdout?: string
+  readonly stderr?: string
+}
+
 export interface McpStatusChangedEvent extends BaseSessionEvent {
   readonly type: 'mcp.statusChanged'
   readonly servers: readonly LiveSessionMcpServerInfo[]
@@ -237,6 +251,7 @@ export type SessionEvent =
   | StreamErrorEvent
   | StreamCompletedEvent
   | SessionResultEvent
+  | HookExecutionEvent
   | McpStatusChangedEvent
   | McpAuthRequiredEvent
   | McpAuthCompletedEvent

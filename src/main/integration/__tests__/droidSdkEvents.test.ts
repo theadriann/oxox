@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createAskUserRequestedEvent,
   createPermissionRequestedEvent,
+  extractEmbeddedSessionEventsFromDroidMessage,
   mapDroidMessageToSessionEvent,
   mapDroidNotificationPayloadToSessionEvents,
 } from '../droidSdk/events'
@@ -96,6 +97,139 @@ describe('mapDroidMessageToSessionEvent', () => {
       status: 'running',
       detail: '```json\n{\n  "vault": "life",\n  "query": "my name"\n}\n```',
     })
+  })
+
+  it('maps SDK default assistant, user, tool_call, and hook stream messages', () => {
+    const assistantMessage = mapDroidMessageToSessionEvent(
+      {
+        type: 'assistant',
+        text: 'Done',
+        message: {
+          id: 'assistant-1',
+          role: 'assistant',
+          createdAt: 1,
+          updatedAt: 1,
+          content: [{ type: 'text', text: 'Done' }],
+        },
+      } satisfies DroidMessage,
+      'session-1',
+    )
+    const userMessage = mapDroidMessageToSessionEvent(
+      {
+        type: 'user',
+        message: {
+          id: 'user-1',
+          role: 'user',
+          createdAt: 2,
+          updatedAt: 2,
+          content: [{ type: 'text', text: 'Run tests' }],
+        },
+      } satisfies DroidMessage,
+      'session-1',
+      { rewindBoundaryMessageId: 'client-user-1' },
+    )
+    const toolCall = mapDroidMessageToSessionEvent(
+      {
+        type: 'tool_call',
+        toolUse: {
+          type: 'tool_use',
+          id: 'tool-1',
+          name: 'Read',
+          input: { file_path: '/tmp/demo.ts' },
+        },
+      } satisfies DroidMessage,
+      'session-1',
+    )
+    const hook = mapDroidMessageToSessionEvent(
+      {
+        type: 'hook',
+        hookId: 'hook-1',
+        eventName: 'PostToolUse',
+        matcher: 'Read',
+        toolCallId: 'tool-1',
+        command: 'npm test',
+        timeout: 60_000,
+        status: 'completed',
+        exitCode: 0,
+        stdout: 'ok',
+        stderr: '',
+      } satisfies DroidMessage,
+      'session-1',
+    )
+
+    expect(assistantMessage).toEqual({
+      type: 'message.completed',
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      content: 'Done',
+      contentBlocks: [{ type: 'text', text: 'Done' }],
+      role: 'assistant',
+    })
+    expect(userMessage).toEqual({
+      type: 'message.completed',
+      sessionId: 'session-1',
+      messageId: 'user-1',
+      content: 'Run tests',
+      rewindBoundaryMessageId: 'client-user-1',
+      contentBlocks: [{ type: 'text', text: 'Run tests' }],
+      role: 'user',
+    })
+    expect(toolCall).toEqual({
+      type: 'tool.progress',
+      sessionId: 'session-1',
+      toolUseId: 'tool-1',
+      toolName: 'Read',
+      status: 'running',
+      detail: '```json\n{\n  "file_path": "/tmp/demo.ts"\n}\n```',
+    })
+    expect(hook).toEqual({
+      type: 'hook.execution',
+      sessionId: 'session-1',
+      hookId: 'hook-1',
+      eventName: 'PostToolUse',
+      matcher: 'Read',
+      toolCallId: 'tool-1',
+      command: 'npm test',
+      timeout: 60_000,
+      status: 'completed',
+      exitCode: 0,
+      stdout: 'ok',
+      stderr: '',
+    })
+  })
+
+  it('extracts embedded tool results from SDK default user messages', () => {
+    expect(
+      extractEmbeddedSessionEventsFromDroidMessage(
+        {
+          type: 'user',
+          message: {
+            id: 'user-tool-result-1',
+            role: 'user',
+            createdAt: 2,
+            updatedAt: 2,
+            content: [
+              {
+                type: 'tool_result',
+                toolUseId: 'tool-1',
+                isError: false,
+                content: 'Read complete.',
+              },
+            ],
+          },
+        } satisfies DroidMessage,
+        'session-1',
+      ),
+    ).toEqual([
+      {
+        type: 'tool.result',
+        sessionId: 'session-1',
+        toolUseId: 'tool-1',
+        toolName: 'Unknown tool',
+        content: 'Read complete.',
+        isError: false,
+      },
+    ])
   })
 
   it('maps completed messages, settings updates, and process errors onto OXOX events', () => {
@@ -445,6 +579,34 @@ describe('mapDroidNotificationPayloadToSessionEvents', () => {
         toolName: 'kova___search_chunks',
         content: 'Adrian Brojbeanu',
         isError: false,
+      },
+    ])
+  })
+
+  it('maps latest raw tool_call notifications with a toolUse block', () => {
+    expect(
+      mapDroidNotificationPayloadToSessionEvents(
+        {
+          type: 'tool_call',
+          toolUse: {
+            type: 'tool_use',
+            id: 'tool-1',
+            name: 'Read',
+            input: {
+              file_path: '/tmp/demo.ts',
+            },
+          },
+        },
+        'session-1',
+      ),
+    ).toEqual([
+      {
+        type: 'tool.progress',
+        sessionId: 'session-1',
+        toolUseId: 'tool-1',
+        toolName: 'Read',
+        status: 'running',
+        detail: '```json\n{\n  "file_path": "/tmp/demo.ts"\n}\n```',
       },
     ])
   })

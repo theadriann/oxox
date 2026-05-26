@@ -510,6 +510,21 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
       )
       break
 
+    case 'hook.execution':
+      sealMessageSegments(accumulator)
+      setItem(
+        accumulator,
+        eventKey(event.type, accumulator.timelineItems.length),
+        systemEventItem({
+          event,
+          title: formatHookTitle(event.status),
+          body: event.command || 'Droid hook command executed.',
+          details: formatHookDetails(event),
+          tone: formatHookTone(event.status),
+        }),
+      )
+      break
+
     case 'mcp.statusChanged':
       sealMessageSegments(accumulator)
       setItem(
@@ -976,6 +991,50 @@ function extractErrorMessage(value: unknown): string | null {
 function optionalDetail(label: string, value: unknown): string | null {
   const resolvedValue = toOptionalString(value)
   return resolvedValue ? `${label}: ${resolvedValue}` : null
+}
+
+function formatHookTitle(status: string): string {
+  const normalizedStatus = status.toLowerCase()
+
+  if (normalizedStatus.includes('error') || normalizedStatus.includes('fail')) {
+    return 'Hook failed'
+  }
+
+  if (normalizedStatus.includes('complete') || normalizedStatus.includes('success')) {
+    return 'Hook completed'
+  }
+
+  return 'Hook started'
+}
+
+function formatHookTone(status: string): EventTone {
+  const normalizedStatus = status.toLowerCase()
+
+  if (normalizedStatus.includes('error') || normalizedStatus.includes('fail')) {
+    return 'danger'
+  }
+
+  if (normalizedStatus.includes('complete') || normalizedStatus.includes('success')) {
+    return 'success'
+  }
+
+  return 'default'
+}
+
+function formatHookDetails(event: LiveSessionEventRecord): Array<string | null> {
+  if (event.type !== 'hook.execution') {
+    return []
+  }
+
+  return [
+    optionalDetail('Event', event.eventName),
+    optionalDetail('Matcher', event.matcher),
+    optionalDetail('Tool call', event.toolCallId),
+    typeof event.timeout === 'number' ? `Timeout: ${event.timeout}ms` : null,
+    typeof event.exitCode === 'number' ? `Exit code: ${event.exitCode}` : null,
+    optionalDetail('Stdout', event.stdout),
+    optionalDetail('Stderr', event.stderr),
+  ]
 }
 
 function formatMissionTitle(type: string): string {

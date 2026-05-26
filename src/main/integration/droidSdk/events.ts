@@ -12,24 +12,31 @@ export function mapDroidNotificationPayloadToSessionEvents(
   sessionId?: string,
 ): SessionEvent[] | null {
   switch (notification.type) {
-    case 'tool_call':
+    case 'tool_call': {
+      const toolUse = isRecord(notification.toolUse) ? notification.toolUse : null
+
       return [
         {
           type: 'tool.progress',
           sessionId,
           toolUseId: toStringValue(
-            notification.toolUseId ?? notification.tool_use_id ?? notification.id,
+            notification.toolUseId ?? notification.tool_use_id ?? notification.id ?? toolUse?.id,
             'tool-use',
           ),
-          toolName: toStringValue(notification.toolName ?? notification.name, 'Unknown tool'),
+          toolName: toStringValue(
+            notification.toolName ?? notification.name ?? toolUse?.name,
+            'Unknown tool',
+          ),
           status: 'running',
           detail:
             toOptionalString(notification.details) ??
             toOptionalString(notification.text) ??
+            serializeUnknownAsMarkdown(toolUse?.input) ??
             serializeUnknownAsMarkdown(notification.parameters) ??
             undefined,
         },
       ]
+    }
 
     case 'tool_progress_update': {
       const update = isRecord(notification.update) ? notification.update : {}
@@ -113,6 +120,43 @@ export function mapDroidMessageToSessionEvent(
   },
 ): SessionEvent | null {
   switch (message.type) {
+    case 'assistant': {
+      const contentBlocks = extractDroidMessageContentBlocks(message.message.content)
+      const textContent = message.text || extractTextFromBlocks(contentBlocks)
+
+      if (textContent.length === 0 && contentBlocks.length === 0) {
+        return null
+      }
+
+      return {
+        type: 'message.completed',
+        sessionId,
+        messageId: message.message.id,
+        content: textContent,
+        contentBlocks: contentBlocks.length > 0 ? contentBlocks : undefined,
+        role: 'assistant',
+      }
+    }
+
+    case 'user': {
+      const contentBlocks = extractDroidMessageContentBlocks(message.message.content)
+      const textContent = extractTextFromBlocks(contentBlocks)
+
+      if (textContent.length === 0 && contentBlocks.length === 0) {
+        return null
+      }
+
+      return {
+        type: 'message.completed',
+        sessionId,
+        messageId: message.message.id,
+        content: textContent,
+        rewindBoundaryMessageId: options?.rewindBoundaryMessageId,
+        contentBlocks: contentBlocks.length > 0 ? contentBlocks : undefined,
+        role: 'user',
+      }
+    }
+
     case 'assistant_text_delta':
       return {
         type: 'message.delta',
@@ -151,6 +195,17 @@ export function mapDroidMessageToSessionEvent(
         toolName: message.toolName,
         status: 'running',
         detail: serializeUnknownAsMarkdown(message.toolInput) ?? undefined,
+      }
+
+    case 'tool_call':
+    case 'tool_call_delta':
+      return {
+        type: 'tool.progress',
+        sessionId,
+        toolUseId: message.toolUse.id,
+        toolName: message.toolUse.name,
+        status: 'running',
+        detail: serializeUnknownAsMarkdown(message.toolUse.input) ?? undefined,
       }
 
     case 'tool_result':
@@ -312,6 +367,22 @@ export function mapDroidMessageToSessionEvent(
         error: message.error?.message ?? null,
       }
 
+    case 'hook':
+      return {
+        type: 'hook.execution',
+        sessionId,
+        hookId: message.hookId,
+        eventName: message.eventName,
+        matcher: message.matcher,
+        toolCallId: message.toolCallId,
+        command: message.command,
+        timeout: message.timeout,
+        status: message.status,
+        exitCode: message.exitCode,
+        stdout: message.stdout,
+        stderr: message.stderr,
+      }
+
     case 'error':
       return {
         type: 'stream.error',
@@ -375,14 +446,27 @@ export function extractEmbeddedSessionEventsFromDroidMessage(
   message: DroidMessage,
   sessionId?: string,
 ): SessionEvent[] {
-  if (message.type !== 'create_message' || !Array.isArray(message.content)) {
+  const messageId =
+    message.type === 'create_message'
+      ? message.messageId
+      : (message.type === 'assistant' || message.type === 'user') && isRecord(message.message)
+        ? message.message.id
+        : null
+  const content =
+    message.type === 'create_message'
+      ? message.content
+      : (message.type === 'assistant' || message.type === 'user') && isRecord(message.message)
+        ? message.message.content
+        : null
+
+  if (!messageId || !Array.isArray(content)) {
     return []
   }
 
   const toolNames = new Map<string, string>()
   const events: SessionEvent[] = []
 
-  for (const [blockIndex, block] of message.content.entries()) {
+  for (const [blockIndex, block] of content.entries()) {
     if (!isRecord(block)) {
       continue
     }
@@ -403,7 +487,7 @@ export function extractEmbeddedSessionEventsFromDroidMessage(
     const toolUseId =
       toOptionalString(block.tool_use_id) ??
       toOptionalString(block.toolUseId) ??
-      `${message.messageId}:tool-result:${blockIndex.toString()}`
+      `${messageId}:tool-result:${blockIndex.toString()}`
 
     events.push({
       type: 'tool.result',
