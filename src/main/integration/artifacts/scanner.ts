@@ -29,12 +29,16 @@ const UNREADABLE_SESSION_TITLE = 'Unreadable session'
 
 type ArtifactFile = {
   bucketName: string | null
+  lastMtimeMs: number
   sessionId: string
   sourcePath: string
 }
 
 type SessionSettings = {
+  archivedAt: string | null
   cwd: string | null
+  decompMissionId: string | null
+  decompSessionType: string | null
   modelId: string | null
 }
 
@@ -64,9 +68,14 @@ type SessionSnapshot = {
   callingSessionId: string | null
   lineageRelationship: 'subagent' | 'fork'
   createdAt: string
+  decompMissionId: string | null
+  decompSessionType: string | null
   hasUserMessage: boolean
+  isFavorite: boolean
   lastActivityAt: string | null
+  messageCount: number
   modelId: string | null
+  owner: string | null
   projectWorkspacePath: string | null
   status: string
   title: string
@@ -79,13 +88,30 @@ function isTranscriptFile(entry: Dirent): boolean {
 
 function listTranscriptArtifacts(sessionsRoot: string): ArtifactFile[] {
   const entries = safeReadDir(sessionsRoot)
+  const files: ArtifactFile[] = []
+
+  const addFile = (bucketName: string | null, fileName: string, sourcePath: string): void => {
+    let lastMtimeMs: number
+
+    try {
+      lastMtimeMs = statSync(sourcePath).mtimeMs
+    } catch {
+      return
+    }
+
+    const sessionId = fileName.slice(0, -TRANSCRIPT_EXTENSION.length)
+    files.push({
+      bucketName,
+      lastMtimeMs,
+      sessionId,
+      sourcePath,
+    })
+  }
+
   const bucketEntries = entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right))
-
-  const files: ArtifactFile[] = []
-  const seenSessionIds = new Set<string>()
 
   for (const bucketName of bucketEntries) {
     const bucketPath = join(sessionsRoot, bucketName)
@@ -95,13 +121,7 @@ function listTranscriptArtifacts(sessionsRoot: string): ArtifactFile[] {
       .sort((left, right) => left.localeCompare(right))
 
     for (const fileName of bucketFiles) {
-      const sessionId = fileName.slice(0, -TRANSCRIPT_EXTENSION.length)
-      seenSessionIds.add(sessionId)
-      files.push({
-        bucketName,
-        sessionId,
-        sourcePath: join(bucketPath, fileName),
-      })
+      addFile(bucketName, fileName, join(bucketPath, fileName))
     }
   }
 
@@ -111,20 +131,28 @@ function listTranscriptArtifacts(sessionsRoot: string): ArtifactFile[] {
     .sort((left, right) => left.localeCompare(right))
 
   for (const fileName of rootFiles) {
-    const sessionId = fileName.slice(0, -TRANSCRIPT_EXTENSION.length)
+    addFile(null, fileName, join(sessionsRoot, fileName))
+  }
 
-    if (seenSessionIds.has(sessionId)) {
+  return files.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath))
+}
+
+function dedupeTranscriptArtifacts(files: ArtifactFile[]): ArtifactFile[] {
+  const filesBySessionId = new Map<string, ArtifactFile>()
+
+  for (const file of files) {
+    const current = filesBySessionId.get(file.sessionId)
+
+    if (current && current.lastMtimeMs >= file.lastMtimeMs) {
       continue
     }
 
-    files.push({
-      bucketName: null,
-      sessionId,
-      sourcePath: join(sessionsRoot, fileName),
-    })
+    filesBySessionId.set(file.sessionId, file)
   }
 
-  return files
+  return [...filesBySessionId.values()].sort((left, right) =>
+    left.sourcePath.localeCompare(right.sourcePath),
+  )
 }
 
 function safeReadDir(directoryPath: string): Dirent[] {
@@ -149,23 +177,30 @@ function isMissingPathError(error: unknown): boolean {
 }
 
 function readSettings(options: CreateArtifactScannerOptions, file: ArtifactFile): SessionSettings {
-  const bucketSettingsPath = join(
+  const settingsPath = join(
     file.bucketName ? join(options.sessionsRoot, file.bucketName) : options.sessionsRoot,
     `${file.sessionId}${SETTINGS_SUFFIX}`,
   )
-  const rootSettingsPath = join(options.sessionsRoot, `${file.sessionId}${SETTINGS_SUFFIX}`)
-  const settingsPath = file.bucketName
-    ? (tryReadSettings(bucketSettingsPath) ?? tryReadSettings(rootSettingsPath))
-    : tryReadSettings(rootSettingsPath)
+  const settings = tryReadSettings(settingsPath)
 
-  return settingsPath ?? { cwd: null, modelId: null }
+  return (
+    settings ?? {
+      archivedAt: null,
+      cwd: null,
+      decompMissionId: null,
+      decompSessionType: null,
+      modelId: null,
+    }
+  )
 }
 
 function tryReadSettings(filePath: string): SessionSettings | null {
   try {
     const parsed = JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>
     return {
+      archivedAt: typeof parsed.archivedAt === 'string' ? parsed.archivedAt : null,
       cwd: typeof parsed.cwd === 'string' ? parsed.cwd : null,
+      ...readDecompMetadata(parsed),
       modelId: readModelId(parsed),
     }
   } catch (error) {
@@ -206,10 +241,63 @@ function readModelId(settings: Record<string, unknown>): string | null {
   )
 }
 
+function readDecompMetadata(settings: Record<string, unknown>): {
+  decompMissionId: string | null
+  decompSessionType: string | null
+} {
+  const tags = Array.isArray(settings.tags) ? settings.tags : []
+  let decompMissionId: string | null = null
+  let decompSessionType: string | null = null
+
+  for (const tag of tags) {
+    if (!tag || typeof tag !== 'object') {
+      continue
+    }
+
+    const record = tag as Record<string, unknown>
+    const name = typeof record.name === 'string' ? record.name : ''
+    const metadata =
+      record.metadata && typeof record.metadata === 'object'
+        ? (record.metadata as Record<string, unknown>)
+        : null
+
+    if (name.startsWith('mission:') && typeof metadata?.missionId === 'string') {
+      decompMissionId = metadata.missionId
+    }
+
+    if (name === 'decompSessionType' && typeof metadata?.value === 'string') {
+      decompSessionType = metadata.value
+    }
+  }
+
+  return { decompMissionId, decompSessionType }
+}
+
+function readFavorites(sessionsRoot: string): Set<string> {
+  try {
+    const parsed = JSON.parse(readFileSync(join(sessionsRoot, '.favorites'), 'utf8')) as unknown
+    return new Set(
+      Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [],
+    )
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return new Set()
+    }
+
+    console.error('Failed to read session favorites artifact', {
+      error: error instanceof Error ? error.message : String(error),
+      filePath: join(sessionsRoot, '.favorites'),
+    })
+
+    return new Set()
+  }
+}
+
 function deriveSnapshot(
   file: ArtifactFile,
   records: TranscriptRecord[],
   settings: SessionSettings,
+  favorites: Set<string>,
   fallbackTimestamp: string,
   previousSession?: SessionRecord,
 ): SessionSnapshot {
@@ -241,6 +329,19 @@ function deriveSnapshot(
       settings.modelId,
       previousSession?.modelId,
     ) ?? null
+  const owner = firstDefinedString(startRecord.payload.owner, previousSession?.owner) ?? null
+  const decompSessionType =
+    firstDefinedString(
+      startRecord.payload.decompSessionType,
+      settings.decompSessionType,
+      previousSession?.decompSessionType,
+    ) ?? null
+  const decompMissionId =
+    firstDefinedString(
+      settings.decompMissionId,
+      startRecord.payload.decompMissionId,
+      previousSession?.decompMissionId,
+    ) ?? null
   const createdAt =
     firstDefinedString(startRecord.timestamp, timestamps[0], previousSession?.createdAt) ??
     fallbackTimestamp
@@ -262,9 +363,14 @@ function deriveSnapshot(
     callingSessionId: parentId,
     lineageRelationship,
     createdAt,
+    decompMissionId,
+    decompSessionType,
     hasUserMessage: records.some((record) => isUserMessageRecord(record.payload)),
+    isFavorite: favorites.has(file.sessionId),
     lastActivityAt,
+    messageCount: Math.max(0, records.length - 1),
     modelId,
+    owner,
     projectWorkspacePath,
     status: records.some((record) => record.type === 'session_end') ? 'completed' : 'idle',
     title,
@@ -274,18 +380,27 @@ function deriveSnapshot(
 
 function deriveDeltaSnapshot(
   deltaRecords: TranscriptRecord[],
-  _fallbackTimestamp: string,
+  fallbackTimestamp: string,
   previousSession: SessionRecord,
+  favorites: Set<string>,
 ): SessionSnapshot {
   const snapshot = deriveSnapshot(
     {
       bucketName: null,
+      lastMtimeMs: 0,
       sessionId: previousSession.id,
       sourcePath: '',
     },
     [{ type: 'session_start', timestamp: previousSession.createdAt, payload: {} }, ...deltaRecords],
-    { cwd: previousSession.projectWorkspacePath },
-    { cwd: previousSession.projectWorkspacePath, modelId: previousSession.modelId ?? null },
+    {
+      archivedAt: null,
+      cwd: previousSession.projectWorkspacePath,
+      decompMissionId: previousSession.decompMissionId ?? null,
+      decompSessionType: previousSession.decompSessionType ?? null,
+      modelId: previousSession.modelId ?? null,
+    },
+    favorites,
+    fallbackTimestamp,
     previousSession,
   )
 
@@ -295,6 +410,7 @@ function deriveDeltaSnapshot(
     lineageRelationship:
       (previousSession.derivationType as 'subagent' | 'fork') ?? snapshot.lineageRelationship,
     hasUserMessage: Boolean(previousSession.hasUserMessage) || snapshot.hasUserMessage,
+    messageCount: (previousSession.messageCount ?? 0) + deltaRecords.length,
     title: previousSession.title,
     modelId: previousSession.modelId ?? snapshot.modelId,
     projectWorkspacePath: previousSession.projectWorkspacePath,
@@ -317,6 +433,11 @@ function createUnreadableUpsert(
       previousSession?.projectWorkspacePath ??
       (file.bucketName ? `~/.factory/sessions/${file.bucketName}` : null),
     modelId: settings.modelId ?? previousSession?.modelId ?? null,
+    owner: previousSession?.owner ?? null,
+    messageCount: previousSession?.messageCount ?? 0,
+    isFavorite: previousSession?.isFavorite ?? false,
+    decompSessionType: settings.decompSessionType ?? previousSession?.decompSessionType ?? null,
+    decompMissionId: settings.decompMissionId ?? previousSession?.decompMissionId ?? null,
     hasUserMessage: previousSession?.hasUserMessage ?? false,
     title: UNREADABLE_SESSION_TITLE,
     status: 'disconnected',
@@ -404,7 +525,15 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
       const sessionsById = new Map(
         options.database.listSessions().map((session) => [session.id, session]),
       )
-      const currentFiles = listTranscriptArtifacts(options.sessionsRoot)
+      const favorites = readFavorites(options.sessionsRoot)
+      const fileSettings = new Map<string, SessionSettings>()
+      const currentFiles = dedupeTranscriptArtifacts(
+        listTranscriptArtifacts(options.sessionsRoot).filter((file) => {
+          const settings = readSettings(options, file)
+          fileSettings.set(file.sourcePath, settings)
+          return !settings.archivedAt
+        }),
+      )
       const currentSourcePaths = new Set(currentFiles.map((file) => file.sourcePath))
       const currentSessionIds = new Set(currentFiles.map((file) => file.sessionId))
 
@@ -432,7 +561,7 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
           continue
         }
 
-        const settings = readSettings(options, file)
+        const settings = fileSettings.get(file.sourcePath) ?? readSettings(options, file)
 
         try {
           const isAppendOnlyUpdate = shouldUseAppendOnlyArtifactSync({
@@ -450,8 +579,15 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
             parsed = await parseTranscriptFileFromPath(file.sourcePath, startOffset)
             snapshot =
               isAppendOnlyUpdate && previousSession
-                ? deriveDeltaSnapshot(parsed.records, fallbackTimestamp, previousSession)
-                : deriveSnapshot(file, parsed.records, settings, fallbackTimestamp, previousSession)
+                ? deriveDeltaSnapshot(parsed.records, fallbackTimestamp, previousSession, favorites)
+                : deriveSnapshot(
+                    file,
+                    parsed.records,
+                    settings,
+                    favorites,
+                    fallbackTimestamp,
+                    previousSession,
+                  )
             lastByteOffset = startOffset + parsed.lastByteOffset
           } catch (error) {
             if (!(isAppendOnlyUpdate && previousSession)) {
@@ -463,6 +599,7 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
               file,
               parsed.records,
               settings,
+              favorites,
               fallbackTimestamp,
               previousSession,
             )
@@ -475,6 +612,11 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
             projectWorkspacePath: snapshot.projectWorkspacePath,
             modelId: snapshot.modelId,
             hasUserMessage: snapshot.hasUserMessage,
+            owner: snapshot.owner,
+            messageCount: snapshot.messageCount,
+            isFavorite: snapshot.isFavorite,
+            decompSessionType: snapshot.decompSessionType,
+            decompMissionId: snapshot.decompMissionId,
             title: snapshot.title,
             status: snapshot.status,
             transport: 'artifacts',

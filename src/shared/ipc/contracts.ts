@@ -112,6 +112,11 @@ export interface SessionRecord {
   parentSessionId: string | null
   derivationType: string | null
   hasUserMessage?: boolean
+  owner?: string | null
+  messageCount?: number
+  isFavorite?: boolean
+  decompSessionType?: string | null
+  decompMissionId?: string | null
   title: string
   status: string
   transport: string | null

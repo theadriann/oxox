@@ -24,6 +24,11 @@ const FOUNDATION_SCHEMA = `
     project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
     model_id TEXT,
     has_user_message INTEGER NOT NULL DEFAULT 1,
+    owner TEXT,
+    message_count INTEGER NOT NULL DEFAULT 0,
+    is_favorite INTEGER NOT NULL DEFAULT 0,
+    decomp_session_type TEXT,
+    decomp_mission_id TEXT,
     title TEXT NOT NULL,
     status TEXT NOT NULL,
     transport TEXT,
@@ -74,7 +79,7 @@ const FOUNDATION_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_session_rewind_boundaries_session_id ON session_rewind_boundaries(session_id);
 `
 
-const CURRENT_SCHEMA_VERSION = 5
+const CURRENT_SCHEMA_VERSION = 6
 
 const require = createRequire(import.meta.url)
 
@@ -101,6 +106,11 @@ export interface ArtifactSessionUpsert {
   projectWorkspacePath: string | null
   modelId?: string | null
   hasUserMessage?: boolean
+  owner?: string | null
+  messageCount?: number
+  isFavorite?: boolean
+  decompSessionType?: string | null
+  decompMissionId?: string | null
   title: string
   status: string
   transport: string
@@ -117,6 +127,11 @@ export interface SessionUpsert {
   projectWorkspacePath: string | null
   modelId?: string | null
   hasUserMessage?: boolean
+  owner?: string | null
+  messageCount?: number
+  isFavorite?: boolean
+  decompSessionType?: string | null
+  decompMissionId?: string | null
   title: string
   status: string
   transport: string | null
@@ -244,6 +259,11 @@ export function createDatabaseService({
   database.exec(FOUNDATION_SCHEMA)
   ensureColumn(database, 'sessions', 'model_id', 'TEXT')
   ensureColumn(database, 'sessions', 'has_user_message', 'INTEGER NOT NULL DEFAULT 1')
+  ensureColumn(database, 'sessions', 'owner', 'TEXT')
+  ensureColumn(database, 'sessions', 'message_count', 'INTEGER NOT NULL DEFAULT 0')
+  ensureColumn(database, 'sessions', 'is_favorite', 'INTEGER NOT NULL DEFAULT 0')
+  ensureColumn(database, 'sessions', 'decomp_session_type', 'TEXT')
+  ensureColumn(database, 'sessions', 'decomp_mission_id', 'TEXT')
   runSchemaMigrations(database)
 
   const projectStatement = database.prepare<ProjectRecord>(`
@@ -265,6 +285,11 @@ export function createDatabaseService({
       projects.display_name AS projectDisplayName,
       sessions.model_id AS modelId,
       sessions.has_user_message AS hasUserMessage,
+      sessions.owner,
+      sessions.message_count AS messageCount,
+      sessions.is_favorite AS isFavorite,
+      sessions.decomp_session_type AS decompSessionType,
+      sessions.decomp_mission_id AS decompMissionId,
       sessions.title,
       sessions.status,
       sessions.transport,
@@ -288,6 +313,11 @@ export function createDatabaseService({
       session_lineage.parent_session_id AS parentSessionId,
       session_lineage.relationship AS derivationType,
       sessions.has_user_message AS hasUserMessage,
+      sessions.owner,
+      sessions.message_count AS messageCount,
+      sessions.is_favorite AS isFavorite,
+      sessions.decomp_session_type AS decompSessionType,
+      sessions.decomp_mission_id AS decompMissionId,
       sessions.title,
       COALESCE(session_runtime.status, sessions.status) AS status,
       COALESCE(session_runtime.transport, sessions.transport) AS transport,
@@ -323,6 +353,11 @@ export function createDatabaseService({
       session_lineage.parent_session_id AS parentSessionId,
       session_lineage.relationship AS derivationType,
       sessions.has_user_message AS hasUserMessage,
+      sessions.owner,
+      sessions.message_count AS messageCount,
+      sessions.is_favorite AS isFavorite,
+      sessions.decomp_session_type AS decompSessionType,
+      sessions.decomp_mission_id AS decompMissionId,
       sessions.title,
       COALESCE(session_runtime.status, sessions.status) AS status,
       COALESCE(session_runtime.transport, sessions.transport) AS transport,
@@ -403,6 +438,11 @@ export function createDatabaseService({
       project_id,
       model_id,
       has_user_message,
+      owner,
+      message_count,
+      is_favorite,
+      decomp_session_type,
+      decomp_mission_id,
       title,
       status,
       transport,
@@ -410,11 +450,16 @@ export function createDatabaseService({
       last_activity_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       project_id = excluded.project_id,
       model_id = excluded.model_id,
       has_user_message = excluded.has_user_message,
+      owner = excluded.owner,
+      message_count = excluded.message_count,
+      is_favorite = excluded.is_favorite,
+      decomp_session_type = excluded.decomp_session_type,
+      decomp_mission_id = excluded.decomp_mission_id,
       title = excluded.title,
       status = excluded.status,
       transport = excluded.transport,
@@ -525,6 +570,11 @@ export function createDatabaseService({
       session.projectWorkspacePath ? createProjectId(session.projectWorkspacePath) : null,
       session.modelId ?? null,
       (session.hasUserMessage ?? true) ? 1 : 0,
+      session.owner ?? null,
+      session.messageCount ?? 0,
+      (session.isFavorite ?? false) ? 1 : 0,
+      session.decompSessionType ?? null,
+      session.decompMissionId ?? null,
       session.title,
       session.status,
       session.transport,
@@ -545,6 +595,11 @@ export function createDatabaseService({
         projectWorkspacePath: session.projectWorkspacePath,
         modelId: session.modelId ?? null,
         hasUserMessage: session.hasUserMessage ?? true,
+        owner: session.owner ?? null,
+        messageCount: session.messageCount ?? 0,
+        isFavorite: session.isFavorite ?? false,
+        decompSessionType: session.decompSessionType ?? null,
+        decompMissionId: session.decompMissionId ?? null,
         title: session.title,
         status: session.status,
         transport: session.transport,
@@ -662,6 +717,14 @@ function normalizeSessionRecord(session: SessionRecord): SessionRecord {
       session.hasUserMessage === undefined || session.hasUserMessage === null
         ? true
         : Boolean(session.hasUserMessage),
+    messageCount:
+      session.messageCount === undefined || session.messageCount === null
+        ? 0
+        : Number(session.messageCount),
+    isFavorite:
+      session.isFavorite === undefined || session.isFavorite === null
+        ? false
+        : Boolean(session.isFavorite),
   }
 }
 

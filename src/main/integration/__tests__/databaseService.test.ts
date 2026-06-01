@@ -7,6 +7,59 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { createDatabaseService } from '../database/service'
 
+function createNodeSqliteDatabaseFactory() {
+  return (databasePath: string) => {
+    const sqlite = new DatabaseSync(databasePath)
+    let open = true
+
+    return {
+      close: () => {
+        open = false
+        sqlite.close()
+      },
+      exec: (sql: string) => {
+        sqlite.exec(sql)
+      },
+      get open() {
+        return open
+      },
+      pragma: (statement: string, options?: { simple?: boolean }) => {
+        const row = sqlite.prepare(`PRAGMA ${statement}`).get() as
+          | Record<string, unknown>
+          | undefined
+
+        if (options?.simple) {
+          return row ? Object.values(row)[0] : undefined
+        }
+
+        return row
+      },
+      prepare: (sql: string) => {
+        const statement = sqlite.prepare(sql)
+
+        return {
+          all: (...params: unknown[]) => statement.all(...params),
+          get: (...params: unknown[]) => statement.get(...params),
+          run: (...params: unknown[]) => statement.run(...params),
+        }
+      },
+      transaction: <T extends (...args: unknown[]) => unknown>(callback: T): T =>
+        ((...args: Parameters<T>) => {
+          sqlite.exec('BEGIN')
+
+          try {
+            const result = callback(...args)
+            sqlite.exec('COMMIT')
+            return result
+          } catch (error) {
+            sqlite.exec('ROLLBACK')
+            throw error
+          }
+        }) as T,
+    }
+  }
+}
+
 describe('createDatabaseService', () => {
   const cleanup: Array<() => void> = []
 
@@ -91,6 +144,48 @@ describe('createDatabaseService', () => {
     expect(syncMetadataColumns).toEqual(
       expect.arrayContaining(['source_path', 'session_id', 'last_byte_offset', 'last_mtime_ms']),
     )
+  })
+
+  it('persists SDK session listing metadata alongside existing OXOX session fields', () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-db-'))
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createNodeSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    database.upsertArtifactSession({
+      sessionId: 'session-sdk-metadata',
+      sourcePath: '/tmp/session-sdk-metadata.jsonl',
+      projectWorkspacePath: '/tmp/sdk-metadata',
+      modelId: 'gpt-5.5',
+      hasUserMessage: true,
+      title: 'SDK metadata session',
+      status: 'idle',
+      transport: 'artifacts',
+      createdAt: '2026-04-03T02:00:00.000Z',
+      lastActivityAt: '2026-04-03T02:01:00.000Z',
+      updatedAt: '2026-04-03T02:01:00.000Z',
+      lastByteOffset: 123,
+      lastMtimeMs: 456,
+      checksum: '123:456',
+      owner: 'adrian',
+      messageCount: 3,
+      isFavorite: true,
+      decompSessionType: 'worker',
+      decompMissionId: 'mission-123',
+    } as Parameters<typeof database.upsertArtifactSession>[0])
+
+    expect(database.getSession('session-sdk-metadata')).toMatchObject({
+      id: 'session-sdk-metadata',
+      modelId: 'gpt-5.5',
+      hasUserMessage: true,
+      owner: 'adrian',
+      messageCount: 3,
+      isFavorite: true,
+      decompSessionType: 'worker',
+      decompMissionId: 'mission-123',
+    })
   })
 
   it('re-invalidates stale artifact rows from schema version 3 so hasUserMessage is recomputed', () => {

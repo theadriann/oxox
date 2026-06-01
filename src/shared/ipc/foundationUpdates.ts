@@ -246,6 +246,11 @@ function sessionRecordEqual(left: SessionRecord, right: SessionRecord): boolean 
     left.derivationType === right.derivationType &&
     left.hasUserMessage === right.hasUserMessage &&
     left.modelId === right.modelId &&
+    left.owner === right.owner &&
+    left.messageCount === right.messageCount &&
+    left.isFavorite === right.isFavorite &&
+    left.decompSessionType === right.decompSessionType &&
+    left.decompMissionId === right.decompMissionId &&
     left.title === right.title &&
     left.status === right.status &&
     left.transport === right.transport &&

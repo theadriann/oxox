@@ -5,6 +5,7 @@ import {
   rmSync,
   statSync,
   unlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -90,6 +91,27 @@ function writeSessionArtifact(options: {
   }
 
   return { bucketPath, transcriptPath }
+}
+
+function writeRootSessionArtifact(options: {
+  sessionsRoot: string
+  sessionId: string
+  transcriptLines: string[]
+  settings?: Record<string, unknown>
+}) {
+  mkdirSync(options.sessionsRoot, { recursive: true })
+
+  const transcriptPath = join(options.sessionsRoot, `${options.sessionId}.jsonl`)
+  writeFileSync(transcriptPath, `${options.transcriptLines.join('\n')}\n`)
+
+  if (options.settings) {
+    writeFileSync(
+      join(options.sessionsRoot, `${options.sessionId}.settings.json`),
+      `${JSON.stringify(options.settings, null, 2)}\n`,
+    )
+  }
+
+  return { transcriptPath }
 }
 
 describe('artifact scanner', () => {
@@ -211,6 +233,241 @@ describe('artifact scanner', () => {
     expect(database.getSession('12121212-1212-4212-8212-121212121212')).toMatchObject({
       title: 'Find Latest Apartment Project Changes',
     })
+  })
+
+  it('mirrors SDK session metadata by skipping archived sessions and preserving favorites, owner, message count, and decomp tags', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'oxox-artifacts-'))
+    const sessionsRoot = join(root, 'sessions')
+    const userDataPath = join(root, 'user-data')
+    cleanup.push(() => rmSync(root, { recursive: true, force: true }))
+
+    mkdirSync(sessionsRoot, { recursive: true })
+    writeFileSync(
+      join(sessionsRoot, '.favorites'),
+      `${JSON.stringify(['23232323-2323-4232-8232-232323232323'])}\n`,
+    )
+
+    writeSessionArtifact({
+      sessionsRoot,
+      bucket: '-metadata-project',
+      sessionId: '23232323-2323-4232-8232-232323232323',
+      transcriptLines: [
+        JSON.stringify({
+          type: 'session_start',
+          timestamp: '2026-04-03T01:00:00.000Z',
+          id: '23232323-2323-4232-8232-232323232323',
+          title: 'Metadata title',
+          owner: 'adrian',
+          cwd: '/tmp/metadata-project',
+          decompMissionId: 'mission-from-start',
+        }),
+        JSON.stringify({
+          type: 'message',
+          timestamp: '2026-04-03T01:01:00.000Z',
+          message: { role: 'user', content: 'hello' },
+        }),
+        JSON.stringify({
+          type: 'message',
+          timestamp: '2026-04-03T01:02:00.000Z',
+          message: { role: 'assistant', content: 'hi' },
+        }),
+      ],
+      settings: {
+        tags: [
+          {
+            name: 'decompSessionType',
+            metadata: { value: 'worker' },
+          },
+          {
+            name: 'mission:build',
+            metadata: { missionId: 'mission-from-settings' },
+          },
+        ],
+      },
+    })
+
+    writeSessionArtifact({
+      sessionsRoot,
+      bucket: '-metadata-project',
+      sessionId: '34343434-3434-4434-8434-343434343434',
+      transcriptLines: [
+        JSON.stringify({
+          type: 'session_start',
+          timestamp: '2026-04-03T01:03:00.000Z',
+          id: '34343434-3434-4434-8434-343434343434',
+          title: 'Archived title',
+          cwd: '/tmp/metadata-project',
+        }),
+      ],
+      settings: {
+        archivedAt: '2026-04-03T01:04:00.000Z',
+      },
+    })
+
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createNodeSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    const scanner = createArtifactScanner({
+      database,
+      sessionsRoot,
+    })
+
+    const report = await scanner.sync()
+
+    expect(report).toMatchObject({
+      processedCount: 1,
+      unreadableCount: 0,
+    })
+    expect(database.listSessions()).toEqual([
+      expect.objectContaining({
+        id: '23232323-2323-4232-8232-232323232323',
+        owner: 'adrian',
+        messageCount: 2,
+        isFavorite: true,
+        decompSessionType: 'worker',
+        decompMissionId: 'mission-from-settings',
+      }),
+    ])
+  })
+
+  it('uses the newest duplicate artifact when the same session exists in root and project buckets', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'oxox-artifacts-'))
+    const sessionsRoot = join(root, 'sessions')
+    const userDataPath = join(root, 'user-data')
+    cleanup.push(() => rmSync(root, { recursive: true, force: true }))
+
+    const bucketArtifact = writeSessionArtifact({
+      sessionsRoot,
+      bucket: '-duplicate-project',
+      sessionId: '45454545-4545-4545-8545-454545454545',
+      transcriptLines: [
+        JSON.stringify({
+          type: 'session_start',
+          timestamp: '2026-04-03T01:05:00.000Z',
+          id: '45454545-4545-4545-8545-454545454545',
+          title: 'Older bucket title',
+          cwd: '/tmp/duplicate-project',
+        }),
+      ],
+    })
+    const rootArtifact = writeRootSessionArtifact({
+      sessionsRoot,
+      sessionId: '45454545-4545-4545-8545-454545454545',
+      transcriptLines: [
+        JSON.stringify({
+          type: 'session_start',
+          timestamp: '2026-04-03T01:06:00.000Z',
+          id: '45454545-4545-4545-8545-454545454545',
+          title: 'Newer root title',
+          cwd: '/tmp/duplicate-project',
+        }),
+      ],
+    })
+
+    const older = new Date('2026-04-03T01:05:00.000Z')
+    const newer = new Date('2026-04-03T01:06:00.000Z')
+    utimesSync(bucketArtifact.transcriptPath, older, older)
+    utimesSync(rootArtifact.transcriptPath, newer, newer)
+
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createNodeSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    const scanner = createArtifactScanner({
+      database,
+      sessionsRoot,
+    })
+
+    await expect(scanner.sync()).resolves.toMatchObject({
+      processedCount: 1,
+      unreadableCount: 0,
+    })
+    expect(database.listSessions()).toEqual([
+      expect.objectContaining({
+        id: '45454545-4545-4545-8545-454545454545',
+        title: 'Newer root title',
+      }),
+    ])
+    expect(database.listSyncMetadata()).toEqual([
+      expect.objectContaining({
+        sourcePath: rootArtifact.transcriptPath,
+      }),
+    ])
+  })
+
+  it('falls back to an older duplicate artifact when the newest duplicate is archived', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'oxox-artifacts-'))
+    const sessionsRoot = join(root, 'sessions')
+    const userDataPath = join(root, 'user-data')
+    cleanup.push(() => rmSync(root, { recursive: true, force: true }))
+
+    const bucketArtifact = writeSessionArtifact({
+      sessionsRoot,
+      bucket: '-active-duplicate-project',
+      sessionId: '56565656-5656-4656-8656-565656565656',
+      transcriptLines: [
+        JSON.stringify({
+          type: 'session_start',
+          timestamp: '2026-04-03T01:07:00.000Z',
+          id: '56565656-5656-4656-8656-565656565656',
+          title: 'Older active title',
+          cwd: '/tmp/active-duplicate-project',
+        }),
+      ],
+    })
+    const rootArtifact = writeRootSessionArtifact({
+      sessionsRoot,
+      sessionId: '56565656-5656-4656-8656-565656565656',
+      transcriptLines: [
+        JSON.stringify({
+          type: 'session_start',
+          timestamp: '2026-04-03T01:08:00.000Z',
+          id: '56565656-5656-4656-8656-565656565656',
+          title: 'Newer archived title',
+          cwd: '/tmp/active-duplicate-project',
+        }),
+      ],
+      settings: {
+        archivedAt: '2026-04-03T01:09:00.000Z',
+      },
+    })
+
+    const older = new Date('2026-04-03T01:07:00.000Z')
+    const newer = new Date('2026-04-03T01:08:00.000Z')
+    utimesSync(bucketArtifact.transcriptPath, older, older)
+    utimesSync(rootArtifact.transcriptPath, newer, newer)
+
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createNodeSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    const scanner = createArtifactScanner({
+      database,
+      sessionsRoot,
+    })
+
+    await expect(scanner.sync()).resolves.toMatchObject({
+      processedCount: 1,
+      unreadableCount: 0,
+    })
+    expect(database.listSessions()).toEqual([
+      expect.objectContaining({
+        id: '56565656-5656-4656-8656-565656565656',
+        title: 'Older active title',
+      }),
+    ])
+    expect(database.listSyncMetadata()).toEqual([
+      expect.objectContaining({
+        sourcePath: bucketArtifact.transcriptPath,
+      }),
+    ])
   })
 
   it('only processes new or modified files on incremental rescans', async () => {
