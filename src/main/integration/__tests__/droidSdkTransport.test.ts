@@ -862,7 +862,7 @@ describe('DroidSdkSessionTransport', () => {
     ])
   })
 
-  it('emits a completion event when the SDK stream returns to idle', async () => {
+  it('emits a result event when the SDK stream returns to idle', async () => {
     const transport = new FakeDroidClientTransport()
     const client = new FakeDroidClient()
     const sessionTransport = new DroidSdkSessionTransport(
@@ -896,7 +896,7 @@ describe('DroidSdkSessionTransport', () => {
       },
     })
 
-    await waitFor(() => events.some((event) => event.type === 'stream.completed'))
+    await waitFor(() => events.some((event) => event.type === 'session.result'))
 
     expect(events).toEqual(
       expect.arrayContaining([
@@ -905,8 +905,8 @@ describe('DroidSdkSessionTransport', () => {
           status: 'executing_tool',
         }),
         expect.objectContaining({
-          type: 'stream.completed',
-          reason: 'turn_complete',
+          type: 'session.result',
+          success: true,
         }),
       ]),
     )

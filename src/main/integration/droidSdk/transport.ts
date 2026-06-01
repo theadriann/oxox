@@ -507,7 +507,9 @@ export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLi
       ).closeSession
 
       if ((this.currentSessionId ?? this.client.sessionId) && typeof closeSession === 'function') {
-        await closeSession.call(this.client, { reason: 'other' }).catch(() => undefined)
+        await withTimeout(closeSession.call(this.client, { reason: 'other' }), 1_000).catch(
+          () => undefined,
+        )
       }
       await this.observedTransport.close().catch(() => undefined)
     } finally {
@@ -952,6 +954,22 @@ function parseJsonObject(text: string): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`Timed out after ${timeoutMs}ms.`))
+    }, timeoutMs)
+  })
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) {
+      clearTimeout(timeout)
+    }
+  })
 }
 
 function extractAskUserQuestions(value: unknown): LiveSessionAskUserQuestionRecord[] {

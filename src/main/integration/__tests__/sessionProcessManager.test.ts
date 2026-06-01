@@ -79,6 +79,12 @@ class FakeChildProcess {
   readonly stdin = {
     write: vi.fn((chunk: string) => {
       this.writes.push(chunk)
+      const message = JSON.parse(chunk) as { id?: string; method?: string }
+
+      if (message.method === 'droid.close_session') {
+        this.emitStdout(createResponse(String(message.id ?? ''), {}))
+      }
+
       return true
     }),
     end: vi.fn(),
