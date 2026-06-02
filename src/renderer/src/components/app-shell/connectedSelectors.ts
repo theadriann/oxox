@@ -140,6 +140,7 @@ interface BuildAppShellSidebarPropsOptions {
     pinnedSessions: SessionSidebarProps['pinnedSessions']
     projectGroups: SessionSidebarProps['groups']
     selectedSessionId: string
+    sessionsById$: NonNullable<SessionSidebarProps['sessionsById$']>
     selectSession: SessionSidebarProps['onSelectSession']
     setProjectDisplayName: SessionSidebarProps['onSetProjectDisplayName']
     togglePinnedSession: SessionSidebarProps['onTogglePinnedSession']
@@ -189,6 +190,7 @@ export function buildAppShellSidebarProps({
       onHideSidebar: uiStore.toggleSidebar,
       pinnedSessions: sessionStore.pinnedSessions,
       selectedSessionId: sessionStore.selectedSessionId,
+      sessionsById$: sessionStore.sessionsById$,
     } satisfies SessionSidebarProps,
   }
 }

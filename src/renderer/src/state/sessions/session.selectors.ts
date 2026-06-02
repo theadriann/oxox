@@ -89,17 +89,28 @@ export function sessionPreviewsChanged(
   return previousSessions.some((session, index) => {
     const nextSession = nextSessions[index]
 
-    return (
-      session.id !== nextSession?.id ||
-      session.updatedAt !== nextSession.updatedAt ||
-      session.status !== nextSession.status ||
-      session.title !== nextSession.title ||
-      session.hasUserMessage !== nextSession.hasUserMessage ||
-      session.lastActivityAt !== nextSession.lastActivityAt ||
-      session.modelId !== nextSession.modelId ||
-      session.derivationType !== nextSession.derivationType
-    )
+    return !nextSession || sessionPreviewChanged(session, nextSession)
   })
+}
+
+export function sessionPreviewChanged(previous: SessionPreview, next: SessionPreview): boolean {
+  return (
+    previous.id !== next.id ||
+    previous.title !== next.title ||
+    previous.projectKey !== next.projectKey ||
+    previous.projectLabel !== next.projectLabel ||
+    previous.defaultProjectLabel !== next.defaultProjectLabel ||
+    previous.projectWorkspacePath !== next.projectWorkspacePath ||
+    previous.modelId !== next.modelId ||
+    previous.parentSessionId !== next.parentSessionId ||
+    previous.derivationType !== next.derivationType ||
+    previous.hasUserMessage !== next.hasUserMessage ||
+    previous.status !== next.status ||
+    previous.createdAt !== next.createdAt ||
+    previous.updatedAt !== next.updatedAt ||
+    previous.lastActivityAt !== next.lastActivityAt ||
+    previous.lastActivityTimestamp !== next.lastActivityTimestamp
+  )
 }
 
 function shouldSurfaceInSidebar(session: SessionPreview): boolean {

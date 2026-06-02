@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react'
+import { observable } from '@legendapp/state'
+import { act, render, screen } from '@testing-library/react'
 
-import type { ProjectSessionGroup, SessionPreview } from '../../../state/sessions/session.model'
+import type { SessionPreview } from '../../../state/sessions/session.model'
 import { TooltipProvider } from '../../ui/tooltip'
 import { SessionList, type VirtualSidebarItem } from '../SessionList'
 import { SessionSidebarStore } from '../SessionSidebarStore'
@@ -26,32 +27,28 @@ function createSession(sessionId = 'session-alpha'): SessionPreview {
   }
 }
 
-function createProjectGroup(): ProjectSessionGroup {
-  return {
-    key: 'project-alpha',
-    label: 'project-alpha',
-    workspacePath: '/tmp/project-alpha',
-    latestActivityAt: Date.parse('2026-03-25T00:00:00.000Z'),
-    sessions: [createSession()],
-  }
-}
-
 describe('SessionList', () => {
   it('renders project and session items through the virtual list shell', () => {
     const store = new SessionSidebarStore()
     const sessionRefs = new Map<string, HTMLButtonElement>()
     const scrollAreaRef = { current: document.createElement('div') }
+    const sessionsById$ = observable<Record<string, SessionPreview>>({
+      'session-alpha': createSession(),
+    })
     const flatItems: VirtualSidebarItem[] = [
       {
         kind: 'project-header',
-        group: createProjectGroup(),
+        projectKey: 'project-alpha',
+        label: 'project-alpha',
+        workspacePath: '/tmp/project-alpha',
+        sessionCount: 1,
         collapsed: false,
         isEditing: false,
       },
       {
         kind: 'session',
         focusKey: 'project:project-alpha:session-alpha',
-        session: createSession(),
+        sessionId: 'session-alpha',
         isPinned: false,
       },
     ]
@@ -60,6 +57,7 @@ describe('SessionList', () => {
       <TooltipProvider>
         <SessionList
           flatItems={flatItems}
+          sessionsById$={sessionsById$}
           focusedKey="project:project-alpha:session-alpha"
           selectedSessionId="session-alpha"
           store={store}
@@ -78,5 +76,11 @@ describe('SessionList', () => {
 
     expect(screen.getByText('project-alpha')).toBeTruthy()
     expect(screen.getByTitle('Alpha')).toBeTruthy()
+
+    act(() => {
+      sessionsById$['session-alpha'].title.set('Renamed alpha')
+    })
+
+    expect(screen.getByTitle('Renamed alpha')).toBeTruthy()
   })
 })

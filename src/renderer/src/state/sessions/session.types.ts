@@ -43,6 +43,7 @@ export interface PersistedSessionPreferences {
 
 export interface SessionState {
   sessions: SessionPreview[]
+  sessionsById: Record<string, SessionPreview>
   selectedSessionId: string
   hasHydratedSessions: boolean
   missingSelectedSession: boolean

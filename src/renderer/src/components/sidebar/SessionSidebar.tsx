@@ -1,3 +1,4 @@
+import { type Observable, observable } from '@legendapp/state'
 import { useValue } from '@legendapp/state/react'
 import { ChevronsLeft, FolderSearch, GripVertical, Plus, Search } from 'lucide-react'
 import type { ChangeEvent, KeyboardEvent } from 'react'
@@ -27,6 +28,7 @@ const SIDEBAR_QUERY_COMMIT_DELAY_MS = 120
 export interface SessionSidebarProps {
   groups: ProjectSessionGroup[]
   pinnedSessions: SessionPreview[]
+  sessionsById$?: Observable<Record<string, SessionPreview>>
   selectedSessionId: string
   activeCount: number
   isLoading?: boolean
@@ -62,6 +64,7 @@ interface SessionSidebarViewProps extends SessionSidebarProps {
 export function SessionSidebar({
   groups,
   pinnedSessions,
+  sessionsById$,
   selectedSessionId,
   activeCount,
   store,
@@ -88,16 +91,20 @@ export function SessionSidebar({
   const sessionRefs = useRef(new Map<string, HTMLButtonElement>())
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const hasAnySessions = groups.length > 0 || pinnedSessions.length > 0
+  const resolvedSessionsById$ = useMemo(
+    () => sessionsById$ ?? observable(indexSessionsById(groups, pinnedSessions)),
+    [groups, pinnedSessions, sessionsById$],
+  )
   const editingProjectKey = useValue(() =>
     store.isEditingProjectValid(groups) ? store.editingProjectKey : null,
   )
   const filters = useValue(() => store.filters)
   const searchQueryDraft = useValue(() => store.searchQueryDraft)
   const isFilterPanelOpen = useValue(() => store.isFilterPanelOpen)
-  const now = useValue(() => store.now)
+  const filterNow = useValue(() => (store.filters.dateRange === 'all' ? 0 : store.now))
   const filteredSidebar = useMemo(
-    () => filterSessionGroups(groups, pinnedSessions, filters, searchMatches, now),
-    [filters, groups, now, pinnedSessions, searchMatches],
+    () => filterSessionGroups(groups, pinnedSessions, filters, searchMatches, filterNow),
+    [filterNow, filters, groups, pinnedSessions, searchMatches],
   )
 
   const visibleItems = useValue(() =>
@@ -271,6 +278,7 @@ export function SessionSidebar({
           {flatItems.length > 0 ? (
             <SessionList
               flatItems={flatItems}
+              sessionsById$={resolvedSessionsById$}
               focusedKey={focusedKey}
               selectedSessionId={selectedSessionId}
               store={store}
@@ -438,3 +446,22 @@ const SidebarEmptyStates = memo(function SidebarEmptyStates({
 
   return null
 })
+
+function indexSessionsById(
+  groups: ProjectSessionGroup[],
+  pinnedSessions: SessionPreview[],
+): Record<string, SessionPreview> {
+  const sessionsById: Record<string, SessionPreview> = {}
+
+  for (const session of pinnedSessions) {
+    sessionsById[session.id] = session
+  }
+
+  for (const group of groups) {
+    for (const session of group.sessions) {
+      sessionsById[session.id] = session
+    }
+  }
+
+  return sessionsById
+}

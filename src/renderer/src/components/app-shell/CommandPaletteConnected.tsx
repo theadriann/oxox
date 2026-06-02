@@ -25,23 +25,22 @@ export function CommandPaletteConnected({ commandPalette }: CommandPaletteConnec
   const controller = useOptionalAppShellControllerContext()
   const resolvedCommandPalette = commandPalette ?? controller?.commandPalette
   const open = useValue(uiStore.state$.isCommandPaletteOpen)
-  const sessions = useValue(() => {
+  const sessionIds = useValue(() => {
     if (!open) {
       return []
     }
 
     if (!rootStore.api.search.sessions || searchController.lastQuery.length === 0) {
-      return sessionStore.sessions
+      return sessionStore.sessions.map((session) => session.id)
     }
 
     if (searchController.matches.length === 0) {
       return []
     }
 
-    const sessionsById = new Map(sessionStore.sessions.map((session) => [session.id, session]))
     return searchController.matches
-      .map((match) => sessionsById.get(match.sessionId))
-      .filter((session): session is NonNullable<typeof session> => Boolean(session))
+      .map((match) => match.sessionId)
+      .filter((sessionId) => Boolean(sessionStore.session$(sessionId).peek()))
   })
   const commands = useValue(() => (open ? (resolvedCommandPalette?.getCommands() ?? []) : []))
 
@@ -57,7 +56,8 @@ export function CommandPaletteConnected({ commandPalette }: CommandPaletteConnec
     <CommandPalette
       open={open}
       commands={commands}
-      sessions={sessions}
+      sessionIds={sessionIds}
+      sessionsById$={sessionStore.sessionsById$}
       onOpenChange={(open) =>
         open ? resolvedCommandPalette.openPalette() : resolvedCommandPalette.closePalette()
       }

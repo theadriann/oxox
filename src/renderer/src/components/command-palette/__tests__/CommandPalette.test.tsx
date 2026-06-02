@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { observable } from '@legendapp/state'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionPreview } from '../../../state/sessions/session.model'
 import { CommandPalette } from '../CommandPalette'
@@ -42,12 +43,16 @@ describe('CommandPalette session search', () => {
 
   it('renders server-ordered session results even when the title does not contain the query', () => {
     const onSearchChange = vi.fn()
+    const sessionsById$ = observable<Record<string, SessionPreview>>({
+      'content-match': createSession({ id: 'content-match', title: 'Unrelated title' }),
+    })
 
     render(
       <CommandPalette
         open={true}
         commands={[]}
-        sessions={[createSession({ id: 'content-match', title: 'Unrelated title' })]}
+        sessionIds={['content-match']}
+        sessionsById$={sessionsById$}
         onOpenChange={() => undefined}
         onSelectSession={() => undefined}
         onSearchChange={onSearchChange}
@@ -61,5 +66,33 @@ describe('CommandPalette session search', () => {
 
     expect(onSearchChange).toHaveBeenCalledWith('content:auth')
     expect(screen.getByText('Unrelated title')).toBeTruthy()
+  })
+
+  it('updates a session result from its observable node without replacing the result list', () => {
+    const sessionsById$ = observable<Record<string, SessionPreview>>({
+      'content-match': createSession({ id: 'content-match', title: 'Initial title' }),
+    })
+
+    render(
+      <CommandPalette
+        open={true}
+        commands={[]}
+        sessionIds={['content-match']}
+        sessionsById$={sessionsById$}
+        onOpenChange={() => undefined}
+        onSelectSession={() => undefined}
+        forceMountSessionResults={true}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText(/search commands and sessions/i), {
+      target: { value: 'content' },
+    })
+
+    act(() => {
+      sessionsById$['content-match'].title.set('Observable title')
+    })
+
+    expect(screen.getByText('Observable title')).toBeTruthy()
   })
 })

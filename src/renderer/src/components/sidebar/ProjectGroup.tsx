@@ -9,7 +9,6 @@ import {
   X,
 } from 'lucide-react'
 
-import type { ProjectSessionGroup } from '../../state/sessions/session.model'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,8 +18,15 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import type { SessionSidebarStore } from './SessionSidebarStore'
 
+export interface ProjectGroupHeader {
+  key: string
+  label: string
+  workspacePath: string | null
+  sessionCount: number
+}
+
 interface ProjectGroupProps {
-  group: ProjectSessionGroup
+  group: ProjectGroupHeader
   collapsed: boolean
   isEditing: boolean
   store: SessionSidebarStore
@@ -160,7 +166,7 @@ export function ProjectGroup({
             </DropdownMenuContent>
           </DropdownMenu>
           <span className="min-w-[1.5rem] text-right text-[10px] tabular-nums text-fd-tertiary">
-            {group.sessions.length}
+            {group.sessionCount}
           </span>
         </span>
       </div>

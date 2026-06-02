@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react'
+import { observable } from '@legendapp/state'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import type { SessionPreview } from '../../../state/sessions/session.model'
@@ -29,16 +30,17 @@ describe('SessionItem', () => {
   it('renders a selected session row and forwards archive actions', async () => {
     const onArchiveSession = vi.fn()
     const onCompactSession = vi.fn()
+    const session$ = observable(createSessionPreview())
+    const now$ = observable(Date.parse('2026-03-25T00:00:00.000Z'))
 
     render(
       <SessionItem
-        session={createSessionPreview()}
+        session$={session$}
         focusKey="project:project-alpha:session-alpha"
         isPinned={false}
         isSelected={true}
         isFocused={true}
-        isChild={false}
-        now={Date.parse('2026-03-25T00:00:00.000Z')}
+        now$={now$}
         onSelectSession={vi.fn()}
         onTogglePinnedSession={vi.fn()}
         onArchiveSession={onArchiveSession}
@@ -57,5 +59,32 @@ describe('SessionItem', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /archive session/i }))
 
     expect(onArchiveSession).toHaveBeenCalledWith('session-alpha')
+  })
+
+  it('updates row content from the observable session node', () => {
+    const session$ = observable(createSessionPreview())
+    const now$ = observable(Date.parse('2026-03-25T00:00:00.000Z'))
+
+    render(
+      <SessionItem
+        session$={session$}
+        focusKey="project:project-alpha:session-alpha"
+        isPinned={false}
+        isSelected={false}
+        isFocused={false}
+        now$={now$}
+        onSelectSession={vi.fn()}
+        onTogglePinnedSession={vi.fn()}
+        onKeyDown={vi.fn()}
+        onFocus={vi.fn()}
+        setSessionRef={vi.fn()}
+      />,
+    )
+
+    act(() => {
+      session$.title.set('Renamed alpha')
+    })
+
+    expect(screen.getByTitle('Renamed alpha')).toBeTruthy()
   })
 })

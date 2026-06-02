@@ -1,8 +1,9 @@
+import type { Observable } from '@legendapp/state'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Pin } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
+import { type KeyboardEvent, useCallback } from 'react'
 import type { ProjectSessionGroup, SessionPreview } from '../../state/sessions/session.model'
-import { ProjectGroup } from './ProjectGroup'
+import { ProjectGroup, type ProjectGroupHeader } from './ProjectGroup'
 import { SessionItem } from './SessionItem'
 import type { RenderedSessionItem, SessionSidebarStore } from './SessionSidebarStore'
 
@@ -22,12 +23,15 @@ export type VirtualSidebarItem =
   | {
       kind: 'session'
       focusKey: string
-      session: SessionPreview
+      sessionId: string
       isPinned: boolean
     }
   | {
       kind: 'project-header'
-      group: ProjectSessionGroup
+      projectKey: string
+      label: string
+      workspacePath: string | null
+      sessionCount: number
       collapsed: boolean
       isEditing: boolean
     }
@@ -45,6 +49,7 @@ export type VirtualSidebarItem =
 
 interface SessionListProps {
   flatItems: VirtualSidebarItem[]
+  sessionsById$: Observable<Record<string, SessionPreview>>
   focusedKey: string | null
   selectedSessionId: string
   store: SessionSidebarStore
@@ -72,6 +77,7 @@ interface SessionListProps {
 
 export function SessionList({
   flatItems,
+  sessionsById$,
   focusedKey,
   selectedSessionId,
   store,
@@ -119,6 +125,16 @@ export function SessionList({
     virtualizer.getVirtualItems().length > 0
       ? virtualizer.getVirtualItems()
       : createFallbackVirtualRows(flatItems)
+  const setSessionRef = useCallback(
+    (focusKey: string, element: HTMLButtonElement | null) => {
+      if (element) {
+        sessionRefs.set(focusKey, element)
+        return
+      }
+      sessionRefs.delete(focusKey)
+    },
+    [sessionRefs],
+  )
 
   return (
     <div
@@ -149,7 +165,7 @@ export function SessionList({
               <PinnedHeader count={item.count} />
             ) : item.kind === 'project-header' ? (
               <ProjectGroup
-                group={item.group}
+                group={toProjectGroupHeader(item)}
                 collapsed={item.collapsed}
                 isEditing={item.isEditing}
                 store={store}
@@ -162,10 +178,9 @@ export function SessionList({
               <SessionItem
                 focusKey={item.focusKey}
                 isFocused={item.focusKey === focusedKey}
-                isChild={item.session.derivationType === 'subagent'}
                 isPinned={item.isPinned}
-                isSelected={item.session.id === selectedSessionId}
-                now={store.now}
+                isSelected={item.sessionId === selectedSessionId}
+                now$={store.state$.now}
                 onFocus={onFocus}
                 onKeyDown={onSessionKeyDown}
                 onArchiveSession={onArchiveSession}
@@ -176,14 +191,8 @@ export function SessionList({
                 onRewindSession={onRewindSession}
                 onSelectSession={onSelectSession}
                 onTogglePinnedSession={onTogglePinnedSession}
-                setSessionRef={(focusKey, element) => {
-                  if (element) {
-                    sessionRefs.set(focusKey, element)
-                    return
-                  }
-                  sessionRefs.delete(focusKey)
-                }}
-                session={item.session}
+                setSessionRef={setSessionRef}
+                session$={sessionsById$[item.sessionId]}
               />
             ) : item.kind === 'show-more' ? (
               <ShowMoreButton
@@ -215,7 +224,7 @@ export function buildVisibleItems(
 ): RenderedSessionItem[] {
   const nextVisibleItems: RenderedSessionItem[] = pinnedSessions.map((session) => ({
     focusKey: `pinned:${session.id}`,
-    session,
+    sessionId: session.id,
   }))
 
   for (const group of groups) {
@@ -227,7 +236,7 @@ export function buildVisibleItems(
     for (const session of visibleSessions) {
       nextVisibleItems.push({
         focusKey: `project:${group.key}:${session.id}`,
-        session,
+        sessionId: session.id,
       })
     }
   }
@@ -265,7 +274,7 @@ export function buildFlatItems({
       items.push({
         kind: 'session',
         focusKey: `pinned:${session.id}`,
-        session,
+        sessionId: session.id,
         isPinned: true,
       })
     }
@@ -275,7 +284,15 @@ export function buildFlatItems({
     const collapsed = isProjectCollapsed(group.key)
     const isEditing = editingProjectKey === group.key
 
-    items.push({ kind: 'project-header', group, collapsed, isEditing })
+    items.push({
+      kind: 'project-header',
+      projectKey: group.key,
+      label: group.label,
+      workspacePath: group.workspacePath,
+      sessionCount: group.sessions.length,
+      collapsed,
+      isEditing,
+    })
 
     if (collapsed) continue
 
@@ -286,7 +303,7 @@ export function buildFlatItems({
       items.push({
         kind: 'session',
         focusKey: `project:${group.key}:${session.id}`,
-        session,
+        sessionId: session.id,
         isPinned: pinnedSessionIds.has(session.id),
       })
     }
@@ -370,6 +387,17 @@ const ShowLessButton = ({
       Show less
     </button>
   )
+}
+
+function toProjectGroupHeader(
+  item: Extract<VirtualSidebarItem, { kind: 'project-header' }>,
+): ProjectGroupHeader {
+  return {
+    key: item.projectKey,
+    label: item.label,
+    workspacePath: item.workspacePath,
+    sessionCount: item.sessionCount,
+  }
 }
 
 function createFallbackVirtualRows(flatItems: VirtualSidebarItem[]) {

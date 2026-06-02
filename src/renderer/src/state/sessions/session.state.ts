@@ -4,6 +4,7 @@ import type { SessionState } from './session.types'
 export function createDefaultSessionState(): SessionState {
   return {
     sessions: [],
+    sessionsById: {},
     selectedSessionId: '',
     hasHydratedSessions: false,
     missingSelectedSession: false,

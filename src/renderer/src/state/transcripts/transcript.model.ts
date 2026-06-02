@@ -20,6 +20,14 @@ export class TranscriptStore {
     return this.state$.transcriptsBySession[sessionId].get() ?? null
   }
 
+  transcriptEntriesForSessionPeek = (sessionId: string): SessionTranscript['entries'] => {
+    return this.state$.transcriptsBySession[sessionId].peek()?.entries ?? []
+  }
+
+  transcriptRevisionForSession = (sessionId: string): number => {
+    return this.state$.transcriptRevisionsBySession[sessionId].get() ?? 0
+  }
+
   refreshErrorForSession = (sessionId: string): string | null => {
     return this.state$.refreshErrorsBySession[sessionId].get() ?? null
   }
@@ -47,6 +55,9 @@ export class TranscriptStore {
       const transcript = await this.transcriptLoader(sessionId)
       batch(() => {
         this.state$.transcriptsBySession[sessionId].set(transcript)
+        this.state$.transcriptRevisionsBySession[sessionId].set(
+          (this.state$.transcriptRevisionsBySession[sessionId].peek() ?? 0) + 1,
+        )
         this.state$.refreshErrorsBySession[sessionId].delete()
       })
     } catch (error) {

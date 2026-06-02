@@ -19,10 +19,17 @@ export function SessionRewindDialogConnected() {
   const sessionStore = useSessionStore()
   const transcriptStore = useTranscriptStore()
   const rewindWorkflow = composerStore.rewindWorkflow
-  const selectedSessionId = useValue(() => sessionStore.selectedSessionId)
-  const transcript = useValue(() =>
-    selectedSessionId ? transcriptStore.transcriptForSession(selectedSessionId) : null,
-  )
+  const historicalTimeline = useValue(() => {
+    const selectedSessionId = sessionStore.selectedSessionId
+    if (!selectedSessionId) {
+      return []
+    }
+
+    transcriptStore.transcriptRevisionForSession(selectedSessionId)
+    return buildHistoricalTimeline(
+      transcriptStore.transcriptEntriesForSessionPeek(selectedSessionId),
+    )
+  })
   const selectedTimelineItems = useValue(() => liveSessionStore.selectedTimelineItems)
   const open = useValue(() => rewindWorkflow.isRewindDialogOpen)
   const rewindMessageId = useValue(() => rewindWorkflow.rewindMessageId)
@@ -33,10 +40,6 @@ export function SessionRewindDialogConnected() {
   const isLoadingInfo = useValue(() => rewindWorkflow.loadingRewindSessionId !== null)
   const isExecuting = useValue(() => rewindWorkflow.rewindingSessionId !== null)
   const error = useValue(() => rewindWorkflow.rewindError)
-  const historicalTimeline = useMemo(
-    () => buildHistoricalTimeline(transcript?.entries ?? []),
-    [transcript],
-  )
   const timelineItems = useMemo(
     () =>
       resolveSessionRewindTimelineItems({

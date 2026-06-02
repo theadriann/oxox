@@ -73,6 +73,32 @@ describe('TranscriptStore', () => {
     expect(store.isRefreshingSession('session-2')).toBe(false)
   })
 
+  it('exposes transcript revisions and non-reactive entry snapshots for bulk derivations', async () => {
+    const store = new TranscriptStore(
+      vi
+        .fn()
+        .mockResolvedValueOnce(createTranscript('session-4', 'initial'))
+        .mockResolvedValueOnce(createTranscript('session-4', 'updated')),
+    )
+
+    expect(store.transcriptRevisionForSession('session-4')).toBe(0)
+    expect(store.transcriptEntriesForSessionPeek('session-4')).toEqual([])
+
+    await store.openSession('session-4')
+
+    expect(store.transcriptRevisionForSession('session-4')).toBe(1)
+    expect(store.transcriptEntriesForSessionPeek('session-4')).toEqual([
+      expect.objectContaining({ markdown: 'Transcript initial' }),
+    ])
+
+    await store.openSession('session-4')
+
+    expect(store.transcriptRevisionForSession('session-4')).toBe(2)
+    expect(store.transcriptEntriesForSessionPeek('session-4')).toEqual([
+      expect.objectContaining({ markdown: 'Transcript updated' }),
+    ])
+  })
+
   it('does not read from an ambient bridge when no transcript loader is provided', async () => {
     const store = new TranscriptStore()
 

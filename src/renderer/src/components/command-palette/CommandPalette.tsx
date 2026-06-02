@@ -1,3 +1,5 @@
+import type { Observable } from '@legendapp/state'
+import { useValue } from '@legendapp/state/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Command } from 'cmdk'
 import type { LucideIcon } from 'lucide-react'
@@ -48,7 +50,9 @@ export interface CommandPaletteAction {
 export interface CommandPaletteProps {
   open: boolean
   commands: CommandPaletteAction[]
-  sessions: SessionPreview[]
+  sessions?: SessionPreview[]
+  sessionIds?: string[]
+  sessionsById$?: Observable<Record<string, SessionPreview>>
   onOpenChange: (open: boolean) => void
   onSelectSession: (sessionId: string) => void
   onSearchChange?: (query: string) => void
@@ -58,7 +62,9 @@ export interface CommandPaletteProps {
 export function CommandPalette({
   open,
   commands,
-  sessions,
+  sessions = [],
+  sessionIds,
+  sessionsById$,
   onOpenChange,
   onSelectSession,
   onSearchChange,
@@ -76,9 +82,12 @@ export function CommandPalette({
     () => commands.filter((command) => isSessionCommand(command.id)),
     [commands],
   )
-  const sessionsToRender = useMemo(
-    () => (hasQuery ? sessions.slice(0, MAX_VISIBLE_SESSIONS) : []),
-    [hasQuery, sessions],
+  const sessionIdsToRender = useMemo(
+    () =>
+      hasQuery
+        ? (sessionIds ?? sessions.map((session) => session.id)).slice(0, MAX_VISIBLE_SESSIONS)
+        : [],
+    [hasQuery, sessionIds, sessions],
   )
 
   const handleValueChange = useCallback(
@@ -165,10 +174,12 @@ export function CommandPalette({
             onOpenChange={onOpenChange}
           />
           <CommandPaletteSessionResults
-            sessions={sessionsToRender}
             forceMountSessionResults={forceMountSessionResults}
             onOpenChange={onOpenChange}
             onSelectSession={onSelectSession}
+            sessionIds={sessionIdsToRender}
+            sessions={sessions}
+            sessionsById$={sessionsById$}
           />
         </Command.List>
 
@@ -232,30 +243,46 @@ const CommandPaletteSessionResults = memo(function CommandPaletteSessionResults(
   forceMountSessionResults,
   onOpenChange,
   onSelectSession,
+  sessionIds,
   sessions,
+  sessionsById$,
 }: {
   forceMountSessionResults: boolean
   onOpenChange: (open: boolean) => void
   onSelectSession: (sessionId: string) => void
+  sessionIds: string[]
   sessions: SessionPreview[]
+  sessionsById$?: Observable<Record<string, SessionPreview>>
 }) {
-  if (sessions.length === 0) {
+  if (sessionIds.length === 0) {
     return null
   }
 
+  const sessionsById = sessionsById$
+    ? null
+    : new Map(sessions.map((session) => [session.id, session]))
+
   return (
     <Command.Group heading={<GroupLabel icon={FolderSearch}>Sessions</GroupLabel>}>
-      {sessions.map((session) => (
-        <SessionItem
-          key={session.id}
-          session={session}
-          forceMount={forceMountSessionResults}
-          onSelect={() => {
-            onSelectSession(session.id)
-            onOpenChange(false)
-          }}
-        />
-      ))}
+      {sessionIds.map((sessionId) =>
+        sessionsById$ ? (
+          <ObservableSessionItem
+            key={sessionId}
+            forceMount={forceMountSessionResults}
+            onOpenChange={onOpenChange}
+            onSelectSession={onSelectSession}
+            session$={sessionsById$[sessionId]}
+          />
+        ) : (
+          <SessionItem
+            key={sessionId}
+            session={sessionsById?.get(sessionId)}
+            forceMount={forceMountSessionResults}
+            onSelectSession={onSelectSession}
+            onOpenChange={onOpenChange}
+          />
+        ),
+      )}
     </Command.Group>
   )
 })
@@ -325,13 +352,19 @@ function ItemTrail() {
 
 const SessionItem = memo(function SessionItem({
   forceMount,
+  onOpenChange,
+  onSelectSession,
   session,
-  onSelect,
 }: {
   forceMount: boolean
-  session: SessionPreview
-  onSelect: () => void
+  onOpenChange: (open: boolean) => void
+  onSelectSession: (sessionId: string) => void
+  session?: SessionPreview
 }) {
+  if (!session) {
+    return null
+  }
+
   return (
     <PaletteItem
       forceMount={forceMount}
@@ -342,10 +375,47 @@ const SessionItem = memo(function SessionItem({
         session.projectWorkspacePath ?? '',
         session.status,
       ]}
-      onSelect={onSelect}
+      onSelect={() => {
+        onSelectSession(session.id)
+        onOpenChange(false)
+      }}
     >
       <SessionDot status={session.status} />
       <ItemContent label={session.title} hint={`${session.projectLabel} · ${session.status}`} />
+      <ItemTrail />
+    </PaletteItem>
+  )
+})
+
+const ObservableSessionItem = memo(function ObservableSessionItem({
+  forceMount,
+  onOpenChange,
+  onSelectSession,
+  session$,
+}: {
+  forceMount: boolean
+  onOpenChange: (open: boolean) => void
+  onSelectSession: (sessionId: string) => void
+  session$: Observable<SessionPreview>
+}) {
+  const id = useValue(session$.id)
+  const title = useValue(session$.title)
+  const projectLabel = useValue(session$.projectLabel)
+  const projectWorkspacePath = useValue(session$.projectWorkspacePath)
+  const status = useValue(session$.status)
+
+  return (
+    <PaletteItem
+      forceMount={forceMount}
+      value={`${id} ${title}`}
+      keywords={[title, projectLabel, projectWorkspacePath ?? '', status]}
+      onSelect={() => {
+        onSelectSession(id)
+        onOpenChange(false)
+      }}
+    >
+      <SessionDot status={status} />
+      <ItemContent label={title} hint={`${projectLabel} · ${status}`} />
       <ItemTrail />
     </PaletteItem>
   )

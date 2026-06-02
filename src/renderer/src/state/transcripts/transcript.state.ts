@@ -3,6 +3,7 @@ import type { SessionTranscript } from '../../../../shared/ipc/contracts'
 
 export interface TranscriptState {
   transcriptsBySession: Record<string, SessionTranscript>
+  transcriptRevisionsBySession: Record<string, number>
   refreshErrorsBySession: Record<string, string>
   refreshingSessionIds: string[]
 }
@@ -10,6 +11,7 @@ export interface TranscriptState {
 export function createDefaultTranscriptState(): TranscriptState {
   return {
     transcriptsBySession: {},
+    transcriptRevisionsBySession: {},
     refreshErrorsBySession: {},
     refreshingSessionIds: [],
   }

@@ -12,6 +12,7 @@ import {
   selectArchivedProjects,
   selectPinnedSessions,
   selectProjectGroups,
+  sessionPreviewChanged,
   sessionPreviewsChanged,
   sortSessionsByRecency,
 } from './session.selectors'
@@ -44,7 +45,15 @@ export class SessionStore {
   }
 
   set sessions(value: SessionPreview[]) {
-    this.state$.sessions.set(value)
+    this.setSessions(value)
+  }
+
+  get sessionsById(): Record<string, SessionPreview> {
+    return this.state$.sessionsById.get()
+  }
+
+  get sessionsById$(): Observable<Record<string, SessionPreview>> {
+    return this.state$.sessionsById
   }
 
   get selectedSessionId(): string {
@@ -112,7 +121,7 @@ export class SessionStore {
   }
 
   get selectedSession(): SessionPreview | undefined {
-    return this.sessions.find((session) => session.id === this.selectedSessionId)
+    return this.sessionsById[this.selectedSessionId]
   }
 
   get activeCount(): number {
@@ -175,6 +184,10 @@ export class SessionStore {
 
   isSessionPinned = (sessionId: string): boolean => {
     return this.pinnedSessionIds.includes(sessionId)
+  }
+
+  session$ = (sessionId: string): Observable<SessionPreview> => {
+    return this.state$.sessionsById[sessionId]
   }
 
   togglePinnedSession = (sessionId: string): void => {
@@ -317,7 +330,7 @@ export class SessionStore {
 
     batch(() => {
       if (sessionsChanged) {
-        this.sessions = nextSessions
+        this.setSessions(nextSessions)
       }
 
       this.hasHydratedSessions = true
@@ -337,6 +350,33 @@ export class SessionStore {
         this.selectedSessionId = currentSessions[0]?.id ?? ''
       }
     })
+  }
+
+  private setSessions(nextSessions: SessionPreview[]): void {
+    batch(() => {
+      this.syncSessionNodes(nextSessions)
+      this.state$.sessions.set(nextSessions)
+    })
+  }
+
+  private syncSessionNodes(nextSessions: SessionPreview[]): void {
+    const nextIds = new Set<string>()
+    const currentSessionsById = this.state$.sessionsById.peek() ?? {}
+
+    for (const nextSession of nextSessions) {
+      nextIds.add(nextSession.id)
+      const currentSession = currentSessionsById[nextSession.id]
+
+      if (!currentSession || sessionPreviewChanged(currentSession, nextSession)) {
+        this.state$.sessionsById[nextSession.id].set(nextSession)
+      }
+    }
+
+    for (const sessionId of Object.keys(currentSessionsById)) {
+      if (!nextIds.has(sessionId)) {
+        this.state$.sessionsById[sessionId].delete()
+      }
+    }
   }
 
   private hydratePreferences(): void {

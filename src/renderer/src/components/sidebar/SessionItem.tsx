@@ -1,3 +1,5 @@
+import type { Observable } from '@legendapp/state'
+import { useValue } from '@legendapp/state/react'
 import {
   Archive,
   ClipboardCopy,
@@ -8,7 +10,7 @@ import {
   Pin,
   RotateCcw,
 } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
+import { type KeyboardEvent, memo } from 'react'
 
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
 import type { SessionPreview } from '../../state/sessions/session.model'
@@ -35,9 +37,8 @@ interface SessionItemProps {
   focusKey: string
   isFocused: boolean
   isPinned: boolean
-  isChild: boolean
   isSelected: boolean
-  now: number
+  now$: Observable<number>
   onFocus: (focusKey: string | null) => void
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>, focusKey: string, sessionId: string) => void
   onArchiveSession?: (sessionId: string) => void
@@ -49,16 +50,15 @@ interface SessionItemProps {
   onSelectSession: (sessionId: string) => void
   onTogglePinnedSession: (sessionId: string) => void
   setSessionRef: (focusKey: string, element: HTMLButtonElement | null) => void
-  session: SessionPreview
+  session$: Observable<SessionPreview>
 }
 
-export function SessionItem({
+export const SessionItem = memo(function SessionItem({
   focusKey,
   isFocused,
   isPinned,
-  isChild,
   isSelected,
-  now,
+  now$,
   onFocus,
   onKeyDown,
   onArchiveSession,
@@ -70,9 +70,17 @@ export function SessionItem({
   onSelectSession,
   onTogglePinnedSession,
   setSessionRef,
-  session,
+  session$,
 }: SessionItemProps) {
-  const statusDot = STATUS_DOT[session.status] ?? 'bg-fd-tertiary/30'
+  const sessionId = useValue(session$.id)
+  const title = useValue(session$.title)
+  const status = useValue(session$.status)
+  const derivationType = useValue(session$.derivationType)
+  const lastActivityAt = useValue(session$.lastActivityAt)
+  const updatedAt = useValue(session$.updatedAt)
+  const now = useValue(now$)
+  const isChild = derivationType === 'subagent'
+  const statusDot = STATUS_DOT[status] ?? 'bg-fd-tertiary/30'
 
   return (
     <div
@@ -84,29 +92,29 @@ export function SessionItem({
         ref={(element) => setSessionRef(focusKey, element)}
         className={`flex min-w-0 flex-1 items-center gap-1.5 py-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas ${isChild ? 'pl-5 pr-1' : 'pl-2 pr-1'}`}
         type="button"
-        title={session.title}
+        title={title}
         tabIndex={isFocused ? 0 : -1}
         data-session-item={focusKey}
-        data-session-id={session.id}
-        onClick={() => onSelectSession(session.id)}
+        data-session-id={sessionId}
+        onClick={() => onSelectSession(sessionId)}
         onFocus={() => onFocus(focusKey)}
-        onKeyDown={(event) => onKeyDown(event, focusKey, session.id)}
+        onKeyDown={(event) => onKeyDown(event, focusKey, sessionId)}
       >
         <span className={`size-1.5 shrink-0 rounded-full ${statusDot}`} />
         <span className="min-w-0 flex-1 truncate text-xs text-fd-primary">
           {isChild ? <span className="mr-1 text-fd-tertiary">&#8627;</span> : null}
-          {session.title}
+          {title}
         </span>
       </button>
 
       <span className="shrink-0 pr-2 text-[10px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-state=open]]/row:hidden">
-        {formatRelativeSessionTime(session.lastActivityAt ?? session.updatedAt, now)}
+        {formatRelativeSessionTime(lastActivityAt ?? updatedAt, now)}
       </span>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            aria-label={`More actions for ${session.title}`}
+            aria-label={`More actions for ${title}`}
             className="mr-1 hidden size-5 shrink-0 items-center justify-center rounded text-fd-tertiary transition-colors hover:text-fd-primary group-hover/row:inline-flex data-[state=open]:inline-flex"
             type="button"
           >
@@ -114,37 +122,37 @@ export function SessionItem({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-[170px]">
-          <DropdownMenuItem onClick={() => onTogglePinnedSession(session.id)}>
+          <DropdownMenuItem onClick={() => onTogglePinnedSession(sessionId)}>
             <Pin className="size-3" />
             {isPinned ? 'Unpin session' : 'Pin session'}
           </DropdownMenuItem>
           {onRenameSession ? (
-            <DropdownMenuItem onClick={() => onRenameSession(session.id)}>
+            <DropdownMenuItem onClick={() => onRenameSession(sessionId)}>
               <Pencil className="size-3" />
               Rename session
             </DropdownMenuItem>
           ) : null}
           {onCopySessionId ? (
-            <DropdownMenuItem onClick={() => onCopySessionId(session.id)}>
+            <DropdownMenuItem onClick={() => onCopySessionId(sessionId)}>
               <ClipboardCopy className="size-3" />
               Copy session ID
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuSeparator />
           {onForkSession ? (
-            <DropdownMenuItem onClick={() => onForkSession(session.id)}>
+            <DropdownMenuItem onClick={() => onForkSession(sessionId)}>
               <GitBranch className="size-3" />
               Fork session
             </DropdownMenuItem>
           ) : null}
           {onCompactSession ? (
-            <DropdownMenuItem onClick={() => onCompactSession(session.id)}>
+            <DropdownMenuItem onClick={() => onCompactSession(sessionId)}>
               <Minimize2 className="size-3" />
               Compact session
             </DropdownMenuItem>
           ) : null}
           {onRewindSession ? (
-            <DropdownMenuItem onClick={() => onRewindSession(session.id)}>
+            <DropdownMenuItem onClick={() => onRewindSession(sessionId)}>
               <RotateCcw className="size-3" />
               Rewind session
             </DropdownMenuItem>
@@ -152,7 +160,7 @@ export function SessionItem({
           {onArchiveSession ? (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onArchiveSession(session.id)}>
+              <DropdownMenuItem onClick={() => onArchiveSession(sessionId)}>
                 <Archive className="size-3" />
                 Archive session
               </DropdownMenuItem>
@@ -162,4 +170,4 @@ export function SessionItem({
       </DropdownMenu>
     </div>
   )
-}
+})

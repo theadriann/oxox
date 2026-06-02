@@ -314,6 +314,41 @@ describe('SessionStore', () => {
     expect(store.sessions).toBe(initialSessionsReference)
   })
 
+  it('keeps per-session observable nodes current for row-level rendering', () => {
+    const sessions: SessionRecord[] = [
+      {
+        id: 'session-alpha',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        title: 'Alpha project work',
+        status: 'active',
+        transport: 'artifacts',
+        createdAt: '2026-03-24T08:00:00.000Z',
+        lastActivityAt: '2026-03-24T09:00:00.000Z',
+        updatedAt: '2026-03-24T09:00:00.000Z',
+      },
+    ]
+    const store = new SessionStore()
+
+    store.hydrateSessions(sessions)
+    const sessionNode = store.session$('session-alpha')
+
+    store.hydrateSessions([
+      {
+        ...sessions[0],
+        title: 'Alpha project renamed',
+        status: 'waiting',
+        updatedAt: '2026-03-24T10:00:00.000Z',
+        lastActivityAt: '2026-03-24T10:00:00.000Z',
+      },
+    ])
+
+    expect(store.session$('session-alpha')).toBe(sessionNode)
+    expect(sessionNode.title.get()).toBe('Alpha project renamed')
+    expect(sessionNode.status.get()).toBe('waiting')
+  })
+
   it('applies incremental session changes without rehydrating the full list', () => {
     const initialSessions: SessionRecord[] = [
       {

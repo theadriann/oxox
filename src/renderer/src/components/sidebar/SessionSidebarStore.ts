@@ -1,12 +1,12 @@
 import { batch, type Observable } from '@legendapp/state'
 import type { KeyboardEvent } from 'react'
-import type { ProjectSessionGroup, SessionPreview } from '../../state/sessions/session.model'
+import type { ProjectSessionGroup } from '../../state/sessions/session.model'
 import { createSessionSidebarState$, type SessionSidebarState } from './SessionSidebarStore.state'
 import { DEFAULT_SIDEBAR_FILTERS, type SidebarFilters } from './sessionFiltering'
 
 export interface RenderedSessionItem {
   focusKey: string
-  session: SessionPreview
+  sessionId: string
 }
 
 export class SessionSidebarStore {
@@ -100,7 +100,7 @@ export class SessionSidebarStore {
     }
 
     return (
-      visibleItems.find((item) => item.session.id === selectedSessionId)?.focusKey ??
+      visibleItems.find((item) => item.sessionId === selectedSessionId)?.focusKey ??
       visibleItems[0]?.focusKey ??
       null
     )
@@ -201,7 +201,7 @@ export class SessionSidebarStore {
     return baseLimit + extra
   }
 
-  startEditingProject = (group: ProjectSessionGroup): void => {
+  startEditingProject = (group: Pick<ProjectSessionGroup, 'key' | 'label'>): void => {
     batch(() => {
       this.editingProjectKey = group.key
       this.draftProjectName = group.label
