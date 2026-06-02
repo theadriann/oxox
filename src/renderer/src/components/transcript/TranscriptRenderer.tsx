@@ -1,5 +1,13 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { AlertTriangle, ArrowDown, FileSearch, Loader2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowDown,
+  ChevronDown,
+  ChevronRight,
+  FileSearch,
+  Loader2,
+  ServerCog,
+} from 'lucide-react'
 import {
   type LiveSessionAskUserAnswerRecord,
   type MutableRefObject,
@@ -97,11 +105,13 @@ export function TranscriptRenderer({
 type RenderItem =
   | { kind: 'timeline-item'; id: string; item: TimelineItem }
   | { kind: 'tool-group'; id: string; items: ToolTimelineItem[] }
+  | { kind: 'mcp-status-group'; id: string; items: Array<Extract<TimelineItem, { kind: 'event' }>> }
 
 function buildRenderItems(items: TimelineItem[]): RenderItem[] {
   const startedAt = performance.now()
   const result: RenderItem[] = []
   let pendingTools: ToolTimelineItem[] = []
+  let pendingMcpStatuses: Array<Extract<TimelineItem, { kind: 'event' }>> = []
 
   const flushTools = () => {
     if (pendingTools.length === 0) return
@@ -117,16 +127,34 @@ function buildRenderItems(items: TimelineItem[]): RenderItem[] {
     pendingTools = []
   }
 
+  const flushMcpStatuses = () => {
+    if (pendingMcpStatuses.length === 0) return
+
+    result.push({
+      kind: 'mcp-status-group',
+      id: `mcp-status-group-${result.length}-${pendingMcpStatuses.at(0)?.id ?? 'status'}`,
+      items: pendingMcpStatuses,
+    })
+    pendingMcpStatuses = []
+  }
+
   for (const item of items) {
     if (item.kind === 'tool') {
+      flushMcpStatuses()
       pendingTools.push(item)
       continue
     }
     flushTools()
+    if (isMcpStatusEvent(item)) {
+      pendingMcpStatuses.push(item)
+      continue
+    }
+    flushMcpStatuses()
     result.push({ kind: 'timeline-item', id: item.id, item })
   }
 
   flushTools()
+  flushMcpStatuses()
   const durationMs = performance.now() - startedAt
   if (items.length > 100 || durationMs > 2) {
     logTranscriptPerformanceEvent({
@@ -146,11 +174,15 @@ function estimateRenderItemSize(item: RenderItem | undefined): number {
     return 180
   }
 
-  return item.kind === 'tool-group' ? 72 : 180
+  return item.kind === 'tool-group' || item.kind === 'mcp-status-group' ? 72 : 180
 }
 
 function estimateTotalHeight(items: RenderItem[]): number {
   return items.reduce((total, item) => total + estimateRenderItemSize(item), 0)
+}
+
+function isMcpStatusEvent(item: TimelineItem): item is Extract<TimelineItem, { kind: 'event' }> {
+  return item.kind === 'event' && item.typeLabel === 'mcp.statusChanged'
 }
 
 function createFallbackVirtualRows(
@@ -195,6 +227,9 @@ function LiveTranscriptView({
 }) {
   const [expandedToolIds, setExpandedToolIds] = useState<Record<string, boolean>>({})
   const [expandedToolGroupIds, setExpandedToolGroupIds] = useState<Record<string, boolean>>({})
+  const [expandedMcpStatusGroupIds, setExpandedMcpStatusGroupIds] = useState<
+    Record<string, boolean>
+  >({})
   const [showJumpButton, setShowJumpButton] = useState(false)
   const autoScrollRef = useRef(true)
   const isAtBottomRef = useRef(true)
@@ -259,6 +294,10 @@ function LiveTranscriptView({
 
   const onToggleToolGroup = useCallback((groupId: string) => {
     setExpandedToolGroupIds((c) => ({ ...c, [groupId]: !c[groupId] }))
+  }, [])
+
+  const onToggleMcpStatusGroup = useCallback((groupId: string) => {
+    setExpandedMcpStatusGroupIds((c) => ({ ...c, [groupId]: !c[groupId] }))
   }, [])
 
   useLayoutEffect(() => {
@@ -343,6 +382,12 @@ function LiveTranscriptView({
                       onToggleToolGroup={onToggleToolGroup}
                       onToggleTool={onToggleTool}
                     />
+                  ) : renderItem.kind === 'mcp-status-group' ? (
+                    <McpStatusGroupRow
+                      group={renderItem}
+                      expandedGroup={Boolean(expandedMcpStatusGroupIds[renderItem.id])}
+                      onToggleGroup={onToggleMcpStatusGroup}
+                    />
                   ) : renderItem.item.kind === 'tool' ? (
                     <StandaloneToolWrapper>
                       <LiveToolRow
@@ -400,6 +445,9 @@ function HistoricalTranscriptView({
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const [expandedToolIds, setExpandedToolIds] = useState<Record<string, boolean>>({})
   const [expandedToolGroupIds, setExpandedToolGroupIds] = useState<Record<string, boolean>>({})
+  const [expandedMcpStatusGroupIds, setExpandedMcpStatusGroupIds] = useState<
+    Record<string, boolean>
+  >({})
   const [showJumpButton, setShowJumpButton] = useState(false)
   const autoScrollRef = useRef(true)
   const isAtBottomRef = useRef(true)
@@ -431,6 +479,10 @@ function HistoricalTranscriptView({
 
   const toggleToolGroup = useCallback((groupId: string) => {
     setExpandedToolGroupIds((c) => ({ ...c, [groupId]: !c[groupId] }))
+  }, [])
+
+  const toggleMcpStatusGroup = useCallback((groupId: string) => {
+    setExpandedMcpStatusGroupIds((c) => ({ ...c, [groupId]: !c[groupId] }))
   }, [])
 
   const scrollToBottom = useCallback(() => {
@@ -595,6 +647,12 @@ function HistoricalTranscriptView({
                       onToggleToolGroup={toggleToolGroup}
                       onToggleTool={toggleToolCall}
                     />
+                  ) : entry.kind === 'mcp-status-group' ? (
+                    <McpStatusGroupRow
+                      group={entry}
+                      expandedGroup={Boolean(expandedMcpStatusGroupIds[entry.id])}
+                      onToggleGroup={toggleMcpStatusGroup}
+                    />
                   ) : entry.item.kind === 'tool' ? (
                     <StandaloneToolWrapper>
                       <HistoricalToolCallRow
@@ -660,6 +718,52 @@ const ToolGroupRow = memo(function ToolGroupRow({
         ),
       )}
     </ToolCallGroup>
+  )
+})
+
+const McpStatusGroupRow = memo(function McpStatusGroupRow({
+  group,
+  expandedGroup,
+  onToggleGroup,
+}: {
+  group: { id: string; items: Array<Extract<TimelineItem, { kind: 'event' }>> }
+  expandedGroup: boolean
+  onToggleGroup: (groupId: string) => void
+}) {
+  const label = `${group.items.length} MCP status change${group.items.length === 1 ? '' : 's'}`
+  const latestStatus = group.items.at(-1)?.body ?? 'MCP server status changed'
+
+  return (
+    <div
+      className={`my-0.5 overflow-hidden rounded-md border transition-colors ${
+        expandedGroup
+          ? 'border-fd-border-default bg-fd-surface/40'
+          : 'border-fd-border-subtle bg-fd-surface/20 hover:border-fd-border-default'
+      }`}
+    >
+      <button
+        aria-expanded={expandedGroup}
+        aria-label={`${label}: ${latestStatus}`}
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-fd-surface/50"
+        type="button"
+        onClick={() => onToggleGroup(group.id)}
+      >
+        <span className="shrink-0 text-fd-tertiary">
+          {expandedGroup ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+        </span>
+        <ServerCog className="size-3 shrink-0 text-fd-tertiary" />
+        <span className="shrink-0 text-[11px] font-medium text-fd-secondary">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-[11px] text-fd-tertiary">{latestStatus}</span>
+      </button>
+
+      {expandedGroup ? (
+        <div className="flex flex-col gap-1 border-t border-fd-border-subtle p-1.5">
+          {group.items.map((eventItem) => (
+            <SystemEventCard key={eventItem.id} item={eventItem} />
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 })
 
@@ -775,6 +879,11 @@ function getLatestTimelineMarker(items: RenderItem[]): string {
   if (latestItem.kind === 'tool-group') {
     const lastTool = latestItem.items.at(-1)
     return `${latestItem.id}:${latestItem.items.length}:${lastTool?.status ?? 'unknown'}:${lastTool?.progressHistory.length ?? 0}:${lastTool?.resultMarkdown?.length ?? 0}`
+  }
+
+  if (latestItem.kind === 'mcp-status-group') {
+    const latestMcpStatus = latestItem.items.at(-1)
+    return `${latestItem.id}:${latestItem.items.length}:${latestMcpStatus?.body ?? ''}`
   }
 
   switch (latestItem.item.kind) {

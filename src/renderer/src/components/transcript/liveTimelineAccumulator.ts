@@ -6,6 +6,7 @@ import type {
   LiveSessionSnapshot,
   TranscriptMessageContentBlock,
 } from '../../../../shared/ipc/contracts'
+import { getNextToolInputMarkdown, isToolInputDetail } from './liveToolPayload'
 import type {
   AskUserTimelineItem,
   EventTone,
@@ -369,9 +370,8 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
       const existing = accumulator.itemsByKey.get(key)
       const detail = toOptionalString(event.detail)
       const prevTool = existing?.kind === 'tool' ? existing : null
-      const nextInputMarkdown =
-        prevTool?.inputMarkdown ?? (isToolInputMarkdown(detail) ? detail : null)
-      const historyDetail = detail && detail !== nextInputMarkdown ? detail : null
+      const nextInputMarkdown = getNextToolInputMarkdown(prevTool?.inputMarkdown, detail)
+      const historyDetail = detail && !isToolInputDetail(detail) ? detail : null
       const nextHistory = historyDetail
         ? dedupeHistory([...(prevTool?.progressHistory ?? []), historyDetail])
         : (prevTool?.progressHistory ?? [])
@@ -488,15 +488,17 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
 
     case 'session.result':
       sealMessageSegments(accumulator)
+      if (event.success) {
+        break
+      }
+
       setItem(
         accumulator,
         eventKey(event.type, accumulator.timelineItems.length),
         systemEventItem({
           event,
-          title: event.success ? 'Turn completed' : 'Turn failed',
-          body:
-            event.text ||
-            (event.success ? 'Droid finished responding.' : 'Droid reported an error.'),
+          title: 'Turn failed',
+          body: event.text || 'Droid reported an error.',
           details: [
             `Duration: ${Math.round(event.durationMs / 100) / 10}s`,
             `Turns: ${event.turnCount}`,
@@ -505,7 +507,7 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
               ? `Structured output: ${formatUnknownValue(event.structuredOutput)}`
               : null,
           ],
-          tone: event.success ? 'success' : 'danger',
+          tone: 'danger',
         }),
       )
       break
@@ -534,8 +536,9 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
           event,
           title: 'MCP status changed',
           body: `${event.summary.connected}/${event.summary.total} servers connected`,
-          details: event.servers.map((server) => `${server.name}: ${server.status}`),
+          details: formatMcpStatusDetails(event.summary),
           tone: event.summary.failed > 0 ? 'warning' : 'default',
+          layout: 'compact',
         }),
       )
       break
@@ -547,10 +550,15 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
         eventKey(event.type, accumulator.timelineItems.length),
         systemEventItem({
           event,
-          title: 'MCP authentication required',
-          body: event.message,
-          details: [`Server: ${event.serverName}`, event.authUrl],
+          title: 'MCP auth required',
+          body: event.serverName,
+          action: {
+            label: 'Authenticate',
+            href: event.authUrl,
+            ariaLabel: `Authenticate ${event.serverName}`,
+          },
           tone: 'warning',
+          layout: 'compact',
         }),
       )
       break
@@ -908,12 +916,16 @@ function systemEventItem({
   body,
   details = [],
   tone = 'default',
+  layout = 'default',
+  action,
 }: {
   event: LiveSessionEventRecord
   title: string
   body: string
   details?: Array<string | null>
   tone?: EventTone
+  layout?: SystemEventTimelineItem['layout']
+  action?: SystemEventTimelineItem['action']
 }): SystemEventTimelineItem {
   return {
     kind: 'event',
@@ -923,7 +935,23 @@ function systemEventItem({
     typeLabel: event.type,
     tone,
     details: details.filter((detail): detail is string => Boolean(detail)),
+    layout,
+    action,
   }
+}
+
+function formatMcpStatusDetails(summary: {
+  connected: number
+  connecting: number
+  disabled?: number
+  failed: number
+}): string[] {
+  return [
+    summary.connected > 0 ? `connected: ${summary.connected}` : null,
+    summary.connecting > 0 ? `connecting: ${summary.connecting}` : null,
+    summary.failed > 0 ? `failed: ${summary.failed}` : null,
+    (summary.disabled ?? 0) > 0 ? `disabled: ${summary.disabled}` : null,
+  ].filter((detail): detail is string => detail !== null)
 }
 
 function fallbackEventItem(
@@ -1198,11 +1226,6 @@ function resolveToolName(value: unknown, previousToolName?: string | null): stri
   }
 
   return 'Unknown tool'
-}
-
-function isToolInputMarkdown(value: string | null): value is string {
-  if (!value) return false
-  return value.startsWith('```') || value.includes('*** Begin Patch')
 }
 
 function toOptionalString(value: unknown): string | null {

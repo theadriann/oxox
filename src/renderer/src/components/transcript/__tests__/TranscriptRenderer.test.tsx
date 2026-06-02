@@ -450,6 +450,51 @@ describe('TranscriptRenderer (live)', () => {
     ).toBeTruthy()
   })
 
+  it('renders live Edit input deltas as a diff instead of generic progress payloads', () => {
+    render(
+      <TranscriptRenderer
+        items={buildLiveTimeline(
+          createSnapshot({
+            events: [
+              {
+                type: 'tool.progress',
+                toolUseId: 'tool-1',
+                toolName: 'Edit',
+                status: 'running',
+                detail: '```json\n{}\n```',
+              },
+              {
+                type: 'tool.progress',
+                toolUseId: 'tool-1',
+                toolName: 'Edit',
+                status: 'running',
+                detail:
+                  '```json\n{\n  "file_path": "/tmp/index.html",\n  "old_str": "<title>Home</title>",\n  "new_str": "<title>Test - Home</title>"\n}\n```',
+              },
+              {
+                type: 'tool.result',
+                toolUseId: 'tool-1',
+                toolName: 'Edit',
+                content: '{"success":true,"file_path":"/tmp/index.html"}',
+                isError: false,
+              },
+            ],
+          }),
+        )}
+        isLive
+        isLoading={false}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /toggle details for edit/i }))
+
+    expect(screen.getByText('/tmp/index.html')).toBeTruthy()
+    expect(screen.getByText('Applied successfully')).toBeTruthy()
+    expect(screen.queryByText('Input')).toBeNull()
+    expect(screen.queryByText('Progress')).toBeNull()
+    expect(screen.queryByText('Result')).toBeNull()
+  })
+
   it('hides session metadata events from the live transcript', () => {
     render(
       <TranscriptRenderer
@@ -499,6 +544,122 @@ describe('TranscriptRenderer (live)', () => {
     expect(screen.queryByText(/Input 10/)).toBeNull()
     expect(screen.queryByText(/Model custom:claude/)).toBeNull()
     expect(screen.getByText('Waiting for output...')).toBeTruthy()
+  })
+
+  it('hides successful session results while keeping failed session results visible', () => {
+    render(
+      <TranscriptRenderer
+        items={buildLiveTimeline(
+          createSnapshot({
+            events: [
+              {
+                type: 'session.result',
+                success: true,
+                text: 'Completed successfully',
+                durationMs: 1250,
+                turnCount: 1,
+              },
+              {
+                type: 'session.result',
+                success: false,
+                text: 'Turn failed',
+                durationMs: 750,
+                turnCount: 2,
+                error: 'Model timeout',
+              },
+            ],
+          }),
+        )}
+        isLive
+        isLoading={false}
+      />,
+    )
+
+    expect(screen.queryByText('Turn completed')).toBeNull()
+    expect(screen.queryByText('Completed successfully')).toBeNull()
+    expect(screen.getAllByText('Turn failed').length).toBeGreaterThan(0)
+    expect(screen.getByText(/Model timeout/)).toBeTruthy()
+  })
+
+  it('collapses MCP status changes behind a compact summary', () => {
+    render(
+      <TranscriptRenderer
+        items={buildLiveTimeline(
+          createSnapshot({
+            events: [
+              {
+                type: 'mcp.statusChanged',
+                summary: {
+                  total: 2,
+                  connected: 1,
+                  failed: 1,
+                },
+                servers: [
+                  { name: 'filesystem', status: 'connected' },
+                  { name: 'github', status: 'failed' },
+                ],
+              },
+              {
+                type: 'mcp.statusChanged',
+                summary: {
+                  total: 2,
+                  connected: 2,
+                  failed: 0,
+                },
+                servers: [
+                  { name: 'filesystem', status: 'connected' },
+                  { name: 'github', status: 'connected' },
+                ],
+              },
+            ],
+          }),
+        )}
+        isLive
+        isLoading={false}
+      />,
+    )
+
+    const groupToggle = screen.getByRole('button', { name: /2 mcp status changes/i })
+
+    expect(groupToggle).toBeTruthy()
+    expect(screen.queryByText('MCP status changed')).toBeNull()
+    expect(screen.queryByText('github: failed')).toBeNull()
+
+    fireEvent.click(groupToggle)
+
+    expect(screen.getAllByText('MCP status changed')).toHaveLength(2)
+    expect(screen.getByText('failed: 1')).toBeTruthy()
+    expect(screen.queryByText('github: failed')).toBeNull()
+  })
+
+  it('renders MCP authentication requests as a compact authorization action', () => {
+    render(
+      <TranscriptRenderer
+        items={buildLiveTimeline(
+          createSnapshot({
+            events: [
+              {
+                type: 'mcp.authRequired',
+                serverName: 'cloudflare',
+                authUrl: 'https://mcp.cloudflare.com/authorize?code_challenge=secret',
+                message: 'Authentication required for cloudflare',
+              },
+            ],
+          }),
+        )}
+        isLive
+        isLoading={false}
+      />,
+    )
+
+    const authLink = screen.getByRole('link', { name: /authenticate cloudflare/i })
+
+    expect(screen.getByText('MCP auth required')).toBeTruthy()
+    expect(screen.getByText('cloudflare')).toBeTruthy()
+    expect(authLink.getAttribute('href')).toBe(
+      'https://mcp.cloudflare.com/authorize?code_challenge=secret',
+    )
+    expect(screen.queryByText(/code_challenge=secret/)).toBeNull()
   })
 
   it('renders key live event types and expands tool details while suppressing metadata noise', () => {

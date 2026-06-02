@@ -15,6 +15,38 @@ export const SystemEventCard = memo(function SystemEventCard({
 }: {
   item: SystemEventTimelineItem
 }) {
+  if (item.layout === 'compact') {
+    return (
+      <div
+        className={`flex flex-wrap items-center gap-2 rounded border px-2 py-1 ${eventToneClassName[item.tone]}`}
+      >
+        <span className="text-[11px] font-medium text-fd-primary">{item.title}</span>
+        <span className="font-mono text-[10px] text-fd-tertiary">{item.typeLabel}</span>
+        {item.body ? <span className="text-[11px] text-fd-secondary">{item.body}</span> : null}
+        {item.details.map((detail) => (
+          <span
+            key={`${item.id}-${detail}`}
+            className="rounded bg-fd-panel/60 px-1.5 py-0.5 text-[10px] text-fd-tertiary"
+          >
+            {detail}
+          </span>
+        ))}
+        {item.action ? (
+          <a
+            aria-label={item.action.ariaLabel}
+            className="ml-auto rounded border border-fd-border-default bg-fd-panel px-2 py-0.5 text-[10px] font-medium text-fd-primary transition-colors hover:border-fd-border-strong hover:bg-fd-surface"
+            href={item.action.href}
+            rel="noreferrer noopener"
+            target="_blank"
+            title={item.action.href}
+          >
+            {item.action.label}
+          </a>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
     <div className={`rounded border px-2 py-1 ${eventToneClassName[item.tone]}`}>
       <div className="flex items-center gap-1.5">

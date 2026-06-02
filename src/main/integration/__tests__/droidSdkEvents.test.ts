@@ -610,6 +610,35 @@ describe('mapDroidNotificationPayloadToSessionEvents', () => {
       },
     ])
   })
+
+  it('does not let empty raw tool inputs hide populated notification parameters', () => {
+    expect(
+      mapDroidNotificationPayloadToSessionEvents(
+        {
+          type: 'tool_call',
+          toolUse: {
+            type: 'tool_use',
+            id: 'tool-1',
+            name: 'TodoWrite',
+            input: {},
+          },
+          parameters: {
+            todos: '1. [in_progress] Fix live tool calls',
+          },
+        },
+        'session-1',
+      ),
+    ).toEqual([
+      {
+        type: 'tool.progress',
+        sessionId: 'session-1',
+        toolUseId: 'tool-1',
+        toolName: 'TodoWrite',
+        status: 'running',
+        detail: '```json\n{\n  "todos": "1. [in_progress] Fix live tool calls"\n}\n```',
+      },
+    ])
+  })
 })
 
 describe('createPermissionRequestedEvent', () => {

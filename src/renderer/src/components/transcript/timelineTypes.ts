@@ -73,6 +73,12 @@ export interface SystemEventTimelineItem {
   typeLabel: string
   tone: EventTone
   details: string[]
+  layout?: 'default' | 'compact'
+  action?: {
+    label: string
+    href: string
+    ariaLabel: string
+  }
 }
 
 export type TimelineItem =

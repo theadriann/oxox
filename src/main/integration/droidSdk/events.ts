@@ -667,6 +667,14 @@ function serializeUnknownAsMarkdown(value: unknown): string | null {
     return value
   }
 
+  if (Array.isArray(value) && value.length === 0) {
+    return null
+  }
+
+  if (isRecord(value) && Object.keys(value).length === 0) {
+    return null
+  }
+
   try {
     return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``
   } catch {
