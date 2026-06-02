@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Pin } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
-import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
+import type { ProjectSessionGroup, SessionPreview } from '../../state/sessions/session.model'
 import { ProjectGroup } from './ProjectGroup'
 import { SessionItem } from './SessionItem'
 import type { RenderedSessionItem, SessionSidebarStore } from './SessionSidebarStore'

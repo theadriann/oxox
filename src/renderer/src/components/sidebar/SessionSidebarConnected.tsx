@@ -4,7 +4,7 @@ import { useMountEffect } from '../../hooks/useMountEffect'
 import {
   type SearchSessionsGateway,
   SessionSearchController,
-} from '../../stores/SessionSearchController'
+} from '../../state/workflows/session-search/session-search.model'
 import { SessionSidebar, type SessionSidebarProps } from './SessionSidebar'
 import { SessionSidebarStore } from './SessionSidebarStore'
 

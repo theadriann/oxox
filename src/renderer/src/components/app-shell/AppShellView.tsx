@@ -1,5 +1,5 @@
 import { useValue } from '@legendapp/state/react'
-import { useUIStore } from '../../stores/StoreProvider'
+import { useUIStore } from '../../state/root/store-provider'
 import { AppShellMainContent } from './AppShellMainContent'
 import { AppShellSidebarRegion } from './AppShellSidebarRegion'
 import { AppShellTopBarConnected } from './AppShellTopBarConnected'

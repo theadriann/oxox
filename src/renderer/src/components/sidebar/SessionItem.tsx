@@ -11,7 +11,7 @@ import {
 import type { KeyboardEvent } from 'react'
 
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
-import type { SessionPreview } from '../../stores/SessionStore'
+import type { SessionPreview } from '../../state/sessions/session.model'
 import {
   DropdownMenu,
   DropdownMenuContent,

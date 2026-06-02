@@ -2,11 +2,11 @@ import { Sparkles } from 'lucide-react'
 import { useCallback, useRef } from 'react'
 
 import type { CommandPaletteAction } from '../components/command-palette/CommandPalette'
-import type { LiveSessionStore } from '../stores/LiveSessionStore'
-import type { PluginCapabilityStore } from '../stores/PluginCapabilityStore'
-import type { PluginHostStore } from '../stores/PluginHostStore'
-import type { SessionStore } from '../stores/SessionStore'
-import type { UIStore } from '../stores/UIStore'
+import type { LiveSessionStore } from '../state/live-sessions/live-session.model'
+import type { PluginCapabilityStore } from '../state/plugins/plugin-capability.model'
+import type { PluginHostStore } from '../state/plugins/plugin-host.model'
+import type { SessionStore } from '../state/sessions/session.model'
+import type { UIStore } from '../state/ui/ui.model'
 import { buildCommandPaletteActions } from './commandPaletteSelectors'
 
 interface UseCommandPaletteOptions {

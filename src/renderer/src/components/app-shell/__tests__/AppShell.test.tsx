@@ -4,8 +4,8 @@ import { act, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createPlatformApiClient } from '../../../platform/apiClient'
-import { RootStore } from '../../../stores/RootStore'
-import { StoreProvider } from '../../../stores/StoreProvider'
+import { RootStore } from '../../../state/root/root.model'
+import { StoreProvider } from '../../../state/root/store-provider'
 
 const renderState = vi.hoisted(() => ({
   count: 0,

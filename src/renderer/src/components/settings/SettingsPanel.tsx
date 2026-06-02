@@ -1,4 +1,4 @@
-import type { SettingsSection } from '../../stores/UIStore'
+import type { SettingsSection } from '../../state/ui/ui.model'
 import { ArchiveSettings } from './ArchiveSettings'
 import { GeneralSettings } from './GeneralSettings'
 

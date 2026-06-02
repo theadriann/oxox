@@ -2,7 +2,7 @@
 
 import { render, screen } from '@testing-library/react'
 
-import type { ProjectSessionGroup, SessionPreview } from '../../../stores/SessionStore'
+import type { ProjectSessionGroup, SessionPreview } from '../../../state/sessions/session.model'
 import { TooltipProvider } from '../../ui/tooltip'
 import { SessionList, type VirtualSidebarItem } from '../SessionList'
 import { SessionSidebarStore } from '../SessionSidebarStore'

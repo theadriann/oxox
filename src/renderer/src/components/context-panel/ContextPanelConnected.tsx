@@ -7,7 +7,7 @@ import {
   useSessionRuntimeCatalogStore,
   useSessionStore,
   useUIStore,
-} from '../../stores/StoreProvider'
+} from '../../state/root/store-provider'
 import { ContextPanel } from './ContextPanel'
 import { buildContextPanelProps } from './contextPanelSelectors'
 

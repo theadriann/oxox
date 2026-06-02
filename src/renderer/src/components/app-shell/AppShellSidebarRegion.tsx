@@ -4,7 +4,7 @@ import {
   useLiveSessionStore,
   useSessionStore,
   useUIStore,
-} from '../../stores/StoreProvider'
+} from '../../state/root/store-provider'
 import { useAppShellControllerContext } from './AppShellControllerContext'
 import { AppShellSidebar } from './AppShellSidebar'
 import { useAppShellViewModel } from './useAppShellViewModel'

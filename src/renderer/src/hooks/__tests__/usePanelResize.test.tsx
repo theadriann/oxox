@@ -2,7 +2,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { UIStore } from '../../stores/UIStore'
+import { UIStore } from '../../state/ui/ui.model'
 import { usePanelResize } from '../usePanelResize'
 
 function PanelResizeProbe({ uiStore }: { uiStore: UIStore }) {

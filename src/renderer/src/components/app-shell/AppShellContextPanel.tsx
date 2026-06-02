@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useMemo } from 'react'
 
 import { createPanelVariants } from '../../lib/motion'
-import { useUIStore } from '../../stores/StoreProvider'
+import { useUIStore } from '../../state/root/store-provider'
 import { ContextPanelConnected } from '../context-panel/ContextPanelConnected'
 import { useAppShellControllerContext } from './AppShellControllerContext'
 import { buildAppShellContextPanelState } from './connectedSelectors'

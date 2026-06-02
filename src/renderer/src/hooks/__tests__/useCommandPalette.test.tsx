@@ -8,12 +8,12 @@ import type {
   PluginCapabilityRecord,
   PluginHostSnapshot,
 } from '../../../../../shared/plugins/contracts'
-import { LiveSessionStore } from '../../stores/LiveSessionStore'
-import { PluginCapabilityStore } from '../../stores/PluginCapabilityStore'
-import { PluginHostStore } from '../../stores/PluginHostStore'
-import { SessionStore } from '../../stores/SessionStore'
-import { createStoreEventBus } from '../../stores/storeEventBus'
-import { UIStore } from '../../stores/UIStore'
+import { createStoreEventBus } from '../../state/events/store-event-bus'
+import { LiveSessionStore } from '../../state/live-sessions/live-session.model'
+import { PluginCapabilityStore } from '../../state/plugins/plugin-capability.model'
+import { PluginHostStore } from '../../state/plugins/plugin-host.model'
+import { SessionStore } from '../../state/sessions/session.model'
+import { UIStore } from '../../state/ui/ui.model'
 import { useCommandPalette } from '../useCommandPalette'
 
 function createSessionRecord(overrides: Partial<SessionRecord> = {}): SessionRecord {

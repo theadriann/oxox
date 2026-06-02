@@ -1,4 +1,4 @@
-import type { ProjectSessionGroup, SessionPreview } from '../../../stores/SessionStore'
+import type { ProjectSessionGroup, SessionPreview } from '../../../state/sessions/session.model'
 import { DEFAULT_SIDEBAR_FILTERS, filterSessionGroups, parseMetaQuery } from '../sessionFiltering'
 
 function createSession(overrides: Partial<SessionPreview>): SessionPreview {

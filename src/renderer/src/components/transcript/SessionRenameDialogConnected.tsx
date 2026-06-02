@@ -1,5 +1,5 @@
 import { useValue } from '@legendapp/state/react'
-import { useComposerStore } from '../../stores/StoreProvider'
+import { useComposerStore } from '../../state/root/store-provider'
 import { SessionRenameDialog } from './SessionRenameDialog'
 
 export function SessionRenameDialogConnected() {

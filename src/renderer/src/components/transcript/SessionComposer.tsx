@@ -2,7 +2,7 @@ import { ArrowUp, Loader2, Plug, Square } from 'lucide-react'
 import { type KeyboardEvent, useCallback, useEffect, useRef } from 'react'
 
 import type { LiveSessionModel } from '../../../../shared/ipc/contracts'
-import type { ComposerContextUsageState } from '../../stores/composerContextUsage'
+import type { ComposerContextUsageState } from '../../state/composer/composer-context-usage.selectors'
 import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'

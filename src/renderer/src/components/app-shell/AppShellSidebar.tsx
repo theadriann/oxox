@@ -10,7 +10,7 @@ import {
   useRootStore,
   useSessionStore,
   useUIStore,
-} from '../../stores/StoreProvider'
+} from '../../state/root/store-provider'
 import { SettingsSidebar } from '../settings/SettingsSidebar'
 import { SessionSidebarConnected } from '../sidebar/SessionSidebarConnected'
 import { useAppShellControllerContext } from './AppShellControllerContext'

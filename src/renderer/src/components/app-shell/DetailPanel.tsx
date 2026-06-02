@@ -7,7 +7,7 @@ import type {
   LiveSessionSnapshot,
   SessionTranscript,
 } from '../../../../shared/ipc/contracts'
-import type { SessionPreview } from '../../stores/SessionStore'
+import type { SessionPreview } from '../../state/sessions/session.model'
 import { buildHistoricalTimeline } from '../transcript/buildHistoricalTimeline'
 import { TranscriptRenderer } from '../transcript/TranscriptRenderer'
 import type { TimelineItem } from '../transcript/timelineTypes'

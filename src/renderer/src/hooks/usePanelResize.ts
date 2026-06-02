@@ -1,6 +1,6 @@
 import { observe } from '@legendapp/state'
 import { type PointerEvent as ReactPointerEvent, useCallback, useRef } from 'react'
-import type { UIStore } from '../stores/UIStore'
+import type { UIStore } from '../state/ui/ui.model'
 import { useMountEffect } from './useMountEffect'
 
 interface UsePanelResizeOptions {

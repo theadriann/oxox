@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '../../lib/utils'
-import type { ContentLayout } from '../../stores/UIStore'
+import type { ContentLayout } from '../../state/ui/ui.model'
 
 interface ContentContainerProps {
   layout: ContentLayout

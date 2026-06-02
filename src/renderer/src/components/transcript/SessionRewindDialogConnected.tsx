@@ -5,7 +5,7 @@ import {
   useLiveSessionStore,
   useSessionStore,
   useTranscriptStore,
-} from '../../stores/StoreProvider'
+} from '../../state/root/store-provider'
 import { buildHistoricalTimeline } from './buildHistoricalTimeline'
 import { SessionRewindDialog, type SessionRewindMessageOption } from './SessionRewindDialog'
 import {

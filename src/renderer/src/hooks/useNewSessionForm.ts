@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
 
 import type { PlatformApiClient } from '../platform/apiClient'
-import type { ComposerStore } from '../stores/ComposerStore'
-import type { LiveSessionStore } from '../stores/LiveSessionStore'
-import type { SessionStore } from '../stores/SessionStore'
+import type { ComposerStore } from '../state/composer/composer.model'
+import type { LiveSessionStore } from '../state/live-sessions/live-session.model'
+import type { SessionStore } from '../state/sessions/session.model'
 
 export type NewSessionFormDialogApi = PlatformApiClient['dialog']
 export type NewSessionFormSessionApi = PlatformApiClient['session']

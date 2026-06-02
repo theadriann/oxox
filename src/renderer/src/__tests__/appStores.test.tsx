@@ -4,11 +4,10 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 
 import App from '../App'
-import { ComposerStore } from '../stores/ComposerStore'
-import { FoundationStore } from '../stores/FoundationStore'
-import { LiveSessionStore } from '../stores/LiveSessionStore'
-import { RootStore } from '../stores/RootStore'
-import { SessionStore } from '../stores/SessionStore'
+import { ComposerStore } from '../state/composer/composer.model'
+import { FoundationStore } from '../state/foundation/foundation.model'
+import { LiveSessionStore } from '../state/live-sessions/live-session.model'
+import { RootStore } from '../state/root/root.model'
 import {
   StoreProvider,
   useComposerStore,
@@ -18,10 +17,11 @@ import {
   useSessionStore,
   useStores,
   useUIStore,
-} from '../stores/StoreProvider'
-import { TranscriptStore } from '../stores/TranscriptStore'
-import { TransportStore } from '../stores/TransportStore'
-import { UIStore } from '../stores/UIStore'
+} from '../state/root/store-provider'
+import { SessionStore } from '../state/sessions/session.model'
+import { TranscriptStore } from '../state/transcripts/transcript.model'
+import { TransportStore } from '../state/transport/transport.model'
+import { UIStore } from '../state/ui/ui.model'
 
 function StoreProbe() {
   const {

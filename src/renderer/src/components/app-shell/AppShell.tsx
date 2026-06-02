@@ -1,5 +1,5 @@
 import { useReducedMotion } from 'framer-motion'
-import { useStores } from '../../stores/StoreProvider'
+import { useStores } from '../../state/root/store-provider'
 import { SessionRenameDialogConnected } from '../transcript/SessionRenameDialogConnected'
 import { SessionRewindDialogConnected } from '../transcript/SessionRewindDialogConnected'
 import { AppShellControllerProvider } from './AppShellControllerContext'

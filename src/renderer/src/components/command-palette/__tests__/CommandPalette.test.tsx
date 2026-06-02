@@ -2,7 +2,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SessionPreview } from '../../../stores/SessionStore'
+import type { SessionPreview } from '../../../state/sessions/session.model'
 import { CommandPalette } from '../CommandPalette'
 
 function createSession(

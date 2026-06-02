@@ -1,5 +1,5 @@
 import { useValue } from '@legendapp/state/react'
-import { useLiveSessionStore } from '../../stores/StoreProvider'
+import { useLiveSessionStore } from '../../state/root/store-provider'
 import { TodoList } from '../transcript/TodoList'
 import { selectTodoListItems } from './todoListSelectors'
 

@@ -3,7 +3,7 @@ import type {
   ExtendedSessionStatus,
   ProjectSessionGroup,
   SessionPreview,
-} from '../../stores/SessionStore'
+} from '../../state/sessions/session.model'
 
 export type SidebarDateRange = 'all' | '24h' | '7d' | '30d'
 

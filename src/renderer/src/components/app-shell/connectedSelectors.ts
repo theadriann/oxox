@@ -1,6 +1,6 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import type { LiveSessionAskUserAnswerRecord } from '../../../../shared/ipc/contracts'
-import type { UIStore } from '../../stores/UIStore'
+import type { UIStore } from '../../state/ui/ui.model'
 
 import type { SessionSidebarProps } from '../sidebar/SessionSidebar'
 import type { StatusBarProps } from '../status-bar/StatusBar'

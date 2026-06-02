@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
-import { StoreProvider } from './stores/StoreProvider'
+import { StoreProvider } from './state/root/store-provider'
 import './styles.css'
 import { ThemeProvider } from './components/ui/theme-provider'
 

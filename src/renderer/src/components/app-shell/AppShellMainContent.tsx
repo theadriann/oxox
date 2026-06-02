@@ -7,7 +7,7 @@ import {
   useLiveSessionStore,
   useSessionStore,
   useUIStore,
-} from '../../stores/StoreProvider'
+} from '../../state/root/store-provider'
 import { SettingsPanel } from '../settings/SettingsPanel'
 import { SessionComposerConnected } from '../transcript/SessionComposerConnected'
 import { AppShellContextPanel } from './AppShellContextPanel'

@@ -3,7 +3,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import type { SessionPreview } from '../../../stores/SessionStore'
+import type { SessionPreview } from '../../../state/sessions/session.model'
 import { SessionItem } from '../SessionItem'
 
 function createSessionPreview(overrides: Partial<SessionPreview> = {}): SessionPreview {

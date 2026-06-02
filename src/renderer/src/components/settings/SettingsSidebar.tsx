@@ -1,7 +1,7 @@
 import { Archive, ArrowLeft, Settings2 } from 'lucide-react'
 import { memo } from 'react'
 
-import type { SettingsSection } from '../../stores/UIStore'
+import type { SettingsSection } from '../../state/ui/ui.model'
 
 const SETTINGS_SECTIONS: Array<{
   key: SettingsSection

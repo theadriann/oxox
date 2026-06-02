@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { deriveComposerContextUsage } from '../../../stores/composerContextUsage'
+import { deriveComposerContextUsage } from '../../../state/composer/composer-context-usage.selectors'
 
 describe('deriveComposerContextUsage', () => {
   it('ignores over-limit estimated SDK context stats and falls back to latest token usage', () => {

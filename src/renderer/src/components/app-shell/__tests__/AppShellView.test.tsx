@@ -3,12 +3,13 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('../../../stores/StoreProvider', async () => {
+vi.mock('../../../state/root/store-provider', async () => {
   const { createMemoryPersistencePort } = await vi.importActual<
     typeof import('../../../platform/persistence')
   >('../../../platform/persistence')
-  const { UIStore } =
-    await vi.importActual<typeof import('../../../stores/UIStore')>('../../../stores/UIStore')
+  const { UIStore } = await vi.importActual<typeof import('../../../state/ui/ui.model')>(
+    '../../../state/ui/ui.model',
+  )
 
   return {
     useUIStore: () => new UIStore(createMemoryPersistencePort()),

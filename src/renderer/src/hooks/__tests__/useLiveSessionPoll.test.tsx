@@ -8,9 +8,9 @@ import type {
   LiveSessionSnapshot,
   SessionRecord,
 } from '../../../../../shared/ipc/contracts'
-import { LiveSessionStore } from '../../stores/LiveSessionStore'
-import { SessionStore } from '../../stores/SessionStore'
-import { createStoreEventBus } from '../../stores/storeEventBus'
+import { createStoreEventBus } from '../../state/events/store-event-bus'
+import { LiveSessionStore } from '../../state/live-sessions/live-session.model'
+import { SessionStore } from '../../state/sessions/session.model'
 
 import { useLiveSessionPoll } from '../useLiveSessionPoll'
 

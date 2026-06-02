@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Command as CommandIcon, FolderSearch, Hash, Search, Zap } from 'lucide-react'
 import { memo, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '../../lib/utils'
-import type { SessionPreview } from '../../stores/SessionStore'
+import type { SessionPreview } from '../../state/sessions/session.model'
 
 const MAX_VISIBLE_SESSIONS = 50
 

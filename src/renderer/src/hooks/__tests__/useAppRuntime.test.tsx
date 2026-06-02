@@ -3,7 +3,7 @@
 import { act, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { SessionStore } from '../../stores/SessionStore'
+import { SessionStore } from '../../state/sessions/session.model'
 
 const {
   useAppUpdateEventsMock,

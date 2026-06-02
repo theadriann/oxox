@@ -2,7 +2,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { StoreProvider, useStores } from '../../../stores/StoreProvider'
+import { StoreProvider, useStores } from '../../../state/root/store-provider'
 import { SessionComposerConnected } from '../SessionComposerConnected'
 
 function SessionSelectionBootstrap() {

@@ -8,7 +8,7 @@ import {
   useTranscriptStore,
   useTransportStore,
   useUIStore,
-} from '../../stores/StoreProvider'
+} from '../../state/root/store-provider'
 import { useOptionalAppShellControllerContext } from './AppShellControllerContext'
 import { buildDetailPanelConnectedProps } from './connectedSelectors'
 import { DetailPanel } from './DetailPanel'

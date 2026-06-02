@@ -1,5 +1,5 @@
 import { useValue } from '@legendapp/state/react'
-import { useUIStore } from '../../stores/StoreProvider'
+import { useUIStore } from '../../state/root/store-provider'
 
 export function GeneralSettings() {
   const uiStore = useUIStore()

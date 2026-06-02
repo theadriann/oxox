@@ -4,12 +4,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { LiveSessionSnapshot, SessionRecord } from '../../../../../shared/ipc/contracts'
-import { type ComposerSessionGateway, ComposerStore } from '../../stores/ComposerStore'
-import { FoundationStore, PLACEHOLDER_FOUNDATION } from '../../stores/FoundationStore'
-import { LiveSessionStore } from '../../stores/LiveSessionStore'
-import { SessionStore } from '../../stores/SessionStore'
-import { createStoreEventBus } from '../../stores/storeEventBus'
-import { TransportStore } from '../../stores/TransportStore'
+import { type ComposerSessionGateway, ComposerStore } from '../../state/composer/composer.model'
+import { createStoreEventBus } from '../../state/events/store-event-bus'
+import { FoundationStore, PLACEHOLDER_FOUNDATION } from '../../state/foundation/foundation.model'
+import { LiveSessionStore } from '../../state/live-sessions/live-session.model'
+import { SessionStore } from '../../state/sessions/session.model'
+import { TransportStore } from '../../state/transport/transport.model'
 import { useNewSessionForm } from '../useNewSessionForm'
 
 function createSessionRecord(overrides: Partial<SessionRecord> = {}): SessionRecord {

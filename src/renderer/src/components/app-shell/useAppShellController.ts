@@ -5,8 +5,8 @@ import { useCommandPalette } from '../../hooks/useCommandPalette'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useNewSessionForm } from '../../hooks/useNewSessionForm'
 import { usePanelResize } from '../../hooks/usePanelResize'
-import type { RootStore } from '../../stores/RootStore'
-import type { StoreContextValue } from '../../stores/StoreProvider'
+import type { RootStore } from '../../state/root/root.model'
+import type { StoreContextValue } from '../../state/root/store-provider'
 import { createAppShellKeyboardShortcuts } from './appShellKeyboardShortcuts'
 
 interface UseAppShellControllerOptions

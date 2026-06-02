@@ -2,9 +2,9 @@ import { useValue } from '@legendapp/state/react'
 import { useMemo } from 'react'
 
 import { shouldAnimateMotion } from '../../lib/motion'
-import type { FoundationStore } from '../../stores/FoundationStore'
-import type { LiveSessionStore } from '../../stores/LiveSessionStore'
-import type { SessionStore } from '../../stores/SessionStore'
+import type { FoundationStore } from '../../state/foundation/foundation.model'
+import type { LiveSessionStore } from '../../state/live-sessions/live-session.model'
+import type { SessionStore } from '../../state/sessions/session.model'
 import { getDetailViewKey, getSidebarErrorState } from './detailViewKey'
 
 interface UseAppShellViewModelOptions {

@@ -7,7 +7,7 @@ import {
   useRootStore,
   useSessionStore,
   useUpdateStore,
-} from '../../stores/StoreProvider'
+} from '../../state/root/store-provider'
 import { StatusBar } from '../status-bar/StatusBar'
 import { buildStatusBarProps } from './connectedSelectors'
 

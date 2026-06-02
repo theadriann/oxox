@@ -1,4 +1,4 @@
-import type { UIStore } from '../../stores/UIStore'
+import type { UIStore } from '../../state/ui/ui.model'
 import type { SessionComposerProps } from './SessionComposer'
 
 interface SessionComposerConnectedSelectorOptions {

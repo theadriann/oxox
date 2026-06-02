@@ -1,5 +1,5 @@
 import { useValue } from '@legendapp/state/react'
-import { useLiveSessionStore, useSessionStore, useUIStore } from '../../stores/StoreProvider'
+import { useLiveSessionStore, useSessionStore, useUIStore } from '../../state/root/store-provider'
 import { useAppShellControllerContext } from './AppShellControllerContext'
 import { AppTopBar } from './AppTopBar'
 

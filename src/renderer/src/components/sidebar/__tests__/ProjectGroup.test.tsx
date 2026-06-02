@@ -3,7 +3,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import type { ProjectSessionGroup } from '../../../stores/SessionStore'
+import type { ProjectSessionGroup } from '../../../state/sessions/session.model'
 import { TooltipProvider } from '../../ui/tooltip'
 import { ProjectGroup } from '../ProjectGroup'
 import { SessionSidebarStore } from '../SessionSidebarStore'

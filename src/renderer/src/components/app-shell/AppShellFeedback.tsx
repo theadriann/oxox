@@ -1,4 +1,4 @@
-import type { ComposerFeedback } from '../../stores/ComposerStore'
+import type { ComposerFeedback } from '../../state/composer/composer.model'
 
 interface AppShellFeedbackProps {
   feedback: ComposerFeedback | null

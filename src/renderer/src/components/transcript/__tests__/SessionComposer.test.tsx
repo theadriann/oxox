@@ -2,7 +2,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
-import type { ComposerContextUsageState } from '../../../stores/composerContextUsage'
+import type { ComposerContextUsageState } from '../../../state/composer/composer-context-usage.selectors'
 
 import { SessionComposer } from '../SessionComposer'
 

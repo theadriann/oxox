@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMemoryPersistencePort } from '../../../platform/persistence'
-import { UIStore } from '../../../stores/UIStore'
+import { UIStore } from '../../../state/ui/ui.model'
 import { buildSessionComposerProps } from '../sessionComposerSelectors'
 
 describe('buildSessionComposerProps', () => {

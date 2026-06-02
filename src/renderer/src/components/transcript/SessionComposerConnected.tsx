@@ -4,7 +4,7 @@ import {
   useLiveSessionStore,
   useSessionStore,
   useUIStore,
-} from '../../stores/StoreProvider'
+} from '../../state/root/store-provider'
 import { useOptionalAppShellControllerContext } from '../app-shell/AppShellControllerContext'
 import { SessionComposerContainer } from '../app-shell/SessionComposerContainer'
 import { SessionComposer } from './SessionComposer'

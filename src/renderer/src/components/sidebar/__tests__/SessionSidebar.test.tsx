@@ -3,7 +3,7 @@
 import { useValue } from '@legendapp/state/react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { UIStore } from '../../../stores/UIStore'
+import { UIStore } from '../../../state/ui/ui.model'
 import { SessionSidebarConnected as SessionSidebar } from '../SessionSidebarConnected'
 import { SessionSidebarStore } from '../SessionSidebarStore'
 

@@ -1,5 +1,5 @@
 import { useValue } from '@legendapp/state/react'
-import { useUpdateStore } from '../../stores/StoreProvider'
+import { useUpdateStore } from '../../state/root/store-provider'
 import { buildUpdatePromptProps } from './connectedSelectors'
 import { UpdatePrompt } from './UpdatePrompt'
 

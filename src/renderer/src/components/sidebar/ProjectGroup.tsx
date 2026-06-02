@@ -9,7 +9,7 @@ import {
   X,
 } from 'lucide-react'
 
-import type { ProjectSessionGroup } from '../../stores/SessionStore'
+import type { ProjectSessionGroup } from '../../state/sessions/session.model'
 import {
   DropdownMenu,
   DropdownMenuContent,

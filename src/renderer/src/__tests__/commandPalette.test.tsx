@@ -4,8 +4,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 
 import App from '../App'
 import { createPlatformApiClient } from '../platform/apiClient'
-import { RootStore } from '../stores/RootStore'
-import { StoreProvider } from '../stores/StoreProvider'
+import { RootStore } from '../state/root/root.model'
+import { StoreProvider } from '../state/root/store-provider'
 
 const RUNTIME_INFO = {
   appVersion: '0.1.0',

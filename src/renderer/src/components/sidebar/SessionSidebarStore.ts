@@ -1,6 +1,7 @@
-import { batch, type Observable, observable } from '@legendapp/state'
+import { batch, type Observable } from '@legendapp/state'
 import type { KeyboardEvent } from 'react'
-import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
+import type { ProjectSessionGroup, SessionPreview } from '../../state/sessions/session.model'
+import { createSessionSidebarState$, type SessionSidebarState } from './SessionSidebarStore.state'
 import { DEFAULT_SIDEBAR_FILTERS, type SidebarFilters } from './sessionFiltering'
 
 export interface RenderedSessionItem {
@@ -8,32 +9,8 @@ export interface RenderedSessionItem {
   session: SessionPreview
 }
 
-interface SessionSidebarState {
-  now: number
-  focusedItemKey: string | null
-  expandedProjectKeys: Record<string, true>
-  projectRevealCounts: Record<string, number>
-  editingProjectKey: string | null
-  draftProjectName: string
-  searchQueryDraft: string
-  filters: SidebarFilters
-  isFilterPanelOpen: boolean
-  isSearchOpen: boolean
-}
-
 export class SessionSidebarStore {
-  readonly state$: Observable<SessionSidebarState> = observable({
-    now: Date.now(),
-    focusedItemKey: null as string | null,
-    expandedProjectKeys: {} as Record<string, true>,
-    projectRevealCounts: {} as Record<string, number>,
-    editingProjectKey: null as string | null,
-    draftProjectName: '',
-    searchQueryDraft: DEFAULT_SIDEBAR_FILTERS.query,
-    filters: { ...DEFAULT_SIDEBAR_FILTERS } as SidebarFilters,
-    isFilterPanelOpen: false,
-    isSearchOpen: false,
-  })
+  readonly state$: Observable<SessionSidebarState> = createSessionSidebarState$()
   private storedScrollTop = 0
 
   get now(): number {
