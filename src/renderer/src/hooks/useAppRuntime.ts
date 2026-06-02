@@ -1,7 +1,7 @@
+import { useObserveEffect } from '@legendapp/state/react'
 import type { ComposerStore } from '../stores/ComposerStore'
 import type { FoundationStore } from '../stores/FoundationStore'
 import type { LiveSessionStore } from '../stores/LiveSessionStore'
-import { useObserveEffect } from '../stores/legend'
 import type { PluginCapabilityStore } from '../stores/PluginCapabilityStore'
 import type { PluginHostStore } from '../stores/PluginHostStore'
 import type { RootStore } from '../stores/RootStore'

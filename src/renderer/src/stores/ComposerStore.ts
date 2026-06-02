@@ -1,3 +1,4 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type { LiveSessionContextStatsInfo, LiveSessionModel } from '../../../shared/ipc/contracts'
 import type { PlatformApiClient } from '../platform/apiClient'
 import { createLocalStoragePort, type PersistencePort } from '../platform/persistence'
@@ -19,7 +20,6 @@ import {
 import { type ComposerFeedback, FeedbackStore } from './FeedbackStore'
 import type { FoundationStore } from './FoundationStore'
 import type { LiveSessionStore } from './LiveSessionStore'
-import { batch, bindMethods, observable, readField, writeField } from './legend'
 import { toSessionRecord } from './liveSessionRecord'
 import { PermissionResolutionStore } from './PermissionResolutionStore'
 import { RenameWorkflowStore } from './RenameWorkflowStore'
@@ -39,8 +39,20 @@ export type ComposerStatus =
 
 export type ComposerSessionGateway = PlatformApiClient['session']
 
+interface ComposerState {
+  draft: string
+  error: string | null
+  preferencesBySessionId: Record<string, ComposerPreferences>
+  pendingDraftWorkspacePath: string | null
+  pendingDraftPreferences: ComposerPreferences | null
+  sendingSessionId: string | null
+  isPendingDraftSubmitting: boolean
+  attachingSessionId: string | null
+  interruptingSessionId: string | null
+}
+
 export class ComposerStore {
-  readonly stateNode = observable({
+  readonly state$: Observable<ComposerState> = observable({
     draft: '',
     error: null as string | null,
     preferencesBySessionId: {} as Record<string, ComposerPreferences>,
@@ -122,86 +134,82 @@ export class ComposerStore {
       },
     )
 
-    bindMethods(this)
-
     this.hydrateFromLocalStorage()
-    this.preferencesReactionDisposer = this.stateNode.preferencesBySessionId.onChange(
-      ({ value }) => {
-        this.persistPreferences(value)
-      },
-    )
+    this.preferencesReactionDisposer = this.state$.preferencesBySessionId.onChange(({ value }) => {
+      this.persistPreferences(value)
+    })
   }
 
   get draft(): string {
-    return readField(this.stateNode, 'draft')
+    return this.state$.draft.get()
   }
 
   set draft(value: string) {
-    writeField(this.stateNode, 'draft', value)
+    this.state$.draft.set(value)
   }
 
   get error(): string | null {
-    return readField(this.stateNode, 'error')
+    return this.state$.error.get()
   }
 
   set error(value: string | null) {
-    writeField(this.stateNode, 'error', value)
+    this.state$.error.set(value)
   }
 
   get preferencesBySessionId(): Record<string, ComposerPreferences> {
-    return readField(this.stateNode, 'preferencesBySessionId')
+    return this.state$.preferencesBySessionId.get()
   }
 
   set preferencesBySessionId(value: Record<string, ComposerPreferences>) {
-    writeField(this.stateNode, 'preferencesBySessionId', value)
+    this.state$.preferencesBySessionId.set(value)
   }
 
   get pendingDraftWorkspacePath(): string | null {
-    return readField(this.stateNode, 'pendingDraftWorkspacePath')
+    return this.state$.pendingDraftWorkspacePath.get()
   }
 
   set pendingDraftWorkspacePath(value: string | null) {
-    writeField(this.stateNode, 'pendingDraftWorkspacePath', value)
+    this.state$.pendingDraftWorkspacePath.set(value)
   }
 
   get pendingDraftPreferences(): ComposerPreferences | null {
-    return readField(this.stateNode, 'pendingDraftPreferences')
+    return this.state$.pendingDraftPreferences.get()
   }
 
   set pendingDraftPreferences(value: ComposerPreferences | null) {
-    writeField(this.stateNode, 'pendingDraftPreferences', value)
+    this.state$.pendingDraftPreferences.set(value)
   }
 
   get sendingSessionId(): string | null {
-    return readField(this.stateNode, 'sendingSessionId')
+    return this.state$.sendingSessionId.get()
   }
 
   set sendingSessionId(value: string | null) {
-    writeField(this.stateNode, 'sendingSessionId', value)
+    this.state$.sendingSessionId.set(value)
   }
 
   get isPendingDraftSubmitting(): boolean {
-    return readField(this.stateNode, 'isPendingDraftSubmitting')
+    return this.state$.isPendingDraftSubmitting.get()
   }
 
   set isPendingDraftSubmitting(value: boolean) {
-    writeField(this.stateNode, 'isPendingDraftSubmitting', value)
+    this.state$.isPendingDraftSubmitting.set(value)
   }
 
   get attachingSessionId(): string | null {
-    return readField(this.stateNode, 'attachingSessionId')
+    return this.state$.attachingSessionId.get()
   }
 
   set attachingSessionId(value: string | null) {
-    writeField(this.stateNode, 'attachingSessionId', value)
+    this.state$.attachingSessionId.set(value)
   }
 
   get interruptingSessionId(): string | null {
-    return readField(this.stateNode, 'interruptingSessionId')
+    return this.state$.interruptingSessionId.get()
   }
 
   set interruptingSessionId(value: string | null) {
-    writeField(this.stateNode, 'interruptingSessionId', value)
+    this.state$.interruptingSessionId.set(value)
   }
 
   // --- Draft + session lifecycle (stays on ComposerStore) ---
@@ -316,20 +324,20 @@ export class ComposerStore {
     return this.liveSessionStore.selectedNeedsReconnect
   }
 
-  setDraft(value: string): void {
+  setDraft = (value: string): void => {
     this.draft = value
   }
 
-  setError(value: string | null): void {
+  setError = (value: string | null): void => {
     this.error = value
   }
 
-  updatePreferences(sessionId: string, partial: Partial<ComposerPreferences>): void {
+  updatePreferences = (sessionId: string, partial: Partial<ComposerPreferences>): void => {
     if (!sessionId) {
       return
     }
 
-    const snapshot = this.liveSessionStore.snapshotsById.get(sessionId) ?? null
+    const snapshot = this.liveSessionStore.snapshotForSession(sessionId)
     const nextPreferences = {
       ...deriveComposerPreferences(
         sessionId,
@@ -356,11 +364,11 @@ export class ComposerStore {
     }
   }
 
-  beginPendingDraft(): void {
+  beginPendingDraft = (): void => {
     this.beginPendingDraftForWorkspace(null)
   }
 
-  beginPendingDraftForWorkspace(workspacePath: string | null): void {
+  beginPendingDraftForWorkspace = (workspacePath: string | null): void => {
     this.pendingDraftWorkspacePath = workspacePath?.trim() || null
     this.pendingDraftPreferences = deriveDefaultComposerPreferences(
       this.foundationStore.factoryDefaultSettings as FactoryDefaults,
@@ -369,7 +377,7 @@ export class ComposerStore {
     this.error = null
   }
 
-  updatePendingDraftPreferences(partial: Partial<ComposerPreferences>): void {
+  updatePendingDraftPreferences = (partial: Partial<ComposerPreferences>): void => {
     const nextPreferences = {
       ...(this.pendingDraftPreferences ??
         deriveDefaultComposerPreferences(
@@ -389,18 +397,18 @@ export class ComposerStore {
     }
   }
 
-  clearPendingDraft(): void {
+  clearPendingDraft = (): void => {
     this.pendingDraftWorkspacePath = null
     this.pendingDraftPreferences = null
   }
 
-  async submit(payload: {
+  submit = async (payload: {
     text: string
     modelId: string
     interactionMode: string
     reasoningEffort?: string
     autonomyLevel: string
-  }): Promise<void> {
+  }): Promise<void> => {
     const { addUserMessage, attach, create, updateSettings } = this.sessionApi
 
     const targetSessionId =
@@ -511,7 +519,7 @@ export class ComposerStore {
     }
   }
 
-  async attachSelected(): Promise<boolean> {
+  attachSelected = async (): Promise<boolean> => {
     const selectedSessionId = this.sessionStore.selectedSessionId
 
     if (!selectedSessionId || !this.sessionApi.attach) {
@@ -545,7 +553,7 @@ export class ComposerStore {
     }
   }
 
-  async detachSelected(): Promise<void> {
+  detachSelected = async (): Promise<void> => {
     const selectedSessionId = this.sessionStore.selectedSessionId
 
     if (!selectedSessionId || !this.sessionApi.detach) {
@@ -574,7 +582,7 @@ export class ComposerStore {
     }
   }
 
-  async forkSelected(): Promise<void> {
+  forkSelected = async (): Promise<void> => {
     const selectedSessionId = this.sessionStore.selectedSessionId
     const fork = this.sessionApi.fork ?? this.sessionApi.forkViaDaemon
 
@@ -603,7 +611,7 @@ export class ComposerStore {
     }
   }
 
-  async compactSelected(customInstructions?: string): Promise<void> {
+  compactSelected = async (customInstructions?: string): Promise<void> => {
     const selectedSessionId = this.sessionStore.selectedSessionId
     const compact = this.sessionApi.compact
 
@@ -639,7 +647,7 @@ export class ComposerStore {
     }
   }
 
-  async interruptSelected(): Promise<void> {
+  interruptSelected = async (): Promise<void> => {
     const selectedSnapshot = this.liveSessionStore.selectedSnapshot
 
     if (!selectedSnapshot || !this.sessionApi.interrupt) {
@@ -666,7 +674,7 @@ export class ComposerStore {
     }
   }
 
-  copySelectedId(): void {
+  copySelectedId = (): void => {
     const selectedSessionId = this.sessionStore.selectedSessionId
 
     if (!selectedSessionId) {
@@ -676,7 +684,7 @@ export class ComposerStore {
     void this.writeSelectedIdToClipboard(selectedSessionId)
   }
 
-  resetForSession(sessionId: string): void {
+  resetForSession = (sessionId: string): void => {
     if (sessionId !== this.lastSessionId) {
       this.draft = ''
       this.error = null
@@ -689,11 +697,11 @@ export class ComposerStore {
     this.lastSessionId = sessionId
   }
 
-  hydrateFromLocalStorage(): void {
+  hydrateFromLocalStorage = (): void => {
     this.preferencesBySessionId = readPersistedComposerPreferences(this.persistence)
   }
 
-  dispose(): void {
+  dispose = (): void => {
     this.feedbackStore.dispose()
     this.preferencesReactionDisposer?.()
     this.preferencesReactionDisposer = null

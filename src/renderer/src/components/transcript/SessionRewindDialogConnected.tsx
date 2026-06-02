@@ -1,6 +1,5 @@
+import { useValue } from '@legendapp/state/react'
 import { useCallback, useMemo } from 'react'
-
-import { useValue } from '../../stores/legend'
 import {
   useComposerStore,
   useLiveSessionStore,

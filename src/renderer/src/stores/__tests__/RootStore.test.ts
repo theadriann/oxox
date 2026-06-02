@@ -184,7 +184,7 @@ describe('RootStore', () => {
     expect(rootStore.transcriptStore.transcriptForSession('session-live-1')).toEqual(
       SESSION_TRANSCRIPT,
     )
-    expect(rootStore.liveSessionStore.snapshotsById.get('session-live-1')).toEqual(
+    expect(rootStore.liveSessionStore.snapshotForSession('session-live-1')).toEqual(
       LIVE_SESSION_SNAPSHOT,
     )
     expect(rootStore.pluginCapabilityStore.capabilities).toEqual([PLUGIN_CAPABILITY])
@@ -243,7 +243,7 @@ describe('RootStore', () => {
     await rootStore.liveSessionStore.refreshSnapshot('session-live-1')
 
     expect(ambientGetSnapshot).not.toHaveBeenCalled()
-    expect(rootStore.liveSessionStore.snapshotsById.size).toBe(0)
+    expect(rootStore.liveSessionStore.snapshotCount).toBe(0)
     expect(rootStore.pluginHostStore.hosts).toEqual([])
   })
 

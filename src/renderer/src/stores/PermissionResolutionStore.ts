@@ -1,5 +1,5 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type { LiveSessionAskUserAnswerRecord } from '../../../shared/ipc/contracts'
-import { batch, bindMethods, observable, readField, writeField } from './legend'
 
 export interface PermissionSessionApi {
   resolvePermissionRequest?: (
@@ -14,11 +14,17 @@ export interface PermissionSessionApi {
   ) => Promise<void>
 }
 
+interface PermissionResolutionState {
+  pendingPermissionRequestIds: string[]
+  pendingAskUserRequestIds: string[]
+  error: string | null
+}
+
 export class PermissionResolutionStore {
-  readonly stateNode = observable({
+  readonly state$: Observable<PermissionResolutionState> = observable({
     pendingPermissionRequestIds: [] as string[],
     pendingAskUserRequestIds: [] as string[],
-    error: null as string | null,
+    error: null,
   })
 
   private readonly getSelectedSnapshot: () => { sessionId: string } | null
@@ -33,35 +39,33 @@ export class PermissionResolutionStore {
     this.getSelectedSnapshot = getSelectedSnapshot
     this.sessionApi = sessionApi
     this.onRefreshSnapshot = onRefreshSnapshot
-
-    bindMethods(this)
   }
 
   get pendingPermissionRequestIds(): string[] {
-    return readField(this.stateNode, 'pendingPermissionRequestIds')
+    return this.state$.pendingPermissionRequestIds.get()
   }
 
   set pendingPermissionRequestIds(value: string[]) {
-    writeField(this.stateNode, 'pendingPermissionRequestIds', value)
+    this.state$.pendingPermissionRequestIds.set(value)
   }
 
   get pendingAskUserRequestIds(): string[] {
-    return readField(this.stateNode, 'pendingAskUserRequestIds')
+    return this.state$.pendingAskUserRequestIds.get()
   }
 
   set pendingAskUserRequestIds(value: string[]) {
-    writeField(this.stateNode, 'pendingAskUserRequestIds', value)
+    this.state$.pendingAskUserRequestIds.set(value)
   }
 
   get error(): string | null {
-    return readField(this.stateNode, 'error')
+    return this.state$.error.get()
   }
 
   set error(value: string | null) {
-    writeField(this.stateNode, 'error', value)
+    this.state$.error.set(value)
   }
 
-  async resolvePermission(requestId: string, option: string): Promise<void> {
+  resolvePermission = async (requestId: string, option: string): Promise<void> => {
     const selectedSnapshot = this.getSelectedSnapshot()
 
     if (!selectedSnapshot || !this.sessionApi.resolvePermissionRequest) {
@@ -91,10 +95,10 @@ export class PermissionResolutionStore {
     }
   }
 
-  async resolveAskUser(
+  resolveAskUser = async (
     requestId: string,
     answers: LiveSessionAskUserAnswerRecord[],
-  ): Promise<void> {
+  ): Promise<void> => {
     const selectedSnapshot = this.getSelectedSnapshot()
 
     if (!selectedSnapshot || !this.sessionApi.resolveAskUser) {

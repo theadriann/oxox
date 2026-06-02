@@ -78,7 +78,7 @@ describe('useAppRuntime', () => {
       selectedSnapshot: null,
       refreshSnapshot: vi.fn().mockResolvedValue(undefined),
       upsertSnapshot: vi.fn(),
-      snapshotsById: new Map<string, unknown>(),
+      hasSnapshot: vi.fn().mockReturnValue(false),
     }
     const pluginCapabilityStore = {
       refresh: vi.fn().mockResolvedValue(undefined),
@@ -176,7 +176,7 @@ describe('useAppRuntime', () => {
           selectedSnapshot: null,
           refreshSnapshot: vi.fn().mockResolvedValue(undefined),
           upsertSnapshot: vi.fn(),
-          snapshotsById: new Map<string, unknown>(),
+          hasSnapshot: vi.fn().mockReturnValue(false),
         }}
         pluginCapabilityStore={{
           refresh: vi.fn().mockResolvedValue(undefined),

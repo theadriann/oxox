@@ -1,9 +1,9 @@
+import { useValue } from '@legendapp/state/react'
 import { useMemo } from 'react'
 
 import { shouldAnimateMotion } from '../../lib/motion'
 import type { FoundationStore } from '../../stores/FoundationStore'
 import type { LiveSessionStore } from '../../stores/LiveSessionStore'
-import { readValue, useValue } from '../../stores/legend'
 import type { SessionStore } from '../../stores/SessionStore'
 import { getDetailViewKey, getSidebarErrorState } from './detailViewKey'
 
@@ -26,34 +26,30 @@ export function useAppShellViewModel({
   sessionStore,
 }: UseAppShellViewModelOptions) {
   const shouldAnimate = shouldAnimateMotion(prefersReducedMotion)
-  const hasDeletedSelection = useValue(() => readValue(sessionStore.hasDeletedSelection))
-  const hasFoundationError = useValue(() => readValue(foundationStore.hasError))
-  const hasIndexedSessions = useValue(() => readValue(sessionStore.sessions).length > 0)
-  const isDroidMissing = useValue(() => readValue(foundationStore.isDroidMissing))
-  const isFoundationLoading = useValue(() => readValue(foundationStore.isLoading))
-  const selectedLiveSessionId = useValue(() => readValue(liveSessionStore.selectedSnapshotId))
-  const selectedSessionId = useValue(() => readValue(sessionStore.selectedSessionId))
-  const selectedSessionStatus = useValue(
-    () => readValue(sessionStore.selectedSession)?.status ?? null,
-  )
+  const hasDeletedSelection = useValue(() => sessionStore.hasDeletedSelection)
+  const hasFoundationError = useValue(() => foundationStore.hasError)
+  const hasIndexedSessions = useValue(() => sessionStore.sessions.length > 0)
+  const isDroidMissing = useValue(() => foundationStore.isDroidMissing)
+  const isFoundationLoading = useValue(() => foundationStore.isLoading)
+  const selectedLiveSessionId = useValue(() => liveSessionStore.selectedSnapshotId)
+  const selectedSessionId = useValue(() => sessionStore.selectedSessionId)
+  const selectedSessionStatus = useValue(() => sessionStore.selectedSession?.status ?? null)
   const sessionTitle = useValue(() =>
     newSessionForm.showForm
       ? 'New session'
-      : (readValue(liveSessionStore.selectedSnapshot)?.title ??
-        readValue(sessionStore.selectedSession)?.title),
+      : (liveSessionStore.selectedSnapshot?.title ?? sessionStore.selectedSession?.title),
   )
   const sessionProjectLabel = useValue(() =>
     newSessionForm.showForm
       ? newSessionForm.path || undefined
-      : (readValue(liveSessionStore.selectedSnapshot)?.projectWorkspacePath ??
-        readValue(sessionStore.selectedSession)?.projectLabel),
+      : (liveSessionStore.selectedSnapshot?.projectWorkspacePath ??
+        sessionStore.selectedSession?.projectLabel),
   )
   const shouldRenderComposer = useValue(() =>
     Boolean(
       newSessionForm.showForm ||
-        (readValue(sessionStore.selectedSessionId) &&
-          (readValue(liveSessionStore.selectedSnapshot) ||
-            readValue(sessionStore.selectedSession))),
+        (sessionStore.selectedSessionId &&
+          (liveSessionStore.selectedSnapshot || sessionStore.selectedSession)),
     ),
   )
 

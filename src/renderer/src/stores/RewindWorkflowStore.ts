@@ -1,8 +1,8 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type {
   LiveSessionExecuteRewindResult,
   LiveSessionRewindInfo,
 } from '../../../shared/ipc/contracts'
-import { batch, bindMethods, observable, readField, writeField } from './legend'
 
 export interface RewindSessionApi {
   getRewindInfo?: (sessionId: string, messageId: string) => Promise<LiveSessionRewindInfo>
@@ -17,8 +17,20 @@ export interface RewindSessionApi {
   ) => Promise<LiveSessionExecuteRewindResult>
 }
 
+interface RewindWorkflowState {
+  rewindMessageId: string
+  rewindForkTitle: string
+  rewindInfo: LiveSessionRewindInfo | null
+  rewindError: string | null
+  isRewindDialogOpen: boolean
+  loadingRewindSessionId: string | null
+  rewindingSessionId: string | null
+  selectedRestoreFilePaths: string[]
+  selectedDeleteFilePaths: string[]
+}
+
 export class RewindWorkflowStore {
-  readonly stateNode = observable({
+  readonly state$: Observable<RewindWorkflowState> = observable({
     rewindMessageId: '',
     rewindForkTitle: '',
     rewindInfo: null as LiveSessionRewindInfo | null,
@@ -45,83 +57,81 @@ export class RewindWorkflowStore {
     this.getSelectedSession = getSelectedSession
     this.sessionApi = sessionApi
     this.onRewound = onRewound
-
-    bindMethods(this)
   }
 
   get rewindMessageId(): string {
-    return readField(this.stateNode, 'rewindMessageId')
+    return this.state$.rewindMessageId.get()
   }
 
   set rewindMessageId(value: string) {
-    writeField(this.stateNode, 'rewindMessageId', value)
+    this.state$.rewindMessageId.set(value)
   }
 
   get rewindForkTitle(): string {
-    return readField(this.stateNode, 'rewindForkTitle')
+    return this.state$.rewindForkTitle.get()
   }
 
   set rewindForkTitle(value: string) {
-    writeField(this.stateNode, 'rewindForkTitle', value)
+    this.state$.rewindForkTitle.set(value)
   }
 
   get rewindInfo(): LiveSessionRewindInfo | null {
-    return readField(this.stateNode, 'rewindInfo')
+    return this.state$.rewindInfo.get()
   }
 
   set rewindInfo(value: LiveSessionRewindInfo | null) {
-    writeField(this.stateNode, 'rewindInfo', value)
+    this.state$.rewindInfo.set(value)
   }
 
   get rewindError(): string | null {
-    return readField(this.stateNode, 'rewindError')
+    return this.state$.rewindError.get()
   }
 
   set rewindError(value: string | null) {
-    writeField(this.stateNode, 'rewindError', value)
+    this.state$.rewindError.set(value)
   }
 
   get isRewindDialogOpen(): boolean {
-    return readField(this.stateNode, 'isRewindDialogOpen')
+    return this.state$.isRewindDialogOpen.get()
   }
 
   set isRewindDialogOpen(value: boolean) {
-    writeField(this.stateNode, 'isRewindDialogOpen', value)
+    this.state$.isRewindDialogOpen.set(value)
   }
 
   get loadingRewindSessionId(): string | null {
-    return readField(this.stateNode, 'loadingRewindSessionId')
+    return this.state$.loadingRewindSessionId.get()
   }
 
   set loadingRewindSessionId(value: string | null) {
-    writeField(this.stateNode, 'loadingRewindSessionId', value)
+    this.state$.loadingRewindSessionId.set(value)
   }
 
   get rewindingSessionId(): string | null {
-    return readField(this.stateNode, 'rewindingSessionId')
+    return this.state$.rewindingSessionId.get()
   }
 
   set rewindingSessionId(value: string | null) {
-    writeField(this.stateNode, 'rewindingSessionId', value)
+    this.state$.rewindingSessionId.set(value)
   }
 
   get selectedRestoreFilePaths(): string[] {
-    return readField(this.stateNode, 'selectedRestoreFilePaths')
+    return this.state$.selectedRestoreFilePaths.get()
   }
 
   set selectedRestoreFilePaths(value: string[]) {
-    writeField(this.stateNode, 'selectedRestoreFilePaths', value)
+    this.state$.selectedRestoreFilePaths.set(value)
   }
 
   get selectedDeleteFilePaths(): string[] {
-    return readField(this.stateNode, 'selectedDeleteFilePaths')
+    return this.state$.selectedDeleteFilePaths.get()
   }
 
   set selectedDeleteFilePaths(value: string[]) {
-    writeField(this.stateNode, 'selectedDeleteFilePaths', value)
+    this.state$.selectedDeleteFilePaths.set(value)
   }
 
-  openRewindDialog(): void {
+  openRewindDialog = (): void => {
     const selectedSessionId = this.getSelectedSessionId()
 
     if (!selectedSessionId) {
@@ -137,7 +147,7 @@ export class RewindWorkflowStore {
     this.rewindForkTitle = `Rewind ${this.getSelectedSession()?.title ?? 'session'}`
   }
 
-  closeRewindDialog(): void {
+  closeRewindDialog = (): void => {
     this.isRewindDialogOpen = false
     this.rewindMessageId = ''
     this.rewindForkTitle = ''
@@ -147,7 +157,7 @@ export class RewindWorkflowStore {
     this.selectedDeleteFilePaths = []
   }
 
-  setRewindMessageId(value: string): void {
+  setRewindMessageId = (value: string): void => {
     this.rewindMessageId = value
     this.rewindInfo = null
     this.rewindError = null
@@ -155,23 +165,23 @@ export class RewindWorkflowStore {
     this.selectedDeleteFilePaths = []
   }
 
-  setRewindForkTitle(value: string): void {
+  setRewindForkTitle = (value: string): void => {
     this.rewindForkTitle = value
   }
 
-  toggleRewindRestoreFile(filePath: string): void {
+  toggleRewindRestoreFile = (filePath: string): void => {
     this.selectedRestoreFilePaths = this.selectedRestoreFilePaths.includes(filePath)
       ? this.selectedRestoreFilePaths.filter((candidate) => candidate !== filePath)
       : [...this.selectedRestoreFilePaths, filePath]
   }
 
-  toggleRewindDeleteFile(filePath: string): void {
+  toggleRewindDeleteFile = (filePath: string): void => {
     this.selectedDeleteFilePaths = this.selectedDeleteFilePaths.includes(filePath)
       ? this.selectedDeleteFilePaths.filter((candidate) => candidate !== filePath)
       : [...this.selectedDeleteFilePaths, filePath]
   }
 
-  async loadRewindInfo(): Promise<void> {
+  loadRewindInfo = async (): Promise<void> => {
     const selectedSessionId = this.getSelectedSessionId()
     const messageId = this.rewindMessageId.trim()
 
@@ -204,7 +214,7 @@ export class RewindWorkflowStore {
     }
   }
 
-  async submitExecuteRewind(): Promise<void> {
+  submitExecuteRewind = async (): Promise<void> => {
     const selectedSessionId = this.getSelectedSessionId()
     const messageId = this.rewindMessageId.trim()
     const forkTitle = this.rewindForkTitle.trim()

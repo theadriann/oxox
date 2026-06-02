@@ -1,7 +1,6 @@
+import { useValue } from '@legendapp/state/react'
 import { useRef } from 'react'
-
 import { useMountEffect } from '../../hooks/useMountEffect'
-import { useValue } from '../../stores/legend'
 import {
   type SearchSessionsGateway,
   SessionSearchController,

@@ -1,3 +1,4 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type {
   FoundationBootstrap,
   FoundationChangedPayload,
@@ -9,7 +10,6 @@ import {
   diffFoundationBootstraps,
   hasFoundationChanges,
 } from '../../../shared/ipc/foundationUpdates'
-import { batch, bindMethods, observable, readField, writeField } from './legend'
 
 import type { StoreEventBus } from './storeEventBus'
 
@@ -49,8 +49,14 @@ export interface FoundationStoreBridge {
   getRuntimeInfo?: () => Promise<RuntimeInfo>
 }
 
+interface FoundationState {
+  foundation: FoundationBootstrap
+  foundationLoadError: string | null
+  hasLoadedFoundation: boolean
+}
+
 export class FoundationStore {
-  readonly stateNode = observable({
+  readonly state$: Observable<FoundationState> = observable({
     foundation: PLACEHOLDER_FOUNDATION as FoundationBootstrap,
     foundationLoadError: null as string | null,
     hasLoadedFoundation: false,
@@ -63,31 +69,30 @@ export class FoundationStore {
   constructor(bus: StoreEventBus, bridge: FoundationStoreBridge = {}) {
     this.bus = bus
     this.bridge = bridge
-    bindMethods(this)
   }
 
   get foundation(): FoundationBootstrap {
-    return readField(this.stateNode, 'foundation')
+    return this.state$.foundation.get()
   }
 
   set foundation(value: FoundationBootstrap) {
-    writeField(this.stateNode, 'foundation', value)
+    this.state$.foundation.set(value)
   }
 
   get foundationLoadError(): string | null {
-    return readField(this.stateNode, 'foundationLoadError')
+    return this.state$.foundationLoadError.get()
   }
 
   set foundationLoadError(value: string | null) {
-    writeField(this.stateNode, 'foundationLoadError', value)
+    this.state$.foundationLoadError.set(value)
   }
 
   get hasLoadedFoundation(): boolean {
-    return readField(this.stateNode, 'hasLoadedFoundation')
+    return this.state$.hasLoadedFoundation.get()
   }
 
   set hasLoadedFoundation(value: boolean) {
-    writeField(this.stateNode, 'hasLoadedFoundation', value)
+    this.state$.hasLoadedFoundation.set(value)
   }
 
   get isDroidMissing(): boolean {
@@ -110,7 +115,7 @@ export class FoundationStore {
     return this.foundation.factoryDefaultSettings
   }
 
-  applyUpdate(payload: FoundationChangedPayload): void {
+  applyUpdate = (payload: FoundationChangedPayload): void => {
     if (!payload.changes || !hasFoundationChanges(payload.changes)) {
       return
     }
@@ -128,7 +133,7 @@ export class FoundationStore {
 
     batch(() => {
       if (shouldPreserveFoundationReference) {
-        this.foundation.sessions = nextFoundation.sessions
+        this.state$.foundation.sessions.set(nextFoundation.sessions)
       } else {
         this.foundation = nextFoundation
       }
@@ -144,7 +149,7 @@ export class FoundationStore {
     this.bus.emit('foundation-hydrate', { bootstrap: nextFoundation })
   }
 
-  async refresh(): Promise<void> {
+  refresh = async (): Promise<void> => {
     const getBootstrap = this.resolveGetBootstrap()
 
     if (!getBootstrap) {
@@ -190,7 +195,7 @@ export class FoundationStore {
     }
   }
 
-  async initRuntime(): Promise<void> {
+  initRuntime = async (): Promise<void> => {
     if (this.runtimeInitPromise) {
       await this.runtimeInitPromise
       return
@@ -211,7 +216,7 @@ export class FoundationStore {
     await this.runtimeInitPromise
   }
 
-  dispose(): void {
+  dispose = (): void => {
     this.runtimeInitPromise = null
   }
 

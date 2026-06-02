@@ -7,7 +7,7 @@ export type NotificationNavigationAppApi = PlatformApiClient['app']
 interface UseNotificationNavigationOptions {
   liveSessionStore: {
     refreshSnapshot: (sessionId: string) => Promise<void>
-    snapshotsById: Map<string, unknown>
+    hasSnapshot: (sessionId: string) => boolean
   }
   transcriptStore: {
     openSession: (sessionId: string) => Promise<void>
@@ -28,7 +28,7 @@ export function useNotificationNavigation({
         const normalizedSessionId = sessionId.trim()
         if (!normalizedSessionId) return
         await liveSessionStore.refreshSnapshot(normalizedSessionId)
-        if (!liveSessionStore.snapshotsById.get(normalizedSessionId)) {
+        if (!liveSessionStore.hasSnapshot(normalizedSessionId)) {
           await transcriptStore.openSession(normalizedSessionId)
         }
         onSelectSession(normalizedSessionId)

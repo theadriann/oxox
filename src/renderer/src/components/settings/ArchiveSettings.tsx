@@ -1,8 +1,7 @@
+import { useValue } from '@legendapp/state/react'
 import { Archive, FolderClosed, RotateCcw } from 'lucide-react'
 import { memo, useCallback } from 'react'
-
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
-import { useValue } from '../../stores/legend'
 import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
 import { useSessionStore } from '../../stores/StoreProvider'
 import { Button } from '../ui/button'

@@ -1,7 +1,7 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type { FoundationRecordDelta, SessionRecord } from '../../../shared/ipc/contracts'
 import { deriveProjectLabel, toTimestamp } from '../lib/sessionTime'
 import { createLocalStoragePort, type PersistencePort } from '../platform/persistence'
-import { batch, bindMethods, observable, readField, writeField } from './legend'
 import type { StoreEventBus } from './storeEventBus'
 
 const SESSION_PREFERENCES_STORAGE_KEY = 'oxox.session.preferences'
@@ -48,8 +48,20 @@ interface PersistedSessionPreferences {
   archivedProjectKeys?: string[]
 }
 
+interface SessionState {
+  sessions: SessionPreview[]
+  selectedSessionId: string
+  hasHydratedSessions: boolean
+  missingSelectedSession: boolean
+  isDraftSelectionActive: boolean
+  pinnedSessionIds: string[]
+  projectDisplayNames: Record<string, string>
+  archivedSessionIds: string[]
+  archivedProjectKeys: string[]
+}
+
 export class SessionStore {
-  readonly stateNode = observable({
+  readonly state$: Observable<SessionState> = observable({
     sessions: [] as SessionPreview[],
     selectedSessionId: '',
     hasHydratedSessions: false,
@@ -64,80 +76,79 @@ export class SessionStore {
 
   constructor(persistence: PersistencePort = createLocalStoragePort()) {
     this.persistence = persistence
-    bindMethods(this)
     this.hydratePreferences()
   }
 
   get sessions(): SessionPreview[] {
-    return readField(this.stateNode, 'sessions')
+    return this.state$.sessions.get()
   }
 
   set sessions(value: SessionPreview[]) {
-    writeField(this.stateNode, 'sessions', value)
+    this.state$.sessions.set(value)
   }
 
   get selectedSessionId(): string {
-    return readField(this.stateNode, 'selectedSessionId')
+    return this.state$.selectedSessionId.get()
   }
 
   set selectedSessionId(value: string) {
-    writeField(this.stateNode, 'selectedSessionId', value)
+    this.state$.selectedSessionId.set(value)
   }
 
   get hasHydratedSessions(): boolean {
-    return readField(this.stateNode, 'hasHydratedSessions')
+    return this.state$.hasHydratedSessions.get()
   }
 
   set hasHydratedSessions(value: boolean) {
-    writeField(this.stateNode, 'hasHydratedSessions', value)
+    this.state$.hasHydratedSessions.set(value)
   }
 
   get missingSelectedSession(): boolean {
-    return readField(this.stateNode, 'missingSelectedSession')
+    return this.state$.missingSelectedSession.get()
   }
 
   set missingSelectedSession(value: boolean) {
-    writeField(this.stateNode, 'missingSelectedSession', value)
+    this.state$.missingSelectedSession.set(value)
   }
 
   get isDraftSelectionActive(): boolean {
-    return readField(this.stateNode, 'isDraftSelectionActive')
+    return this.state$.isDraftSelectionActive.get()
   }
 
   set isDraftSelectionActive(value: boolean) {
-    writeField(this.stateNode, 'isDraftSelectionActive', value)
+    this.state$.isDraftSelectionActive.set(value)
   }
 
   get pinnedSessionIds(): string[] {
-    return readField(this.stateNode, 'pinnedSessionIds')
+    return this.state$.pinnedSessionIds.get()
   }
 
   set pinnedSessionIds(value: string[]) {
-    writeField(this.stateNode, 'pinnedSessionIds', value)
+    this.state$.pinnedSessionIds.set(value)
   }
 
   get projectDisplayNames(): Record<string, string> {
-    return readField(this.stateNode, 'projectDisplayNames')
+    return this.state$.projectDisplayNames.get()
   }
 
   set projectDisplayNames(value: Record<string, string>) {
-    writeField(this.stateNode, 'projectDisplayNames', value)
+    this.state$.projectDisplayNames.set(value)
   }
 
   get archivedSessionIds(): string[] {
-    return readField(this.stateNode, 'archivedSessionIds')
+    return this.state$.archivedSessionIds.get()
   }
 
   set archivedSessionIds(value: string[]) {
-    writeField(this.stateNode, 'archivedSessionIds', value)
+    this.state$.archivedSessionIds.set(value)
   }
 
   get archivedProjectKeys(): string[] {
-    return readField(this.stateNode, 'archivedProjectKeys')
+    return this.state$.archivedProjectKeys.get()
   }
 
   set archivedProjectKeys(value: string[]) {
-    writeField(this.stateNode, 'archivedProjectKeys', value)
+    this.state$.archivedProjectKeys.set(value)
   }
 
   get selectedSession(): SessionPreview | undefined {
@@ -203,7 +214,7 @@ export class SessionStore {
     return this.missingSelectedSession && !this.selectedSession
   }
 
-  selectSession(sessionId: string): void {
+  selectSession = (sessionId: string): void => {
     batch(() => {
       this.selectedSessionId = sessionId
       this.missingSelectedSession = false
@@ -211,7 +222,7 @@ export class SessionStore {
     })
   }
 
-  startDraftSelection(): void {
+  startDraftSelection = (): void => {
     batch(() => {
       this.selectedSessionId = ''
       this.missingSelectedSession = false
@@ -219,7 +230,7 @@ export class SessionStore {
     })
   }
 
-  cancelDraftSelection(nextSessionId?: string): void {
+  cancelDraftSelection = (nextSessionId?: string): void => {
     batch(() => {
       this.isDraftSelectionActive = false
 
@@ -233,18 +244,18 @@ export class SessionStore {
     })
   }
 
-  clearSelection(): void {
+  clearSelection = (): void => {
     batch(() => {
       this.selectedSessionId = ''
       this.missingSelectedSession = false
     })
   }
 
-  isSessionPinned(sessionId: string): boolean {
+  isSessionPinned = (sessionId: string): boolean => {
     return this.pinnedSessionIds.includes(sessionId)
   }
 
-  togglePinnedSession(sessionId: string): void {
+  togglePinnedSession = (sessionId: string): void => {
     if (this.isSessionPinned(sessionId)) {
       this.pinnedSessionIds = this.pinnedSessionIds.filter((id) => id !== sessionId)
       this.persistPreferences()
@@ -257,32 +268,32 @@ export class SessionStore {
 
   // ── Archive ────────────────────────
 
-  isSessionArchived(sessionId: string): boolean {
+  isSessionArchived = (sessionId: string): boolean => {
     return this.archivedSessionIds.includes(sessionId)
   }
 
-  isProjectArchived(projectKey: string): boolean {
+  isProjectArchived = (projectKey: string): boolean => {
     return this.archivedProjectKeys.includes(projectKey)
   }
 
-  archiveSession(sessionId: string): void {
+  archiveSession = (sessionId: string): void => {
     if (this.isSessionArchived(sessionId)) return
     this.archivedSessionIds = [...this.archivedSessionIds, sessionId]
     this.persistPreferences()
   }
 
-  unarchiveSession(sessionId: string): void {
+  unarchiveSession = (sessionId: string): void => {
     this.archivedSessionIds = this.archivedSessionIds.filter((id) => id !== sessionId)
     this.persistPreferences()
   }
 
-  archiveProject(projectKey: string): void {
+  archiveProject = (projectKey: string): void => {
     if (this.isProjectArchived(projectKey)) return
     this.archivedProjectKeys = [...this.archivedProjectKeys, projectKey]
     this.persistPreferences()
   }
 
-  unarchiveProject(projectKey: string): void {
+  unarchiveProject = (projectKey: string): void => {
     this.archivedProjectKeys = this.archivedProjectKeys.filter((key) => key !== projectKey)
     this.persistPreferences()
   }
@@ -317,7 +328,7 @@ export class SessionStore {
     return Array.from(groups.values()).sort((a, b) => b.latestActivityAt - a.latestActivityAt)
   }
 
-  setProjectDisplayName(projectKey: string, value: string): void {
+  setProjectDisplayName = (projectKey: string, value: string): void => {
     const trimmedValue = value.trim()
 
     batch(() => {
@@ -337,7 +348,7 @@ export class SessionStore {
     this.persistPreferences()
   }
 
-  hydrateSessions(sessionRecords: SessionRecord[]): void {
+  hydrateSessions = (sessionRecords: SessionRecord[]): void => {
     const nextSessions = applyDisplayNameOverrides(
       sessionRecords.map((session) => toSessionPreview(session)).sort(sortSessionsByRecency),
       this.projectDisplayNames,
@@ -345,7 +356,7 @@ export class SessionStore {
     this.applyNextSessions(nextSessions)
   }
 
-  applySessionChanges(delta: FoundationRecordDelta<SessionRecord>): void {
+  applySessionChanges = (delta: FoundationRecordDelta<SessionRecord>): void => {
     const nextById = new Map(this.sessions.map((session) => [session.id, session]))
 
     for (const removedId of delta.removedIds) {
@@ -366,14 +377,14 @@ export class SessionStore {
     this.applyNextSessions([...nextById.values()].sort(sortSessionsByRecency))
   }
 
-  upsertSession(sessionRecord: SessionRecord): void {
+  upsertSession = (sessionRecord: SessionRecord): void => {
     this.applySessionChanges({
       upserted: [sessionRecord],
       removedIds: [],
     })
   }
 
-  connectToEventBus(bus: StoreEventBus): () => void {
+  connectToEventBus = (bus: StoreEventBus): (() => void) => {
     const disposers = [
       bus.subscribe('session-upsert', ({ record }) => {
         this.upsertSession(record)

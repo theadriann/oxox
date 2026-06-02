@@ -1,4 +1,4 @@
-import { useValue } from '../../stores/legend'
+import { useValue } from '@legendapp/state/react'
 import { useComposerStore } from '../../stores/StoreProvider'
 import { AppShellFeedback } from './AppShellFeedback'
 

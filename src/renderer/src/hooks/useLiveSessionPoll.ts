@@ -1,3 +1,4 @@
+import { useObserveEffect } from '@legendapp/state/react'
 import { useRef } from 'react'
 import type {
   LiveSessionEventBatchPayload,
@@ -5,7 +6,6 @@ import type {
   LiveSessionSnapshotChangedPayload,
 } from '../../../shared/ipc/contracts'
 import { logTranscriptPerformanceEvent } from '../diagnostics/transcriptPerformance'
-import { useObserveEffect } from '../stores/legend'
 import { useMountEffect } from './useMountEffect'
 
 interface UseLiveSessionPollOptions {

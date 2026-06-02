@@ -1,3 +1,4 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type {
   LiveSessionEventBatchPayload,
   LiveSessionEventRecord,
@@ -12,7 +13,6 @@ import {
 } from '../components/transcript/liveTimelineAccumulator'
 import type { TimelineItem } from '../components/transcript/timelineTypes'
 import { logTranscriptPerformanceEvent } from '../diagnostics/transcriptPerformance'
-import { batch, bindMethods, observable, readField, readMapValue, writeMapValue } from './legend'
 
 import { toSessionRecord } from './liveSessionRecord'
 import type { SessionPreview } from './SessionStore'
@@ -25,10 +25,15 @@ const EMPTY_SNAPSHOT_LOADER: SnapshotLoader = async () => null
 const EMPTY_SELECTED_SESSION_ID_READER: SelectedSessionIdReader = () => null
 const EMPTY_SESSION_PREVIEW_READER: SessionPreviewReader = () => undefined
 
+interface LiveSessionState {
+  snapshotsById: Record<string, LiveSessionSnapshot>
+  timelineItemsById: Record<string, TimelineItem[]>
+}
+
 export class LiveSessionStore {
-  readonly stateNode = observable({
-    snapshotsById: new Map<string, LiveSessionSnapshot>(),
-    timelineItemsById: new Map<string, TimelineItem[]>(),
+  readonly state$: Observable<LiveSessionState> = observable({
+    snapshotsById: {},
+    timelineItemsById: {},
   })
 
   private readonly getSelectedSessionId: SelectedSessionIdReader
@@ -47,23 +52,12 @@ export class LiveSessionStore {
     this.bus = bus
     this.snapshotLoader = snapshotLoader
     this.getSessionPreview = getSessionPreview
-    bindMethods(this)
-  }
-
-  get snapshotsById(): Map<string, LiveSessionSnapshot> {
-    return readField(this.stateNode, 'snapshotsById')
-  }
-
-  get timelineItemsById(): Map<string, TimelineItem[]> {
-    return readField(this.stateNode, 'timelineItemsById')
   }
 
   get selectedSnapshot(): LiveSessionSnapshot | null {
     const selectedSessionId = this.getSelectedSessionId()
 
-    return selectedSessionId
-      ? (readMapValue(this.stateNode.snapshotsById, selectedSessionId) ?? null)
-      : null
+    return selectedSessionId ? this.snapshotForSession(selectedSessionId) : null
   }
 
   get selectedSnapshotId(): string | null {
@@ -73,9 +67,7 @@ export class LiveSessionStore {
   get selectedTimelineItems(): TimelineItem[] {
     const selectedSessionId = this.getSelectedSessionId()
 
-    return selectedSessionId
-      ? (readMapValue(this.stateNode.timelineItemsById, selectedSessionId) ?? [])
-      : []
+    return selectedSessionId ? this.timelineItemsForSession(selectedSessionId) : []
   }
 
   get selectedNeedsReconnect(): boolean {
@@ -87,16 +79,16 @@ export class LiveSessionStore {
     )
   }
 
-  upsertSnapshot(snapshot: LiveSessionSnapshot): void {
+  upsertSnapshot = (snapshot: LiveSessionSnapshot): void => {
     const startedAt = performance.now()
-    const previousSnapshot = readMapValue(this.stateNode.snapshotsById, snapshot.sessionId)
+    const previousSnapshot = this.snapshotForSession(snapshot.sessionId)
 
     if (!snapshotChanged(previousSnapshot, snapshot)) {
       return
     }
 
     batch(() => {
-      writeMapValue(this.stateNode.snapshotsById, snapshot.sessionId, snapshot)
+      this.state$.snapshotsById[snapshot.sessionId].set(snapshot)
       this.syncTimeline(snapshot)
     })
 
@@ -115,13 +107,13 @@ export class LiveSessionStore {
     })
   }
 
-  applyEventBatch(payload: LiveSessionEventBatchPayload): void {
+  applyEventBatch = (payload: LiveSessionEventBatchPayload): void => {
     const startedAt = performance.now()
     if (payload.events.length === 0) {
       return
     }
 
-    const previousSnapshot = readMapValue(this.stateNode.snapshotsById, payload.sessionId)
+    const previousSnapshot = this.snapshotForSession(payload.sessionId)
 
     if (!previousSnapshot) {
       return
@@ -130,7 +122,7 @@ export class LiveSessionStore {
     const nextSnapshot = applyEventsToSnapshot(previousSnapshot, payload.events)
 
     batch(() => {
-      writeMapValue(this.stateNode.snapshotsById, payload.sessionId, nextSnapshot)
+      this.state$.snapshotsById[payload.sessionId].set(nextSnapshot)
       this.appendTimelineEvents(previousSnapshot, nextSnapshot, payload.events)
     })
 
@@ -153,22 +145,22 @@ export class LiveSessionStore {
     })
   }
 
-  clearSnapshot(sessionId: string): void {
+  clearSnapshot = (sessionId: string): void => {
     batch(() => {
-      this.stateNode.snapshotsById.delete(sessionId)
-      this.stateNode.timelineItemsById.delete(sessionId)
+      this.state$.snapshotsById[sessionId].delete()
+      this.state$.timelineItemsById[sessionId].delete()
       this.timelineAccumulatorsById.delete(sessionId)
     })
   }
 
-  async refreshSnapshot(sessionId: string): Promise<void> {
+  refreshSnapshot = async (sessionId: string): Promise<void> => {
     const snapshot = await this.snapshotLoader(sessionId)
 
     if (!snapshot) {
       return
     }
 
-    const previousSnapshot = readMapValue(this.stateNode.snapshotsById, sessionId)
+    const previousSnapshot = this.snapshotForSession(sessionId)
 
     if (!snapshotChanged(previousSnapshot, snapshot)) {
       return
@@ -177,8 +169,20 @@ export class LiveSessionStore {
     this.upsertSnapshot(snapshot)
   }
 
-  timelineItemsForSession(sessionId: string): TimelineItem[] {
-    return readMapValue(this.stateNode.timelineItemsById, sessionId) ?? []
+  snapshotForSession = (sessionId: string): LiveSessionSnapshot | null => {
+    return this.state$.snapshotsById[sessionId].get() ?? null
+  }
+
+  hasSnapshot = (sessionId: string): boolean => {
+    return this.snapshotForSession(sessionId) !== null
+  }
+
+  get snapshotCount(): number {
+    return Object.keys(this.state$.snapshotsById.peek()).length
+  }
+
+  timelineItemsForSession = (sessionId: string): TimelineItem[] => {
+    return this.state$.timelineItemsById[sessionId].get() ?? []
   }
 
   private syncTimeline(snapshot: LiveSessionSnapshot): void {
@@ -192,7 +196,7 @@ export class LiveSessionStore {
       return
     }
 
-    writeMapValue(this.stateNode.timelineItemsById, snapshot.sessionId, [...items])
+    this.state$.timelineItemsById[snapshot.sessionId].set([...items])
   }
 
   private appendTimelineEvents(
@@ -210,7 +214,7 @@ export class LiveSessionStore {
       return
     }
 
-    writeMapValue(this.stateNode.timelineItemsById, snapshot.sessionId, [...items])
+    this.state$.timelineItemsById[snapshot.sessionId].set([...items])
   }
 }
 

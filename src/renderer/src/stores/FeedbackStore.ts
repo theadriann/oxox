@@ -1,29 +1,29 @@
-import { bindMethods, observable, readField, writeField } from './legend'
+import { type Observable, observable } from '@legendapp/state'
 
 export interface ComposerFeedback {
   message: string
   tone: 'success' | 'error'
 }
 
+interface FeedbackState {
+  feedback: ComposerFeedback | null
+}
+
 export class FeedbackStore {
-  readonly stateNode = observable({
-    feedback: null as ComposerFeedback | null,
+  readonly state$: Observable<FeedbackState> = observable({
+    feedback: null,
   })
   private feedbackTimer: ReturnType<typeof setTimeout> | null = null
 
-  constructor() {
-    bindMethods(this)
-  }
-
   get feedback(): ComposerFeedback | null {
-    return readField(this.stateNode, 'feedback')
+    return this.state$.feedback.get()
   }
 
   set feedback(value: ComposerFeedback | null) {
-    writeField(this.stateNode, 'feedback', value)
+    this.state$.feedback.set(value)
   }
 
-  showFeedback(message: string, tone: ComposerFeedback['tone'] = 'success'): void {
+  showFeedback = (message: string, tone: ComposerFeedback['tone'] = 'success'): void => {
     if (this.feedbackTimer) {
       clearTimeout(this.feedbackTimer)
     }
@@ -34,7 +34,7 @@ export class FeedbackStore {
     }, 2_500)
   }
 
-  dismissFeedback(): void {
+  dismissFeedback = (): void => {
     if (this.feedbackTimer) {
       clearTimeout(this.feedbackTimer)
       this.feedbackTimer = null
@@ -43,7 +43,7 @@ export class FeedbackStore {
     this.feedback = null
   }
 
-  dispose(): void {
+  dispose = (): void => {
     this.dismissFeedback()
   }
 }

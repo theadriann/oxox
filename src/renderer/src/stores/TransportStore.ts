@@ -1,36 +1,37 @@
+import { type Observable, observable } from '@legendapp/state'
 import type { FoundationBootstrap } from '../../../shared/ipc/contracts'
-import { bindMethods, observable, readField, writeField } from './legend'
 import type { StoreEventBus } from './storeEventBus'
 
 export type TransportStatus = 'connected' | 'reconnecting' | 'disconnected'
 
+interface TransportState {
+  status: TransportStatus
+  protocol: string
+}
+
 export class TransportStore {
-  readonly stateNode = observable({
-    status: 'disconnected' as TransportStatus,
+  readonly state$: Observable<TransportState> = observable({
+    status: 'disconnected',
     protocol: 'artifacts',
   })
 
-  constructor() {
-    bindMethods(this)
-  }
-
   get status(): TransportStatus {
-    return readField(this.stateNode, 'status')
+    return this.state$.status.get()
   }
 
   set status(value: TransportStatus) {
-    writeField(this.stateNode, 'status', value)
+    this.state$.status.set(value)
   }
 
   get protocol(): string {
-    return readField(this.stateNode, 'protocol')
+    return this.state$.protocol.get()
   }
 
   set protocol(value: string) {
-    writeField(this.stateNode, 'protocol', value)
+    this.state$.protocol.set(value)
   }
 
-  hydrateFoundation(bootstrap: FoundationBootstrap): void {
+  hydrateFoundation = (bootstrap: FoundationBootstrap): void => {
     const nextProtocol = bootstrap.daemon.status === 'connected' ? 'daemon' : 'artifacts'
 
     if (this.status !== bootstrap.daemon.status) {
@@ -42,7 +43,7 @@ export class TransportStore {
     }
   }
 
-  connectToEventBus(bus: StoreEventBus): () => void {
+  connectToEventBus = (bus: StoreEventBus): (() => void) => {
     return bus.subscribe('foundation-hydrate', ({ bootstrap }) => {
       this.hydrateFoundation(bootstrap)
     })

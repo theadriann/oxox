@@ -1,8 +1,8 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type {
   PluginCapabilityInvokeResult,
   PluginCapabilityRecord,
 } from '../../../shared/plugins/contracts'
-import { batch, bindMethods, observable, readField, writeField } from './legend'
 
 type PluginCapabilityLoader = () => Promise<PluginCapabilityRecord[]>
 type PluginCapabilityInvoker = (
@@ -16,14 +16,20 @@ const MISSING_PLUGIN_CAPABILITY_INVOKER: PluginCapabilityInvoker = async () => {
   throw new Error('Plugin capability bridge unavailable.')
 }
 
+interface PluginCapabilityState {
+  capabilitiesById: Record<string, PluginCapabilityRecord>
+  invocationError: string | null
+  refreshError: string | null
+}
+
 export class PluginCapabilityStore {
   private readonly capabilityLoader: PluginCapabilityLoader
   private readonly capabilityInvoker: PluginCapabilityInvoker
 
-  readonly stateNode = observable({
-    capabilitiesById: new Map<string, PluginCapabilityRecord>(),
-    invocationError: null as string | null,
-    refreshError: null as string | null,
+  readonly state$: Observable<PluginCapabilityState> = observable({
+    capabilitiesById: {},
+    invocationError: null,
+    refreshError: null,
   })
 
   constructor(
@@ -32,27 +38,26 @@ export class PluginCapabilityStore {
   ) {
     this.capabilityLoader = capabilityLoader
     this.capabilityInvoker = capabilityInvoker
-    bindMethods(this)
   }
 
   get invocationError(): string | null {
-    return readField(this.stateNode, 'invocationError')
+    return this.state$.invocationError.get()
   }
 
   set invocationError(value: string | null) {
-    writeField(this.stateNode, 'invocationError', value)
+    this.state$.invocationError.set(value)
   }
 
   get refreshError(): string | null {
-    return readField(this.stateNode, 'refreshError')
+    return this.state$.refreshError.get()
   }
 
   set refreshError(value: string | null) {
-    writeField(this.stateNode, 'refreshError', value)
+    this.state$.refreshError.set(value)
   }
 
   get capabilities(): PluginCapabilityRecord[] {
-    return Array.from(this.stateNode.capabilitiesById.get().values()).sort((left, right) =>
+    return Object.values(this.state$.capabilitiesById.get()).sort((left, right) =>
       left.displayName.localeCompare(right.displayName),
     )
   }
@@ -65,26 +70,30 @@ export class PluginCapabilityStore {
     return this.capabilities.filter((capability) => capability.kind === 'session-action')
   }
 
-  async refresh(): Promise<void> {
+  refresh = async (): Promise<void> => {
     try {
       const capabilities = await this.capabilityLoader()
       batch(() => {
-        this.stateNode.capabilitiesById.clear()
-        for (const capability of capabilities) {
-          this.stateNode.capabilitiesById.set(capability.qualifiedId, capability)
-        }
+        this.state$.capabilitiesById.set(
+          Object.fromEntries(
+            capabilities.map((capability) => [capability.qualifiedId, capability]),
+          ),
+        )
         this.refreshError = null
       })
     } catch (error) {
       batch(() => {
-        this.stateNode.capabilitiesById.clear()
+        this.state$.capabilitiesById.set({})
         this.refreshError =
           error instanceof Error ? error.message : 'Unable to load plugin capabilities.'
       })
     }
   }
 
-  async invoke(capabilityId: string, payload?: unknown): Promise<PluginCapabilityInvokeResult> {
+  invoke = async (
+    capabilityId: string,
+    payload?: unknown,
+  ): Promise<PluginCapabilityInvokeResult> => {
     try {
       const result = await this.capabilityInvoker(capabilityId, payload)
       batch(() => {

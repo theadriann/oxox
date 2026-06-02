@@ -1,12 +1,5 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type { KeyboardEvent } from 'react'
-import {
-  batch,
-  bindMethods,
-  observable,
-  readField,
-  readMapValue,
-  writeField,
-} from '../../stores/legend'
 import type { ProjectSessionGroup, SessionPreview } from '../../stores/SessionStore'
 import { DEFAULT_SIDEBAR_FILTERS, type SidebarFilters } from './sessionFiltering'
 
@@ -15,12 +8,25 @@ export interface RenderedSessionItem {
   session: SessionPreview
 }
 
+interface SessionSidebarState {
+  now: number
+  focusedItemKey: string | null
+  expandedProjectKeys: Record<string, true>
+  projectRevealCounts: Record<string, number>
+  editingProjectKey: string | null
+  draftProjectName: string
+  searchQueryDraft: string
+  filters: SidebarFilters
+  isFilterPanelOpen: boolean
+  isSearchOpen: boolean
+}
+
 export class SessionSidebarStore {
-  readonly stateNode = observable({
+  readonly state$: Observable<SessionSidebarState> = observable({
     now: Date.now(),
     focusedItemKey: null as string | null,
-    expandedProjectKeys: new Set<string>(),
-    projectRevealCounts: new Map<string, number>(),
+    expandedProjectKeys: {} as Record<string, true>,
+    projectRevealCounts: {} as Record<string, number>,
     editingProjectKey: null as string | null,
     draftProjectName: '',
     searchQueryDraft: DEFAULT_SIDEBAR_FILTERS.query,
@@ -30,103 +36,86 @@ export class SessionSidebarStore {
   })
   private storedScrollTop = 0
 
-  constructor() {
-    bindMethods(this)
-  }
-
   get now(): number {
-    return readField(this.stateNode, 'now')
+    return this.state$.now.get()
   }
 
   set now(value: number) {
-    writeField(this.stateNode, 'now', value)
+    this.state$.now.set(value)
   }
 
   get focusedItemKey(): string | null {
-    return readField(this.stateNode, 'focusedItemKey')
+    return this.state$.focusedItemKey.get()
   }
 
   set focusedItemKey(value: string | null) {
-    writeField(this.stateNode, 'focusedItemKey', value)
-  }
-
-  get expandedProjectKeys(): Set<string> {
-    return readField(this.stateNode, 'expandedProjectKeys')
-  }
-
-  get projectRevealCounts(): Map<string, number> {
-    return readField(this.stateNode, 'projectRevealCounts')
+    this.state$.focusedItemKey.set(value)
   }
 
   get editingProjectKey(): string | null {
-    return readField(this.stateNode, 'editingProjectKey')
+    return this.state$.editingProjectKey.get()
   }
 
   set editingProjectKey(value: string | null) {
-    writeField(this.stateNode, 'editingProjectKey', value)
+    this.state$.editingProjectKey.set(value)
   }
 
   get draftProjectName(): string {
-    return readField(this.stateNode, 'draftProjectName')
+    return this.state$.draftProjectName.get()
   }
 
   set draftProjectName(value: string) {
-    writeField(this.stateNode, 'draftProjectName', value)
+    this.state$.draftProjectName.set(value)
   }
 
   get searchQueryDraft(): string {
-    return readField(this.stateNode, 'searchQueryDraft')
+    return this.state$.searchQueryDraft.get()
   }
 
   set searchQueryDraft(value: string) {
-    writeField(this.stateNode, 'searchQueryDraft', value)
+    this.state$.searchQueryDraft.set(value)
   }
 
   get filters(): SidebarFilters {
-    return readField(this.stateNode, 'filters')
+    return this.state$.filters.get()
   }
 
   set filters(value: SidebarFilters) {
-    writeField(this.stateNode, 'filters', value)
+    this.state$.filters.set(value)
   }
 
   get isFilterPanelOpen(): boolean {
-    return readField(this.stateNode, 'isFilterPanelOpen')
+    return this.state$.isFilterPanelOpen.get()
   }
 
   set isFilterPanelOpen(value: boolean) {
-    writeField(this.stateNode, 'isFilterPanelOpen', value)
+    this.state$.isFilterPanelOpen.set(value)
   }
 
   get isSearchOpen(): boolean {
-    return readField(this.stateNode, 'isSearchOpen')
+    return this.state$.isSearchOpen.get()
   }
 
   set isSearchOpen(value: boolean) {
-    writeField(this.stateNode, 'isSearchOpen', value)
+    this.state$.isSearchOpen.set(value)
   }
 
-  tickNow(): void {
+  tickNow = (): void => {
     this.now = Date.now()
   }
 
-  isProjectExpanded(projectKey: string): boolean {
-    return this.stateNode.expandedProjectKeys.has(projectKey)
+  isProjectExpanded = (projectKey: string): boolean => {
+    return this.state$.expandedProjectKeys[projectKey].get() === true
   }
 
-  setFocusedItemKey(focusKey: string | null): void {
+  setFocusedItemKey = (focusKey: string | null): void => {
     this.focusedItemKey = focusKey
   }
 
-  /**
-   * Pure computation: given visible items and selected session, returns the
-   * correct focused key. Callers use this as derived state instead of syncing
-   * via useEffect.
-   */
-  deriveFocusedItemKey(
+  deriveFocusedItemKey = (
     visibleItems: RenderedSessionItem[],
     selectedSessionId: string,
-  ): string | null {
+  ): string | null => {
     if (visibleItems.length === 0) return null
 
     if (this.focusedItemKey && visibleItems.some((item) => item.focusKey === this.focusedItemKey)) {
@@ -140,7 +129,7 @@ export class SessionSidebarStore {
     )
   }
 
-  focusSession(focusKey: string, sessionRefs: Map<string, HTMLButtonElement>): void {
+  focusSession = (focusKey: string, sessionRefs: Map<string, HTMLButtonElement>): void => {
     const element = sessionRefs.get(focusKey)
     if (!element) return
 
@@ -148,12 +137,12 @@ export class SessionSidebarStore {
     element.focus()
   }
 
-  moveFocus(
+  moveFocus = (
     currentFocusKey: string,
     direction: -1 | 1,
     visibleItems: RenderedSessionItem[],
     sessionRefs: Map<string, HTMLButtonElement>,
-  ): void {
+  ): void => {
     const currentIndex = visibleItems.findIndex((item) => item.focusKey === currentFocusKey)
     if (currentIndex === -1 || visibleItems.length === 0) return
 
@@ -164,14 +153,14 @@ export class SessionSidebarStore {
     }
   }
 
-  handleSessionKeyDown(
+  handleSessionKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
     focusKey: string,
     sessionId: string,
     visibleItems: RenderedSessionItem[],
     sessionRefs: Map<string, HTMLButtonElement>,
     onSelectSession: (sessionId: string) => void,
-  ): void {
+  ): void => {
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault()
@@ -203,79 +192,77 @@ export class SessionSidebarStore {
     }
   }
 
-  toggleProjectExpansion(projectKey: string): void {
+  toggleProjectExpansion = (projectKey: string): void => {
     batch(() => {
-      const current = readMapValue(this.stateNode.projectRevealCounts, projectKey) ?? 0
+      const current = this.state$.projectRevealCounts[projectKey].peek() ?? 0
       if (current > 0) {
-        this.stateNode.projectRevealCounts.delete(projectKey)
-        this.stateNode.expandedProjectKeys.delete(projectKey)
+        this.removeProjectRevealCount(projectKey)
+        this.removeExpandedProjectKey(projectKey)
       } else {
-        this.stateNode.expandedProjectKeys.add(projectKey)
+        this.addExpandedProjectKey(projectKey)
       }
     })
   }
 
-  revealMoreSessions(projectKey: string, batchSize: number): void {
+  revealMoreSessions = (projectKey: string, batchSize: number): void => {
     batch(() => {
-      const current = readMapValue(this.stateNode.projectRevealCounts, projectKey) ?? 0
-      this.stateNode.projectRevealCounts.set(projectKey, current + batchSize)
-      this.stateNode.expandedProjectKeys.add(projectKey)
+      const current = this.state$.projectRevealCounts[projectKey].peek() ?? 0
+      this.state$.projectRevealCounts[projectKey].set(current + batchSize)
+      this.addExpandedProjectKey(projectKey)
     })
   }
 
-  collapseProjectSessions(projectKey: string): void {
+  collapseProjectSessions = (projectKey: string): void => {
     batch(() => {
-      this.stateNode.projectRevealCounts.delete(projectKey)
-      this.stateNode.expandedProjectKeys.delete(projectKey)
+      this.removeProjectRevealCount(projectKey)
+      this.removeExpandedProjectKey(projectKey)
     })
   }
 
-  getRevealLimit(projectKey: string, baseLimit: number): number {
-    const extra = readMapValue(this.stateNode.projectRevealCounts, projectKey) ?? 0
+  getRevealLimit = (projectKey: string, baseLimit: number): number => {
+    const extra = this.state$.projectRevealCounts[projectKey].get() ?? 0
     return baseLimit + extra
   }
 
-  startEditingProject(group: ProjectSessionGroup): void {
+  startEditingProject = (group: ProjectSessionGroup): void => {
     batch(() => {
       this.editingProjectKey = group.key
       this.draftProjectName = group.label
     })
   }
 
-  setDraftProjectName(value: string): void {
+  setDraftProjectName = (value: string): void => {
     this.draftProjectName = value
   }
 
-  setSearchQueryDraft(value: string): void {
+  setSearchQueryDraft = (value: string): void => {
     this.searchQueryDraft = value
   }
 
-  submitProjectDisplayName(
+  submitProjectDisplayName = (
     projectKey: string,
     onSetProjectDisplayName: (projectKey: string, value: string) => void,
-  ): void {
+  ): void => {
     onSetProjectDisplayName(projectKey, this.draftProjectName)
     this.cancelProjectEditing()
   }
 
-  cancelProjectEditing(): void {
+  cancelProjectEditing = (): void => {
     batch(() => {
       this.editingProjectKey = null
       this.draftProjectName = ''
     })
   }
 
-  /**
-   * Pure check: returns whether the editing project still exists.
-   * Called during render -- if it returns false, the caller should
-   * cancel editing via an event handler or MobX reaction.
-   */
-  isEditingProjectValid(groups: ProjectSessionGroup[]): boolean {
+  isEditingProjectValid = (groups: ProjectSessionGroup[]): boolean => {
     if (!this.editingProjectKey) return true
     return groups.some((group) => group.key === this.editingProjectKey)
   }
 
-  updateFilters(nextFilters: Partial<SidebarFilters>, scrollElement?: HTMLDivElement | null): void {
+  updateFilters = (
+    nextFilters: Partial<SidebarFilters>,
+    scrollElement?: HTMLDivElement | null,
+  ): void => {
     this.applyFilters(
       {
         ...this.filters,
@@ -285,7 +272,7 @@ export class SessionSidebarStore {
     )
   }
 
-  toggleTagFilter(tag: string, scrollElement?: HTMLDivElement | null): void {
+  toggleTagFilter = (tag: string, scrollElement?: HTMLDivElement | null): void => {
     this.applyFilters(
       {
         ...this.filters,
@@ -297,27 +284,27 @@ export class SessionSidebarStore {
     )
   }
 
-  clearFilters(scrollElement?: HTMLDivElement | null): void {
+  clearFilters = (scrollElement?: HTMLDivElement | null): void => {
     this.searchQueryDraft = ''
     this.applyFilters({ ...DEFAULT_SIDEBAR_FILTERS }, scrollElement)
   }
 
-  toggleFilterPanel(): void {
+  toggleFilterPanel = (): void => {
     this.isFilterPanelOpen = !this.isFilterPanelOpen
   }
 
-  closeFilterPanel(focusTarget?: HTMLButtonElement | null): void {
+  closeFilterPanel = (focusTarget?: HTMLButtonElement | null): void => {
     this.isFilterPanelOpen = false
     if (document.activeElement !== focusTarget) {
       focusTarget?.focus()
     }
   }
 
-  openSearch(): void {
+  openSearch = (): void => {
     this.isSearchOpen = true
   }
 
-  closeSearch(): void {
+  closeSearch = (): void => {
     batch(() => {
       this.isSearchOpen = false
       this.isFilterPanelOpen = false
@@ -326,6 +313,22 @@ export class SessionSidebarStore {
     if (this.filters.query.length > 0) {
       this.updateFilters({ query: '' })
     }
+  }
+
+  private addExpandedProjectKey(projectKey: string): void {
+    if (this.state$.expandedProjectKeys[projectKey].peek()) {
+      return
+    }
+
+    this.state$.expandedProjectKeys[projectKey].set(true)
+  }
+
+  private removeExpandedProjectKey(projectKey: string): void {
+    this.state$.expandedProjectKeys[projectKey].delete()
+  }
+
+  private removeProjectRevealCount(projectKey: string): void {
+    this.state$.projectRevealCounts[projectKey].delete()
   }
 
   private applyFilters(nextFilters: SidebarFilters, scrollElement?: HTMLDivElement | null): void {

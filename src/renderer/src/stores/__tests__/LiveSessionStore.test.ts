@@ -86,7 +86,7 @@ describe('LiveSessionStore', () => {
 
     store.upsertSnapshot(snapshot)
 
-    expect(store.snapshotsById.get('session-live-1')).toEqual(snapshot)
+    expect(store.snapshotForSession('session-live-1')).toEqual(snapshot)
     expect(store.selectedSnapshot).toEqual(snapshot)
     expect(store.selectedSnapshotId).toBe('session-live-1')
     expect(store.selectedNeedsReconnect).toBe(true)
@@ -96,7 +96,7 @@ describe('LiveSessionStore', () => {
 
     store.clearSnapshot('session-live-1')
 
-    expect(store.snapshotsById.has('session-live-1')).toBe(false)
+    expect(store.hasSnapshot('session-live-1')).toBe(false)
     expect(store.selectedSnapshot).toBeNull()
     expect(store.selectedSnapshotId).toBeNull()
     expect(store.selectedNeedsReconnect).toBe(false)
@@ -178,12 +178,12 @@ describe('LiveSessionStore', () => {
     const store = createStoreHarness(sessionStore, loadSnapshot)
     store.upsertSnapshot(originalSnapshot)
 
-    const initialSnapshotReference = store.snapshotsById.get('session-live-1')
+    const initialSnapshotReference = store.snapshotForSession('session-live-1')
     const initialSessionsReference = sessionStore.sessions
 
     await store.refreshSnapshot('session-live-1')
 
-    expect(store.snapshotsById.get('session-live-1')).toBe(initialSnapshotReference)
+    expect(store.snapshotForSession('session-live-1')).toBe(initialSnapshotReference)
     expect(sessionStore.sessions).toBe(initialSessionsReference)
   })
 
@@ -200,7 +200,7 @@ describe('LiveSessionStore', () => {
 
     store.upsertSnapshot(snapshot)
 
-    const initialSnapshotReference = store.snapshotsById.get('session-live-1')
+    const initialSnapshotReference = store.snapshotForSession('session-live-1')
     const initialSessionsReference = sessionStore.sessions
 
     store.upsertSnapshot({
@@ -211,7 +211,7 @@ describe('LiveSessionStore', () => {
       settings: { ...snapshot.settings },
     })
 
-    expect(store.snapshotsById.get('session-live-1')).toBe(initialSnapshotReference)
+    expect(store.snapshotForSession('session-live-1')).toBe(initialSnapshotReference)
     expect(sessionStore.sessions).toBe(initialSessionsReference)
   })
 

@@ -21,7 +21,7 @@ function NotificationNavigationProbe({
   appApi: NotificationAppApi
   liveSessionStore: {
     refreshSnapshot: (sessionId: string) => Promise<void>
-    snapshotsById: Map<string, unknown>
+    hasSnapshot: (sessionId: string) => boolean
   }
   transcriptStore: {
     openSession: (sessionId: string) => Promise<void>
@@ -46,7 +46,7 @@ describe('useNotificationNavigation', () => {
     const openSession = vi.fn().mockResolvedValue(undefined)
     const onSelectSession = vi.fn()
     const unsubscribe = vi.fn()
-    const snapshotsById = new Map<string, unknown>()
+    const hasSnapshot = vi.fn().mockReturnValue(false)
     let notificationListener:
       | ((payload: NotificationNavigationPayload) => void | Promise<void>)
       | undefined
@@ -59,7 +59,7 @@ describe('useNotificationNavigation', () => {
     const { unmount } = render(
       <NotificationNavigationProbe
         appApi={{ onNotificationNavigation }}
-        liveSessionStore={{ refreshSnapshot, snapshotsById }}
+        liveSessionStore={{ refreshSnapshot, hasSnapshot }}
         transcriptStore={{ openSession }}
         onSelectSession={onSelectSession}
       />,
@@ -72,6 +72,7 @@ describe('useNotificationNavigation', () => {
     })
 
     expect(refreshSnapshot).toHaveBeenCalledWith('session-live-2')
+    expect(hasSnapshot).toHaveBeenCalledWith('session-live-2')
     expect(openSession).toHaveBeenCalledWith('session-live-2')
     expect(onSelectSession).toHaveBeenCalledWith('session-live-2')
 

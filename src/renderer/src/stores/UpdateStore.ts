@@ -1,6 +1,6 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type { AppUpdateState } from '../../../shared/ipc/contracts'
 import type { PlatformApiClient } from '../platform/apiClient'
-import { batch, bindMethods, observable, readField, writeField } from './legend'
 
 export const PLACEHOLDER_UPDATE_STATE: AppUpdateState = {
   phase: 'idle',
@@ -18,40 +18,45 @@ export interface UpdateStoreBridge {
   installUpdate?: PlatformApiClient['app']['installUpdate']
 }
 
+interface UpdateState {
+  state: AppUpdateState
+  hasLoadedState: boolean
+  refreshError: string | null
+  promptDismissed: boolean
+}
+
 export class UpdateStore {
-  readonly stateNode = observable({
+  readonly state$: Observable<UpdateState> = observable({
     state: PLACEHOLDER_UPDATE_STATE as AppUpdateState,
     hasLoadedState: false,
     refreshError: null as string | null,
     promptDismissed: false,
   })
 
-  constructor(private readonly bridge: UpdateStoreBridge) {
-    bindMethods(this)
-  }
+  constructor(private readonly bridge: UpdateStoreBridge) {}
 
   get state(): AppUpdateState {
-    return readField(this.stateNode, 'state')
+    return this.state$.state.get()
   }
 
   set state(value: AppUpdateState) {
-    writeField(this.stateNode, 'state', value)
+    this.state$.state.set(value)
   }
 
   get hasLoadedState(): boolean {
-    return readField(this.stateNode, 'hasLoadedState')
+    return this.state$.hasLoadedState.get()
   }
 
   set hasLoadedState(value: boolean) {
-    writeField(this.stateNode, 'hasLoadedState', value)
+    this.state$.hasLoadedState.set(value)
   }
 
   get refreshError(): string | null {
-    return readField(this.stateNode, 'refreshError')
+    return this.state$.refreshError.get()
   }
 
   set refreshError(value: string | null) {
-    writeField(this.stateNode, 'refreshError', value)
+    this.state$.refreshError.set(value)
   }
 
   get downloadedVersion(): string | null {
@@ -59,7 +64,7 @@ export class UpdateStore {
   }
 
   get shouldShowPrompt(): boolean {
-    return this.state.phase === 'downloaded' && !readField(this.stateNode, 'promptDismissed')
+    return this.state.phase === 'downloaded' && !this.state$.promptDismissed.get()
   }
 
   get statusLabel(): string | null {
@@ -74,7 +79,7 @@ export class UpdateStore {
     return null
   }
 
-  applySnapshot(snapshot: AppUpdateState): void {
+  applySnapshot = (snapshot: AppUpdateState): void => {
     batch(() => {
       const shouldResetPrompt =
         snapshot.phase === 'downloaded' &&
@@ -82,7 +87,7 @@ export class UpdateStore {
           this.state.downloadedVersion !== snapshot.downloadedVersion)
 
       if (snapshot.phase !== 'downloaded' || shouldResetPrompt) {
-        writeField(this.stateNode, 'promptDismissed', false)
+        this.state$.promptDismissed.set(false)
       }
 
       this.state = snapshot
@@ -91,11 +96,11 @@ export class UpdateStore {
     })
   }
 
-  dismissPrompt(): void {
-    writeField(this.stateNode, 'promptDismissed', true)
+  dismissPrompt = (): void => {
+    this.state$.promptDismissed.set(true)
   }
 
-  async refresh(): Promise<void> {
+  refresh = async (): Promise<void> => {
     const getUpdateState = this.bridge.getUpdateState
 
     if (!getUpdateState) {
@@ -117,7 +122,7 @@ export class UpdateStore {
     }
   }
 
-  async checkForUpdates(): Promise<void> {
+  checkForUpdates = async (): Promise<void> => {
     const checkForUpdates = this.bridge.checkForUpdates
 
     if (!checkForUpdates) {
@@ -131,7 +136,7 @@ export class UpdateStore {
     this.applySnapshot(snapshot)
   }
 
-  async installUpdate(): Promise<void> {
+  installUpdate = async (): Promise<void> => {
     const installUpdate = this.bridge.installUpdate
 
     if (!installUpdate) {

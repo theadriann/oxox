@@ -1,7 +1,7 @@
+import { useValue } from '@legendapp/state/react'
 import { useState } from 'react'
 import type { SessionSearchIndexingProgress } from '../../../../shared/ipc/contracts'
 import { useMountEffect } from '../../hooks/useMountEffect'
-import { useValue } from '../../stores/legend'
 import {
   useFoundationStore,
   useRootStore,

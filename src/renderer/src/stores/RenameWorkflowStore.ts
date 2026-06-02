@@ -1,11 +1,18 @@
-import { batch, bindMethods, observable, readField, writeField } from './legend'
+import { batch, type Observable, observable } from '@legendapp/state'
 export interface RenameSessionApi {
   rename?: (sessionId: string, title: string) => Promise<void>
   renameViaDaemon?: (sessionId: string, title: string) => Promise<void>
 }
 
+interface RenameWorkflowState {
+  renameDraft: string
+  isRenameDialogOpen: boolean
+  renamingSessionId: string | null
+  error: string | null
+}
+
 export class RenameWorkflowStore {
-  readonly stateNode = observable({
+  readonly state$: Observable<RenameWorkflowState> = observable({
     renameDraft: '',
     isRenameDialogOpen: false,
     renamingSessionId: null as string | null,
@@ -27,43 +34,41 @@ export class RenameWorkflowStore {
     this.getSelectedSession = getSelectedSession
     this.sessionApi = sessionApi
     this.onRenamed = onRenamed
-
-    bindMethods(this)
   }
 
   get renameDraft(): string {
-    return readField(this.stateNode, 'renameDraft')
+    return this.state$.renameDraft.get()
   }
 
   set renameDraft(value: string) {
-    writeField(this.stateNode, 'renameDraft', value)
+    this.state$.renameDraft.set(value)
   }
 
   get isRenameDialogOpen(): boolean {
-    return readField(this.stateNode, 'isRenameDialogOpen')
+    return this.state$.isRenameDialogOpen.get()
   }
 
   set isRenameDialogOpen(value: boolean) {
-    writeField(this.stateNode, 'isRenameDialogOpen', value)
+    this.state$.isRenameDialogOpen.set(value)
   }
 
   get renamingSessionId(): string | null {
-    return readField(this.stateNode, 'renamingSessionId')
+    return this.state$.renamingSessionId.get()
   }
 
   set renamingSessionId(value: string | null) {
-    writeField(this.stateNode, 'renamingSessionId', value)
+    this.state$.renamingSessionId.set(value)
   }
 
   get error(): string | null {
-    return readField(this.stateNode, 'error')
+    return this.state$.error.get()
   }
 
   set error(value: string | null) {
-    writeField(this.stateNode, 'error', value)
+    this.state$.error.set(value)
   }
 
-  openRenameDialog(): void {
+  openRenameDialog = (): void => {
     const selectedSessionId = this.getSelectedSessionId()
 
     if (!selectedSessionId) {
@@ -75,16 +80,16 @@ export class RenameWorkflowStore {
     this.error = null
   }
 
-  closeRenameDialog(): void {
+  closeRenameDialog = (): void => {
     this.isRenameDialogOpen = false
     this.renameDraft = ''
   }
 
-  setRenameDraft(value: string): void {
+  setRenameDraft = (value: string): void => {
     this.renameDraft = value
   }
 
-  async submitRename(): Promise<void> {
+  submitRename = async (): Promise<void> => {
     const selectedSessionId = this.getSelectedSessionId()
     const nextTitle = this.renameDraft.trim()
     const rename = this.sessionApi.rename ?? this.sessionApi.renameViaDaemon

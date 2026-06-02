@@ -1,3 +1,4 @@
+import { batch, type Observable, observable } from '@legendapp/state'
 import type {
   LiveSessionContextStatsInfo,
   LiveSessionMcpAuthCodeRequest,
@@ -9,7 +10,6 @@ import type {
   LiveSessionSkillInfo,
   LiveSessionToolInfo,
 } from '../../../shared/ipc/contracts'
-import { batch, bindMethods, observable, readField, writeField } from './legend'
 
 interface SessionRuntimeCatalogApi {
   listTools?: (sessionId: string) => Promise<LiveSessionToolInfo[]>
@@ -34,11 +34,25 @@ interface SessionRuntimeCatalogApi {
   updateSettings?: (sessionId: string, settings: Partial<LiveSessionSettings>) => Promise<void>
 }
 
+interface SessionRuntimeCatalogState {
+  contextStats: LiveSessionContextStatsInfo | null
+  mcpRegistry: LiveSessionMcpRegistryServerInfo[]
+  mcpServers: LiveSessionMcpServerInfo[]
+  mcpTools: LiveSessionMcpToolInfo[]
+  refreshError: string | null
+  sessionId: string | null
+  skills: LiveSessionSkillInfo[]
+  tools: LiveSessionToolInfo[]
+  updatingToolLlmId: string | null
+  updatingMcpServerName: string | null
+  updatingMcpToolKey: string | null
+}
+
 export class SessionRuntimeCatalogStore {
   private readonly api: SessionRuntimeCatalogApi
   private lastRefreshKey: string | null = null
 
-  readonly stateNode = observable({
+  readonly state$: Observable<SessionRuntimeCatalogState> = observable({
     contextStats: null as LiveSessionContextStatsInfo | null,
     mcpRegistry: [] as LiveSessionMcpRegistryServerInfo[],
     mcpServers: [] as LiveSessionMcpServerInfo[],
@@ -54,98 +68,97 @@ export class SessionRuntimeCatalogStore {
 
   constructor(api: SessionRuntimeCatalogApi = {}) {
     this.api = api
-    bindMethods(this)
   }
 
   get sessionId(): string | null {
-    return readField(this.stateNode, 'sessionId')
+    return this.state$.sessionId.get()
   }
 
   set sessionId(value: string | null) {
-    writeField(this.stateNode, 'sessionId', value)
+    this.state$.sessionId.set(value)
   }
 
   get tools(): LiveSessionToolInfo[] {
-    return readField(this.stateNode, 'tools')
+    return this.state$.tools.get()
   }
 
   set tools(value: LiveSessionToolInfo[]) {
-    writeField(this.stateNode, 'tools', value)
+    this.state$.tools.set(value)
   }
 
   get skills(): LiveSessionSkillInfo[] {
-    return readField(this.stateNode, 'skills')
+    return this.state$.skills.get()
   }
 
   set skills(value: LiveSessionSkillInfo[]) {
-    writeField(this.stateNode, 'skills', value)
+    this.state$.skills.set(value)
   }
 
   get mcpServers(): LiveSessionMcpServerInfo[] {
-    return readField(this.stateNode, 'mcpServers')
+    return this.state$.mcpServers.get()
   }
 
   set mcpServers(value: LiveSessionMcpServerInfo[]) {
-    writeField(this.stateNode, 'mcpServers', value)
+    this.state$.mcpServers.set(value)
   }
 
   get mcpTools(): LiveSessionMcpToolInfo[] {
-    return readField(this.stateNode, 'mcpTools')
+    return this.state$.mcpTools.get()
   }
 
   set mcpTools(value: LiveSessionMcpToolInfo[]) {
-    writeField(this.stateNode, 'mcpTools', value)
+    this.state$.mcpTools.set(value)
   }
 
   get mcpRegistry(): LiveSessionMcpRegistryServerInfo[] {
-    return readField(this.stateNode, 'mcpRegistry')
+    return this.state$.mcpRegistry.get()
   }
 
   set mcpRegistry(value: LiveSessionMcpRegistryServerInfo[]) {
-    writeField(this.stateNode, 'mcpRegistry', value)
+    this.state$.mcpRegistry.set(value)
   }
 
   get contextStats(): LiveSessionContextStatsInfo | null {
-    return readField(this.stateNode, 'contextStats')
+    return this.state$.contextStats.get()
   }
 
   set contextStats(value: LiveSessionContextStatsInfo | null) {
-    writeField(this.stateNode, 'contextStats', value)
+    this.state$.contextStats.set(value)
   }
 
   get refreshError(): string | null {
-    return readField(this.stateNode, 'refreshError')
+    return this.state$.refreshError.get()
   }
 
   set refreshError(value: string | null) {
-    writeField(this.stateNode, 'refreshError', value)
+    this.state$.refreshError.set(value)
   }
 
   get updatingToolLlmId(): string | null {
-    return readField(this.stateNode, 'updatingToolLlmId')
+    return this.state$.updatingToolLlmId.get()
   }
 
   set updatingToolLlmId(value: string | null) {
-    writeField(this.stateNode, 'updatingToolLlmId', value)
+    this.state$.updatingToolLlmId.set(value)
   }
 
   get updatingMcpServerName(): string | null {
-    return readField(this.stateNode, 'updatingMcpServerName')
+    return this.state$.updatingMcpServerName.get()
   }
 
   set updatingMcpServerName(value: string | null) {
-    writeField(this.stateNode, 'updatingMcpServerName', value)
+    this.state$.updatingMcpServerName.set(value)
   }
 
   get updatingMcpToolKey(): string | null {
-    return readField(this.stateNode, 'updatingMcpToolKey')
+    return this.state$.updatingMcpToolKey.get()
   }
 
   set updatingMcpToolKey(value: string | null) {
-    writeField(this.stateNode, 'updatingMcpToolKey', value)
+    this.state$.updatingMcpToolKey.set(value)
   }
 
-  clear(): void {
+  clear = (): void => {
     batch(() => {
       this.sessionId = null
       this.tools = []
@@ -162,7 +175,7 @@ export class SessionRuntimeCatalogStore {
     this.lastRefreshKey = null
   }
 
-  async refresh(sessionId: string, refreshKey = sessionId): Promise<void> {
+  refresh = async (sessionId: string, refreshKey = sessionId): Promise<void> => {
     if (this.lastRefreshKey === refreshKey && this.refreshError === null) {
       return
     }
@@ -204,12 +217,12 @@ export class SessionRuntimeCatalogStore {
     }
   }
 
-  async setToolAllowed(
+  setToolAllowed = async (
     sessionId: string,
     settings: Partial<LiveSessionSettings>,
     toolLlmId: string,
     allowed: boolean,
-  ): Promise<void> {
+  ): Promise<void> => {
     const tool = this.tools.find((entry) => entry.llmId === toolLlmId)
 
     if (!tool || !this.api.updateSettings) {
@@ -239,10 +252,10 @@ export class SessionRuntimeCatalogStore {
     }
   }
 
-  async addRegistryMcpServer(
+  addRegistryMcpServer = async (
     sessionId: string,
     server: LiveSessionMcpRegistryServerInfo,
-  ): Promise<void> {
+  ): Promise<void> => {
     if (!this.api.addMcpServer) {
       return
     }
@@ -253,7 +266,7 @@ export class SessionRuntimeCatalogStore {
     })
   }
 
-  async removeMcpServer(sessionId: string, serverName: string): Promise<void> {
+  removeMcpServer = async (sessionId: string, serverName: string): Promise<void> => {
     if (!this.api.removeMcpServer) {
       return
     }
@@ -265,11 +278,11 @@ export class SessionRuntimeCatalogStore {
     })
   }
 
-  async setMcpServerEnabled(
+  setMcpServerEnabled = async (
     sessionId: string,
     serverName: string,
     enabled: boolean,
-  ): Promise<void> {
+  ): Promise<void> => {
     if (!this.api.toggleMcpServer) {
       return
     }
@@ -285,7 +298,7 @@ export class SessionRuntimeCatalogStore {
     })
   }
 
-  async authenticateMcpServer(sessionId: string, serverName: string): Promise<void> {
+  authenticateMcpServer = async (sessionId: string, serverName: string): Promise<void> => {
     if (!this.api.authenticateMcpServer) {
       return
     }
@@ -296,7 +309,7 @@ export class SessionRuntimeCatalogStore {
     })
   }
 
-  async clearMcpAuth(sessionId: string, serverName: string): Promise<void> {
+  clearMcpAuth = async (sessionId: string, serverName: string): Promise<void> => {
     if (!this.api.clearMcpAuth) {
       return
     }
@@ -307,7 +320,7 @@ export class SessionRuntimeCatalogStore {
     })
   }
 
-  async cancelMcpAuth(sessionId: string, serverName: string): Promise<void> {
+  cancelMcpAuth = async (sessionId: string, serverName: string): Promise<void> => {
     if (!this.api.cancelMcpAuth) {
       return
     }
@@ -318,10 +331,10 @@ export class SessionRuntimeCatalogStore {
     })
   }
 
-  async submitMcpAuthCode(
+  submitMcpAuthCode = async (
     sessionId: string,
     request: LiveSessionMcpAuthCodeRequest,
-  ): Promise<void> {
+  ): Promise<void> => {
     if (!this.api.submitMcpAuthCode) {
       return
     }
@@ -332,12 +345,12 @@ export class SessionRuntimeCatalogStore {
     })
   }
 
-  async setMcpToolEnabled(
+  setMcpToolEnabled = async (
     sessionId: string,
     serverName: string,
     toolName: string,
     enabled: boolean,
-  ): Promise<void> {
+  ): Promise<void> => {
     if (!this.api.toggleMcpTool) {
       return
     }

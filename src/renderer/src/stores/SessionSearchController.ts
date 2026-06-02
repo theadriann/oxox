@@ -1,9 +1,9 @@
+import { type Observable, observable } from '@legendapp/state'
 import type {
   SessionSearchMatch,
   SessionSearchRequest,
   SessionSearchResponse,
 } from '../../../shared/ipc/contracts'
-import { bindMethods, observable, readField, writeField } from './legend'
 
 export type SearchSessionsGateway = (
   request: SessionSearchRequest,
@@ -13,8 +13,15 @@ interface SessionSearchControllerOptions {
   debounceMs?: number
 }
 
+interface SessionSearchState {
+  lastQuery: string
+  matches: SessionSearchMatch[]
+  isSearching: boolean
+  error: string | null
+}
+
 export class SessionSearchController {
-  readonly stateNode = observable({
+  readonly state$: Observable<SessionSearchState> = observable({
     lastQuery: '',
     matches: [] as SessionSearchMatch[],
     isSearching: false,
@@ -30,42 +37,41 @@ export class SessionSearchController {
     options: SessionSearchControllerOptions = {},
   ) {
     this.debounceMs = options.debounceMs ?? 150
-    bindMethods(this)
   }
 
   get lastQuery(): string {
-    return readField(this.stateNode, 'lastQuery')
+    return this.state$.lastQuery.get()
   }
 
   set lastQuery(value: string) {
-    writeField(this.stateNode, 'lastQuery', value)
+    this.state$.lastQuery.set(value)
   }
 
   get matches(): SessionSearchMatch[] {
-    return readField(this.stateNode, 'matches')
+    return this.state$.matches.get()
   }
 
   set matches(value: SessionSearchMatch[]) {
-    writeField(this.stateNode, 'matches', value)
+    this.state$.matches.set(value)
   }
 
   get isSearching(): boolean {
-    return readField(this.stateNode, 'isSearching')
+    return this.state$.isSearching.get()
   }
 
   set isSearching(value: boolean) {
-    writeField(this.stateNode, 'isSearching', value)
+    this.state$.isSearching.set(value)
   }
 
   get error(): string | null {
-    return readField(this.stateNode, 'error')
+    return this.state$.error.get()
   }
 
   set error(value: string | null) {
-    writeField(this.stateNode, 'error', value)
+    this.state$.error.set(value)
   }
 
-  scheduleSearch(query: string): void {
+  scheduleSearch = (query: string): void => {
     this.clearScheduledSearch()
     const normalizedQuery = query.trim()
     this.requestSequence += 1
@@ -88,12 +94,12 @@ export class SessionSearchController {
     }, this.debounceMs)
   }
 
-  dispose(): void {
+  dispose = (): void => {
     this.clearScheduledSearch()
     this.requestSequence += 1
   }
 
-  async search(query: string): Promise<void> {
+  search = async (query: string): Promise<void> => {
     this.clearScheduledSearch()
     const normalizedQuery = query.trim()
     this.requestSequence += 1
