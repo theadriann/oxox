@@ -24,11 +24,11 @@ import {
 
 const STATUS_DOT: Record<string, string> = {
   active: 'bg-fd-session-active',
-  waiting: 'bg-fd-warning',
-  idle: 'bg-fd-tertiary/50',
+  waiting: 'bg-fd-session-waiting',
+  idle: '',
   completed: 'bg-fd-ready',
-  disconnected: 'bg-fd-tertiary/30',
-  reconnecting: 'animate-pulse bg-fd-warning',
+  disconnected: '',
+  reconnecting: 'animate-pulse bg-fd-session-waiting',
   orphaned: 'bg-fd-ember-400/50',
   error: 'bg-fd-ember-400',
 }
@@ -80,17 +80,18 @@ export const SessionItem = memo(function SessionItem({
   const updatedAt = useValue(session$.updatedAt)
   const now = useValue(now$)
   const isChild = derivationType === 'subagent'
-  const statusDot = STATUS_DOT[status] ?? 'bg-fd-tertiary/30'
+  const effectiveStatus = isChild ? 'idle' : status
+  const statusDot = STATUS_DOT[effectiveStatus] ?? ''
 
   return (
     <div
-      className={`group/row flex items-center rounded transition-colors ${
+      className={`group/row flex items-center rounded-lg transition-colors ${
         isSelected ? 'bg-white/[0.05]' : 'hover:bg-white/[0.03]'
-      } ${isFocused ? 'ring-1 ring-fd-ember-400/40' : ''}`}
+      }`}
     >
       <button
         ref={(element) => setSessionRef(focusKey, element)}
-        className={`flex min-w-0 flex-1 items-center gap-1.5 py-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas ${isChild ? 'pl-5 pr-1' : 'pl-2 pr-1'}`}
+        className={`flex min-w-0 flex-1 items-center gap-2 py-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas ${isChild ? 'pl-7 pr-1' : 'pl-2.5 pr-1'}`}
         type="button"
         title={title}
         tabIndex={isFocused ? 0 : -1}
@@ -100,14 +101,11 @@ export const SessionItem = memo(function SessionItem({
         onFocus={() => onFocus(focusKey)}
         onKeyDown={(event) => onKeyDown(event, focusKey, sessionId)}
       >
-        <span className={`size-1.5 shrink-0 rounded-full ${statusDot}`} />
-        <span className="min-w-0 flex-1 truncate text-xs text-fd-primary">
-          {isChild ? <span className="mr-1 text-fd-tertiary">&#8627;</span> : null}
-          {title}
-        </span>
+        {statusDot ? <span className={`size-1.5 shrink-0 rounded-full ${statusDot}`} /> : null}
+        <span className="min-w-0 flex-1 truncate text-[13px] text-fd-primary">{title}</span>
       </button>
 
-      <span className="shrink-0 pr-2 text-[10px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-state=open]]/row:hidden">
+      <span className="shrink-0 pr-2 text-[11px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-state=open]]/row:hidden">
         {formatRelativeSessionTime(lastActivityAt ?? updatedAt, now)}
       </span>
 
@@ -115,45 +113,45 @@ export const SessionItem = memo(function SessionItem({
         <DropdownMenuTrigger asChild>
           <button
             aria-label={`More actions for ${title}`}
-            className="mr-1 hidden size-5 shrink-0 items-center justify-center rounded text-fd-tertiary transition-colors hover:text-fd-primary group-hover/row:inline-flex data-[state=open]:inline-flex"
+            className="mr-1 hidden size-6 shrink-0 items-center justify-center rounded-md text-fd-tertiary transition-colors hover:text-fd-primary group-hover/row:inline-flex data-[state=open]:inline-flex"
             type="button"
           >
-            <Ellipsis className="size-3" />
+            <Ellipsis className="size-3.5" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-[170px]">
           <DropdownMenuItem onClick={() => onTogglePinnedSession(sessionId)}>
-            <Pin className="size-3" />
+            <Pin className="size-3.5" />
             {isPinned ? 'Unpin session' : 'Pin session'}
           </DropdownMenuItem>
           {onRenameSession ? (
             <DropdownMenuItem onClick={() => onRenameSession(sessionId)}>
-              <Pencil className="size-3" />
+              <Pencil className="size-3.5" />
               Rename session
             </DropdownMenuItem>
           ) : null}
           {onCopySessionId ? (
             <DropdownMenuItem onClick={() => onCopySessionId(sessionId)}>
-              <ClipboardCopy className="size-3" />
+              <ClipboardCopy className="size-3.5" />
               Copy session ID
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuSeparator />
           {onForkSession ? (
             <DropdownMenuItem onClick={() => onForkSession(sessionId)}>
-              <GitBranch className="size-3" />
+              <GitBranch className="size-3.5" />
               Fork session
             </DropdownMenuItem>
           ) : null}
           {onCompactSession ? (
             <DropdownMenuItem onClick={() => onCompactSession(sessionId)}>
-              <Minimize2 className="size-3" />
+              <Minimize2 className="size-3.5" />
               Compact session
             </DropdownMenuItem>
           ) : null}
           {onRewindSession ? (
             <DropdownMenuItem onClick={() => onRewindSession(sessionId)}>
-              <RotateCcw className="size-3" />
+              <RotateCcw className="size-3.5" />
               Rewind session
             </DropdownMenuItem>
           ) : null}
@@ -161,7 +159,7 @@ export const SessionItem = memo(function SessionItem({
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onArchiveSession(sessionId)}>
-                <Archive className="size-3" />
+                <Archive className="size-3.5" />
                 Archive session
               </DropdownMenuItem>
             </>

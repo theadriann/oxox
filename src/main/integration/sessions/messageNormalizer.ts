@@ -89,6 +89,18 @@ export function extractHistoryEvents(
         continue
       }
 
+      if (block.type === 'thinking' && typeof block.thinking === 'string') {
+        pendingBlocks.push({
+          type: 'thinking',
+          thinking: block.thinking,
+          signature: typeof block.signature === 'string' ? block.signature : undefined,
+          signatureProvider:
+            typeof block.signatureProvider === 'string' ? block.signatureProvider : undefined,
+          durationMs: typeof block.durationMs === 'number' ? block.durationMs : undefined,
+        })
+        continue
+      }
+
       if (block.type === 'tool_use') {
         flushPendingBlocks()
         const toolUseId = toToolUseId(block.id, messageId, blockIndex)
@@ -203,6 +215,18 @@ function extractMessageContentBlocks(content: unknown): TranscriptMessageContent
       blocks.push({
         type: 'text',
         text: candidate.text,
+      })
+      continue
+    }
+
+    if (candidate.type === 'thinking' && typeof candidate.thinking === 'string') {
+      blocks.push({
+        type: 'thinking',
+        thinking: candidate.thinking,
+        signature: typeof candidate.signature === 'string' ? candidate.signature : undefined,
+        signatureProvider:
+          typeof candidate.signatureProvider === 'string' ? candidate.signatureProvider : undefined,
+        durationMs: typeof candidate.durationMs === 'number' ? candidate.durationMs : undefined,
       })
       continue
     }

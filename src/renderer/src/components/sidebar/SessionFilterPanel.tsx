@@ -90,13 +90,13 @@ const SearchBar = memo(function SearchBar({
   onFocusSearch: () => void
 }) {
   return (
-    <div className="flex items-center gap-1.5 border-b border-fd-border-subtle px-2 py-1.5">
+    <div className="flex items-center gap-1.5 border-b border-fd-border-subtle px-3 py-2">
       <label className="relative min-w-0 flex-1" htmlFor="session-sidebar-search">
-        <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-fd-tertiary" />
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-fd-tertiary" />
         <input
           id="session-sidebar-search"
           aria-label="Search sessions"
-          className="h-7 w-full rounded-md border border-fd-border-default bg-fd-panel pl-7 pr-2 text-xs text-fd-primary outline-none transition-colors placeholder:text-fd-tertiary focus:border-fd-ember-400"
+          className="h-8 w-full rounded-lg border border-fd-border-default bg-fd-panel pl-8 pr-2 text-xs text-fd-primary outline-none transition-colors placeholder:text-fd-tertiary focus:border-fd-ember-400"
           placeholder='Search... title:"foo" project:bar'
           type="search"
           value={query}
@@ -108,7 +108,7 @@ const SearchBar = memo(function SearchBar({
       <button
         aria-expanded={isFilterPanelOpen}
         aria-label="Toggle advanced filters"
-        className={`relative inline-flex size-7 shrink-0 items-center justify-center rounded-md border text-fd-secondary transition-colors hover:text-fd-primary ${
+        className={`relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg border text-fd-secondary transition-colors hover:text-fd-primary ${
           isFilterPanelOpen
             ? 'border-fd-ember-400/40 bg-fd-ember-500/10 text-fd-ember-400'
             : 'border-fd-border-default bg-fd-panel'
@@ -116,7 +116,7 @@ const SearchBar = memo(function SearchBar({
         type="button"
         onClick={onToggleFilterPanel}
       >
-        <SlidersHorizontal className="size-3" />
+        <SlidersHorizontal className="size-3.5" />
         {activeFilterCount > 0 ? (
           <span className="absolute -right-1 -top-1 flex size-3.5 items-center justify-center rounded-full bg-fd-ember-400 text-[8px] font-bold text-fd-inverse">
             {activeFilterCount}
@@ -127,11 +127,11 @@ const SearchBar = memo(function SearchBar({
       {query.length > 0 ? (
         <button
           aria-label="Clear search query"
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fd-tertiary transition-colors hover:text-fd-primary"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-fd-tertiary transition-colors hover:text-fd-primary"
           type="button"
           onClick={onClearQuery}
         >
-          <X className="size-3" />
+          <X className="size-3.5" />
         </button>
       ) : null}
     </div>

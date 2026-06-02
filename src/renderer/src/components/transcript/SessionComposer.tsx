@@ -165,7 +165,7 @@ export function SessionComposer({
       <textarea
         ref={textareaRef}
         aria-label="Message composer"
-        className="w-full resize-none border-0 bg-transparent px-3 py-2 text-[13px] leading-[18px] text-fd-primary outline-none transition-colors placeholder:text-fd-tertiary disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full resize-none border-0 bg-transparent px-3 py-2 text-[13px] leading-[18px] text-fd-primary outline-none transition-colors placeholder:text-fd-tertiary focus-visible:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
         disabled={isEditorDisabled}
         placeholder={
           isWorking

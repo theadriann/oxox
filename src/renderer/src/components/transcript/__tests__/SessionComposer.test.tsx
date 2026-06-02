@@ -231,4 +231,12 @@ describe('SessionComposer', () => {
 
     expect(screen.getByText('--')).toBeTruthy()
   })
+
+  it('suppresses the global orange focus ring on the message input', () => {
+    render(<ControlledComposer />)
+
+    const composer = screen.getByLabelText(/Message composer/i)
+
+    expect(composer.className).toContain('focus-visible:shadow-none')
+  })
 })

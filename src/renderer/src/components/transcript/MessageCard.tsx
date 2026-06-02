@@ -5,7 +5,8 @@ import { JsonRenderMessage, parseJsonRenderContentSegments } from './JsonRenderM
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { parseMessageSegments } from './parseMessageSegments'
 import { SystemReminderBlock } from './SystemReminderBlock'
-import type { MessageTimelineItem } from './timelineTypes'
+import { ThinkingCard } from './ThinkingCard'
+import type { MessageTimelineItem, ThinkingTimelineItem } from './timelineTypes'
 
 export const MessageCard = memo(function MessageCard({ item }: { item: MessageTimelineItem }) {
   if (item.role === 'user') {
@@ -71,20 +72,34 @@ function UserMessageCard({ item }: { item: MessageTimelineItem }) {
 
 function AssistantMessageCard({ item }: { item: MessageTimelineItem }) {
   const contentBlocks = item.contentBlocks ?? [{ type: 'text' as const, text: item.content }]
+  const legacyThinkingResult = useMemo(
+    () => parseLegacyThinkingMarkdown(item.content),
+    [item.content],
+  )
+  const assistantContent =
+    legacyThinkingResult.blocks.length > 0 ? legacyThinkingResult.remainingMarkdown : item.content
   const contentSegments = useMemo(
-    () => (item.status === 'streaming' ? [] : parseJsonRenderContentSegments(item.content)),
-    [item.content, item.status],
+    () => (item.status === 'streaming' ? [] : parseJsonRenderContentSegments(assistantContent)),
+    [assistantContent, item.status],
   )
   const imageBlocks = contentBlocks.filter(
     (block): block is Extract<TranscriptMessageContentBlock, { type: 'image' }> =>
       block.type === 'image',
   )
+  const thinkingBlocks = contentBlocks.filter(
+    (block): block is Extract<TranscriptMessageContentBlock, { type: 'thinking' }> =>
+      block.type === 'thinking',
+  )
+  const allThinkingBlocks = [...thinkingBlocks, ...legacyThinkingResult.blocks]
+  const thinkingDurationMs = allThinkingBlocks.find(
+    (block) => typeof block.durationMs === 'number',
+  )?.durationMs
+  const renderableContentSegments = contentSegments.filter(
+    (segment) => segment.kind === 'json-render' || segment.content.trim().length > 0,
+  )
 
   return (
     <div className="py-1">
-      {item.occurredAt ? (
-        <time className="text-[10px] text-fd-tertiary">{item.occurredAt}</time>
-      ) : null}
       {item.status === 'streaming' ? (
         <span
           aria-label="Typing indicator"
@@ -96,11 +111,17 @@ function AssistantMessageCard({ item }: { item: MessageTimelineItem }) {
           <span className="size-1 animate-pulse rounded-full bg-fd-tertiary [animation-delay:240ms]" />
         </span>
       ) : null}
+      {allThinkingBlocks.map((block, index) => (
+        <ThinkingCard
+          key={createThinkingBlockKey(item.id, index)}
+          item={toThinkingTimelineItem(item.id, block)}
+        />
+      ))}
       <div className="text-[14px] leading-[1.7]">
         {item.status === 'streaming' ? (
           <StreamingMessagePreview content={item.content} />
         ) : (
-          contentSegments.map((segment, index) =>
+          renderableContentSegments.map((segment, index) =>
             segment.kind === 'json-render' ? (
               <JsonRenderMessage
                 key={createAssistantSegmentKey(item.id, index, segment)}
@@ -118,8 +139,112 @@ function AssistantMessageCard({ item }: { item: MessageTimelineItem }) {
           <div className="mt-2">{renderImageBlocks(item.id, imageBlocks, 'Assistant')}</div>
         ) : null}
       </div>
+      {item.occurredAt ? (
+        <time
+          className="mt-1 block text-[10px] tabular-nums text-fd-tertiary"
+          dateTime={item.occurredAt}
+          title={item.occurredAt}
+        >
+          {formatMessageTimestamp(item.occurredAt, thinkingDurationMs)}
+        </time>
+      ) : null}
     </div>
   )
+}
+
+function parseLegacyThinkingMarkdown(markdown: string): {
+  blocks: Array<Extract<TranscriptMessageContentBlock, { type: 'thinking' }>>
+  remainingMarkdown: string
+} {
+  const blocks: Array<Extract<TranscriptMessageContentBlock, { type: 'thinking' }>> = []
+  let remainingMarkdown = markdown
+
+  remainingMarkdown = remainingMarkdown.replace(
+    /```json\s*([\s\S]*?)```/gi,
+    (fullMatch, rawJson: string) => {
+      const block = parseThinkingJsonBlock(rawJson)
+      if (!block) return fullMatch
+
+      blocks.push(block)
+      return ''
+    },
+  )
+
+  if (blocks.length === 0) {
+    const block = parseThinkingJsonBlock(markdown)
+    if (block) {
+      blocks.push(block)
+      remainingMarkdown = ''
+    }
+  }
+
+  return { blocks, remainingMarkdown: remainingMarkdown.trim() }
+}
+
+function parseThinkingJsonBlock(
+  rawJson: string,
+): Extract<TranscriptMessageContentBlock, { type: 'thinking' }> | null {
+  try {
+    const parsed: unknown = JSON.parse(rawJson.trim())
+    if (!isRecord(parsed) || parsed.type !== 'thinking' || typeof parsed.thinking !== 'string') {
+      return null
+    }
+
+    return {
+      type: 'thinking',
+      thinking: parsed.thinking,
+      signature: typeof parsed.signature === 'string' ? parsed.signature : undefined,
+      signatureProvider:
+        typeof parsed.signatureProvider === 'string' ? parsed.signatureProvider : undefined,
+      durationMs: typeof parsed.durationMs === 'number' ? parsed.durationMs : undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+function formatMessageTimestamp(occurredAt: string, durationMs?: number): string {
+  const date = new Date(occurredAt)
+  const time = Number.isNaN(date.getTime())
+    ? occurredAt
+    : date.toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        hour12: false,
+        minute: '2-digit',
+        second: '2-digit',
+      })
+
+  return typeof durationMs === 'number' ? `${time} • ${formatDuration(durationMs)}` : time
+}
+
+function formatDuration(durationMs: number): string {
+  const seconds = Math.max(1, Math.round(durationMs / 1000))
+  if (seconds < 60) return `${seconds}s`
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function toThinkingTimelineItem(
+  messageId: string,
+  block: Extract<TranscriptMessageContentBlock, { type: 'thinking' }>,
+): ThinkingTimelineItem {
+  return {
+    kind: 'thinking',
+    id: `${messageId}:thinking`,
+    messageId,
+    content: block.thinking,
+    status: 'completed',
+  }
+}
+
+function createThinkingBlockKey(itemId: string, index: number) {
+  return `${itemId}:thinking:${index}`
 }
 
 function StreamingMessagePreview({ content }: { content: string }) {

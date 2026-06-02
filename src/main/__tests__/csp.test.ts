@@ -8,9 +8,13 @@ describe('getContentSecurityPolicy', () => {
 
     expect(productionPolicy).toContain("default-src 'self'")
     expect(productionPolicy).toContain("script-src 'self'")
+    expect(productionPolicy).toContain("style-src 'self' 'unsafe-inline'")
+    expect(productionPolicy).toContain("font-src 'self' data:")
     expect(productionPolicy).toContain("connect-src 'self'")
     expect(productionPolicy).toContain("worker-src 'self'")
     expect(productionPolicy).not.toContain('unsafe-eval')
+    expect(productionPolicy).not.toContain('fonts.googleapis.com')
+    expect(productionPolicy).not.toContain('fonts.gstatic.com')
     expect(productionPolicy).not.toContain("script-src 'self' 'unsafe-inline'")
     expect(productionPolicy).not.toContain('ws://localhost')
     expect(productionPolicy).not.toContain('blob:')

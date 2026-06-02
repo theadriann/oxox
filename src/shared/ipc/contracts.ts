@@ -269,6 +269,13 @@ export type TranscriptMessageContentBlock =
       mediaType: string
       data: string
     }
+  | {
+      type: 'thinking'
+      thinking: string
+      signature?: string
+      signatureProvider?: string
+      durationMs?: number
+    }
 
 export interface TranscriptMessageEntry {
   kind: 'message'

@@ -73,6 +73,50 @@ describe('messageNormalizer', () => {
     ])
   })
 
+  it('preserves thinking content blocks for live and historical transcript paths', () => {
+    const thinkingBlock = {
+      type: 'thinking',
+      signature: '{"id":"rs_123"}',
+      signatureProvider: 'openai',
+      thinking: '**Validating tests**\n\nI should run lint and tests.',
+    }
+
+    expect(
+      normalizeMessages([
+        {
+          id: 'm-live',
+          role: 'assistant',
+          content: [thinkingBlock],
+        },
+      ] as never),
+    ).toEqual([
+      {
+        id: 'm-live',
+        role: 'assistant',
+        content: '',
+        contentBlocks: [thinkingBlock],
+      },
+    ])
+
+    expect(
+      extractHistoryEvents([
+        {
+          id: 'm-history',
+          role: 'assistant',
+          timestamp: '2026-04-10T00:00:00.000Z',
+          content: [thinkingBlock],
+        },
+      ] as never),
+    ).toEqual([
+      expect.objectContaining({
+        type: 'message.completed',
+        messageId: 'm-history',
+        content: '',
+        contentBlocks: [thinkingBlock],
+      }),
+    ])
+  })
+
   it('prefers explicit session titles and otherwise falls back to inferred transcript titles', () => {
     const messages: LiveSessionMessage[] = [{ id: 'm-1', role: 'user', content: 'First prompt' }]
 

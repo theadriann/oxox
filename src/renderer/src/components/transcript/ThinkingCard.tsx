@@ -11,16 +11,19 @@ export const ThinkingCard = memo(function ThinkingCard({ item }: { item: Thinkin
   }, [item.status])
 
   return (
-    <div className="border-l-2 border-fd-border-subtle py-0.5 pl-3">
+    <div className="py-0.5">
       <button
         aria-expanded={expanded}
         aria-label="Toggle thinking"
-        className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-fd-surface/60"
+        className="group/thinking flex w-full items-center gap-1.5 rounded px-0 py-0.5 text-left text-fd-tertiary transition-colors hover:text-fd-secondary"
         type="button"
         onClick={() => setExpanded((current) => !current)}
       >
         <span className="text-[10px] font-medium uppercase tracking-wider text-fd-tertiary">
           Thinking
+        </span>
+        <span className="shrink-0 text-fd-tertiary transition-colors group-hover/thinking:text-fd-secondary">
+          {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
         </span>
         {item.status === 'streaming' ? (
           <span aria-label="Thinking indicator" className="inline-flex gap-0.5" role="status">
@@ -29,13 +32,9 @@ export const ThinkingCard = memo(function ThinkingCard({ item }: { item: Thinkin
             <span className="size-1 animate-pulse rounded-full bg-fd-tertiary [animation-delay:240ms]" />
           </span>
         ) : null}
-        <span className="min-w-0 flex-1" />
-        <span className="shrink-0 text-fd-tertiary">
-          {expanded ? <ChevronDown className="size-2.5" /> : <ChevronRight className="size-2.5" />}
-        </span>
       </button>
       {expanded && item.content ? (
-        <p className="mt-0.5 whitespace-pre-wrap text-[12px] italic leading-5 text-fd-tertiary">
+        <p className="mt-1 whitespace-pre-wrap pl-2 text-[11px] italic leading-4 text-fd-tertiary/80">
           {item.content}
         </p>
       ) : null}

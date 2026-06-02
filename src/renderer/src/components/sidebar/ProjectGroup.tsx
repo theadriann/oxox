@@ -1,13 +1,4 @@
-import {
-  Archive,
-  Check,
-  Ellipsis,
-  FolderClosed,
-  FolderOpen,
-  PencilLine,
-  Plus,
-  X,
-} from 'lucide-react'
+import { Archive, Check, ChevronRight, Ellipsis, PencilLine, Plus, X } from 'lucide-react'
 
 import {
   DropdownMenu,
@@ -49,8 +40,8 @@ export function ProjectGroup({
   if (isEditing) {
     return (
       <div className="group/header flex items-center gap-1 py-1" data-project-group={group.key}>
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md border border-fd-border-default bg-fd-panel px-2 py-1.5">
-          <PencilLine className="size-3 shrink-0 text-fd-ember-400" aria-hidden="true" />
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-fd-border-default bg-fd-panel px-2.5 py-2">
+          <PencilLine className="size-3.5 shrink-0 text-fd-ember-400" aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <label className="sr-only" htmlFor={`project-display-name-${toIdentifier(group.key)}`}>
               Project display name for {group.label}
@@ -81,19 +72,19 @@ export function ProjectGroup({
           <div className="flex items-center gap-0.5">
             <button
               aria-label="Save project name"
-              className="inline-flex size-5 items-center justify-center rounded text-fd-primary transition-colors hover:bg-fd-elevated"
+              className="inline-flex size-6 items-center justify-center rounded-md text-fd-primary transition-colors hover:bg-fd-elevated"
               type="button"
               onClick={() => store.submitProjectDisplayName(group.key, onSetProjectDisplayName)}
             >
-              <Check className="size-3" />
+              <Check className="size-3.5" />
             </button>
             <button
               aria-label="Cancel project name edit"
-              className="inline-flex size-5 items-center justify-center rounded text-fd-secondary transition-colors hover:bg-fd-elevated hover:text-fd-primary"
+              className="inline-flex size-6 items-center justify-center rounded-md text-fd-secondary transition-colors hover:bg-fd-elevated hover:text-fd-primary"
               type="button"
               onClick={store.cancelProjectEditing}
             >
-              <X className="size-3" />
+              <X className="size-3.5" />
             </button>
           </div>
         </div>
@@ -101,22 +92,23 @@ export function ProjectGroup({
     )
   }
 
-  const FolderIcon = collapsed ? FolderClosed : FolderOpen
-
   return (
     <div className="group/header py-0.5" data-project-group={group.key}>
-      <div className="flex w-full items-center gap-2 rounded px-2 py-1.5 transition-colors hover:bg-fd-panel">
+      <div className="flex w-full items-center gap-1 rounded-lg px-2 py-1.5 transition-colors hover:bg-fd-panel">
         <button
-          className="flex min-w-0 flex-1 items-center gap-2 rounded text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas"
           type="button"
           onClick={() => onToggleProject(group.key)}
         >
-          <FolderIcon
-            className={`size-3.5 shrink-0 ${collapsed ? 'text-fd-tertiary' : 'text-fd-secondary'}`}
+          <ChevronRight
+            className={`size-3.5 shrink-0 text-fd-tertiary transition-transform duration-150 ${collapsed ? '' : 'rotate-90'}`}
             aria-hidden="true"
           />
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-fd-ember-500/10 text-[10px] font-semibold text-fd-ember-400">
+            {group.label.charAt(0).toUpperCase()}
+          </div>
           <div className="min-w-0 flex-1">
-            <span className="block truncate text-[11px] font-semibold text-fd-secondary">
+            <span className="block truncate text-[12px] font-medium text-fd-secondary">
               {group.label}
             </span>
             {group.workspacePath ? (
@@ -136,30 +128,30 @@ export function ProjectGroup({
         <span className="flex shrink-0 items-center gap-0.5">
           <button
             aria-label={`Create session in ${group.label}`}
-            className="inline-flex size-5 items-center justify-center rounded text-fd-tertiary opacity-0 transition-all hover:bg-white/[0.06] hover:text-fd-primary group-hover/header:opacity-100"
+            className="inline-flex size-6 items-center justify-center rounded-md text-fd-tertiary opacity-0 transition-all hover:bg-white/[0.06] hover:text-fd-primary group-hover/header:opacity-100"
             type="button"
             onClick={() => onNewSession(group.workspacePath ?? undefined)}
           >
-            <Plus className="size-3" />
+            <Plus className="size-3.5" />
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 aria-label={`More actions for ${group.label}`}
-                className="inline-flex size-5 items-center justify-center rounded text-fd-tertiary opacity-0 transition-all hover:bg-white/[0.06] hover:text-fd-primary group-hover/header:opacity-100"
+                className="inline-flex size-6 items-center justify-center rounded-md text-fd-tertiary opacity-0 transition-all hover:bg-white/[0.06] hover:text-fd-primary group-hover/header:opacity-100"
                 type="button"
               >
-                <Ellipsis className="size-3" />
+                <Ellipsis className="size-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[170px]">
               <DropdownMenuItem onClick={() => store.startEditingProject(group)}>
-                <PencilLine className="size-3" />
+                <PencilLine className="size-3.5" />
                 Rename workspace
               </DropdownMenuItem>
               {onArchiveProject ? (
                 <DropdownMenuItem onClick={() => onArchiveProject(group.key)}>
-                  <Archive className="size-3" />
+                  <Archive className="size-3.5" />
                   Archive project
                 </DropdownMenuItem>
               ) : null}

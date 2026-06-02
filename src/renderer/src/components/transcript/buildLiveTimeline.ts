@@ -853,7 +853,8 @@ function toContentBlocks(value: unknown): TranscriptMessageContentBlock[] {
           ((entry.type === 'text' && typeof entry.text === 'string') ||
             (entry.type === 'image' &&
               typeof entry.mediaType === 'string' &&
-              typeof entry.data === 'string')),
+              typeof entry.data === 'string') ||
+            (entry.type === 'thinking' && typeof entry.thinking === 'string')),
       )
     : []
 }

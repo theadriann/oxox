@@ -328,27 +328,29 @@ const SidebarHeader = memo(function SidebarHeader({
   onHideSidebar?: () => void
 }) {
   return (
-    <div className="flex items-center justify-between gap-1.5 border-b border-fd-border-subtle px-3 py-2">
-      <Button size="xs" onClick={onNewSession}>
-        <Plus />
-        New
-      </Button>
-      <div className="flex items-center gap-1.5">
+    <div className="flex items-center justify-between gap-2 border-b border-fd-border-subtle px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <Button size="xs" onClick={onNewSession}>
+          <Plus className="size-3.5" />
+          New
+        </Button>
         {activeCount > 0 ? (
-          <Badge variant="secondary" className="h-4 px-1.5 text-[9px] font-medium">
+          <Badge variant="secondary" className="h-5 px-2 text-[10px] font-medium">
             {activeCount} active
           </Badge>
         ) : null}
+      </div>
+      <div className="flex items-center gap-1">
         {onHideSidebar ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 aria-label="Hide sidebar"
-                className="inline-flex size-6 items-center justify-center rounded-md text-fd-tertiary transition-colors hover:bg-white/[0.06] hover:text-fd-secondary"
+                className="inline-flex size-7 items-center justify-center rounded-md text-fd-tertiary transition-colors hover:bg-white/[0.06] hover:text-fd-secondary"
                 onClick={onHideSidebar}
               >
-                <ChevronsLeft className="size-3.5" />
+                <ChevronsLeft className="size-4" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-[11px]">

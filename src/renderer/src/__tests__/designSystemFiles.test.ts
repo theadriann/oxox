@@ -6,7 +6,7 @@ const stylesPath = resolve(rendererRoot, 'src/styles.css')
 const htmlPath = resolve(rendererRoot, 'index.html')
 
 describe('design system configuration files', () => {
-  it('defines Factory Core Dark Tailwind theme tokens and local font faces', () => {
+  it('defines Factory Core Dark Tailwind theme tokens and DM Sans font tokens', () => {
     const styles = readFileSync(stylesPath, 'utf8')
 
     expect(styles).toContain('@import "tailwindcss";')
@@ -24,22 +24,19 @@ describe('design system configuration files', () => {
     expect(styles).toContain('--color-fd-canvas: var(--fd-canvas);')
     expect(styles).toContain('--color-fd-surface: var(--fd-surface);')
     expect(styles).toContain('--color-fd-panel: var(--fd-panel);')
-    expect(styles).toContain(
-      '--font-display: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;',
-    )
-    expect(styles).toContain('--font-body: "Inter", ui-sans-serif, system-ui, sans-serif;')
+    expect(styles).toContain('--font-display: "DM Sans", ui-sans-serif, system-ui, sans-serif;')
+    expect(styles).toContain('--font-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;')
     expect(styles).toContain('--font-mono: "SF Mono", "SFMono-Regular", ui-monospace, monospace;')
     expect(styles).toContain('font-display: block;')
     expect(styles).toContain('@media (prefers-reduced-motion: reduce)')
     expect(styles).toContain('animation: none;')
   })
 
-  it('preloads locally bundled fonts without external requests', () => {
+  it('preloads locally bundled DM Sans and mono fonts without external requests', () => {
     const html = readFileSync(htmlPath, 'utf8')
 
     expect(html).toContain('rel="preload"')
-    expect(html).toContain('href="/fonts/geist-latin-500-normal.woff2"')
-    expect(html).toContain('href="/fonts/inter-latin-400-normal.woff2"')
+    expect(html).toContain('href="/fonts/DMSans-VariableFont_opsz,wght.ttf"')
     expect(html).toContain('href="/fonts/SF-Mono-Regular.otf"')
     expect(html).not.toMatch(/https?:\/\/.*(font|fonts|googleapis|gstatic)/i)
   })

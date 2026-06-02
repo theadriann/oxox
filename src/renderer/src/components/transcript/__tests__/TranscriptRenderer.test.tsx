@@ -249,13 +249,15 @@ describe('TranscriptRenderer (live)', () => {
       />,
     )
 
+    expect(screen.getByRole('button', { name: /toggle thinking/i })).toBeTruthy()
     expect(
-      screen.getAllByText(
-        (_, node) =>
-          node?.textContent?.includes(
-            'Now I need to show a table with the answers using the json-render format.',
-          ) ?? false,
-      )[0],
+      screen.queryByText(
+        /Now I need to show a table with the answers using the json-render format/,
+      ),
+    ).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /toggle thinking/i }))
+    expect(
+      screen.getByText(/Now I need to show a table with the answers using the json-render format/),
     ).toBeTruthy()
     expect(screen.getByTestId('json-render-root')).toBeTruthy()
     expect(screen.getByText('Rendered Answers')).toBeTruthy()

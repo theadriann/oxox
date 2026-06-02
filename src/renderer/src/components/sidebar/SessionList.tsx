@@ -12,8 +12,8 @@ export const SESSION_REVEAL_BATCH = 10
 
 const VIRTUAL_ITEM_HEIGHT = {
   pinnedHeader: 28,
-  projectHeader: 50,
-  session: 36,
+  projectHeader: 52,
+  session: 38,
   showMore: 28,
   showLess: 28,
 } as const
@@ -333,12 +333,14 @@ export function buildFlatItems({
 
 const PinnedHeader = ({ count }: { count: number }) => {
   return (
-    <div className="flex items-center justify-between px-2 py-1" data-project-group="pinned">
+    <div className="flex items-center justify-between px-3 py-1.5" data-project-group="pinned">
       <div className="flex items-center gap-1.5">
         <Pin className="size-3 text-fd-ember-400/70" />
-        <p className="text-[10px] font-medium uppercase tracking-wider text-fd-tertiary">Pinned</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-fd-tertiary">
+          Pinned
+        </p>
       </div>
-      <span className="text-[10px] text-fd-tertiary">{count}</span>
+      <span className="text-[10px] tabular-nums text-fd-tertiary">{count}</span>
     </div>
   )
 }
@@ -357,7 +359,7 @@ const ShowMoreButton = ({
   return (
     <button
       aria-label={`Show more for ${groupLabel}`}
-      className="px-2 py-1.5 text-left text-[10px] text-fd-tertiary transition-colors hover:text-fd-primary"
+      className="px-3 py-1.5 text-left text-[11px] text-fd-tertiary transition-colors hover:text-fd-primary"
       type="button"
       onClick={() => onRevealMore(groupKey, SESSION_REVEAL_BATCH)}
     >
@@ -380,7 +382,7 @@ const ShowLessButton = ({
   return (
     <button
       aria-label={`Show fewer sessions for ${groupLabel}`}
-      className="px-2 py-1.5 text-left text-[10px] text-fd-tertiary transition-colors hover:text-fd-primary"
+      className="px-3 py-1.5 text-left text-[11px] text-fd-tertiary transition-colors hover:text-fd-primary"
       type="button"
       onClick={() => onCollapse(groupKey)}
     >
