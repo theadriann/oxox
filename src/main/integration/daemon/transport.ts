@@ -1,4 +1,9 @@
-import { protocol } from '@factory/droid-sdk'
+import {
+  protocol,
+  ensureLocalDaemon as sdkEnsureLocalDaemon,
+  resolveWebSocketUrl as sdkResolveWebSocketUrl,
+  WebSocketTransport,
+} from '@factory/droid-sdk'
 import WebSocket, { type RawData } from 'ws'
 
 import type {
@@ -76,6 +81,15 @@ type PendingRequest = {
   reject: (error: unknown) => void
 }
 
+type SdkWebSocketTransportLike = {
+  readonly isConnected: boolean
+  connect: (url: string) => Promise<void>
+  send: (message: Record<string, unknown>) => void
+  close: () => Promise<void>
+  onMessage: (callback: (message: Record<string, unknown>) => void) => void
+  onError: (callback: (error: Error) => void) => void
+}
+
 type DaemonSocketLike = {
   readyState: number
   send: (data: string) => void
@@ -87,6 +101,9 @@ type DaemonSocketLike = {
 export interface CreateDaemonTransportOptions {
   authProvider?: DaemonAuthProvider
   createWebSocket?: (url: string) => DaemonSocketLike
+  createSdkWebSocketTransport?: () => SdkWebSocketTransportLike
+  ensureLocalDaemon?: () => Promise<{ port: number }>
+  resolveWebSocketUrl?: (options: { apiKey: string; daemonPort: number }) => string
   resolveCandidatePorts?: () => Promise<number[]>
   reconnectBaseDelayMs?: number
   reconnectMaxDelayMs?: number
@@ -123,6 +140,10 @@ function decodeMessage(data: RawData | string | Buffer): string {
   }
 
   return Buffer.from(data as ArrayBuffer).toString('utf8')
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function coerceIsoTimestamp(value?: string | number): string {
@@ -289,9 +310,80 @@ class WsRpcConnection {
   }
 }
 
+class SdkTransportRpcConnection {
+  private readonly pendingRequests = new Map<string, PendingRequest>()
+  private requestCounter = 0
+
+  constructor(private readonly transport: SdkWebSocketTransportLike) {
+    this.transport.onMessage(this.handleMessage)
+    this.transport.onError((error) => {
+      this.dispose(error)
+    })
+  }
+
+  dispose(error?: Error): void {
+    this.transport.onMessage(() => undefined)
+    this.transport.onError(() => undefined)
+
+    for (const [, pending] of this.pendingRequests) {
+      pending.reject(error ?? new Error('Daemon connection closed.'))
+    }
+
+    this.pendingRequests.clear()
+  }
+
+  async request<TResult>(method: string, params: unknown): Promise<TResult> {
+    const id = `daemon-${Date.now()}-${++this.requestCounter}`
+
+    const responsePromise = new Promise<TResult>((resolve, reject) => {
+      this.pendingRequests.set(id, {
+        resolve,
+        reject,
+      })
+    })
+
+    this.transport.send({
+      jsonrpc: JSON_RPC_VERSION,
+      factoryApiVersion: FACTORY_API_VERSION,
+      type: 'request',
+      id,
+      method,
+      params,
+    })
+
+    return responsePromise
+  }
+
+  private readonly handleMessage = (payload: Record<string, unknown>): void => {
+    if (payload.type !== 'response' || typeof payload.id !== 'string') {
+      return
+    }
+
+    const pending = this.pendingRequests.get(payload.id)
+
+    if (!pending) {
+      return
+    }
+
+    this.pendingRequests.delete(payload.id)
+
+    if (isRecord(payload.error) && typeof payload.error.message === 'string') {
+      pending.reject(new Error(payload.error.message))
+      return
+    }
+
+    pending.resolve(payload.result)
+  }
+}
+
+type DaemonRpcConnection = WsRpcConnection | SdkTransportRpcConnection
+
 class ManagedDaemonTransport implements DaemonTransport {
   private readonly authProvider?: DaemonAuthProvider
   private readonly createWebSocket: (url: string) => DaemonSocketLike
+  private readonly createSdkWebSocketTransport: () => SdkWebSocketTransportLike
+  private readonly ensureLocalDaemon: () => Promise<{ port: number }>
+  private readonly resolveWebSocketUrl: (options: { apiKey: string; daemonPort: number }) => string
   private readonly resolveCandidatePorts: () => Promise<number[]>
   private readonly reconnectBaseDelayMs: number
   private readonly reconnectMaxDelayMs: number
@@ -300,6 +392,7 @@ class ManagedDaemonTransport implements DaemonTransport {
     snapshot: DaemonConnectionSnapshot,
     sessions: SessionRecord[],
   ) => void
+  private readonly useLegacyPortDiscovery: boolean
 
   private status: DaemonConnectionStatus = 'disconnected'
   private connectedPort: number | null = null
@@ -309,7 +402,8 @@ class ManagedDaemonTransport implements DaemonTransport {
   private nextRetryDelayMs: number | null = null
   private sessions: SessionRecord[] = []
   private socket: DaemonSocketLike | null = null
-  private connection: WsRpcConnection | null = null
+  private sdkTransport: SdkWebSocketTransportLike | null = null
+  private connection: DaemonRpcConnection | null = null
   private reconnectTimer: NodeJS.Timeout | null = null
   private refreshTimer: NodeJS.Timeout | null = null
   private started = false
@@ -321,11 +415,16 @@ class ManagedDaemonTransport implements DaemonTransport {
   constructor(options: CreateDaemonTransportOptions) {
     this.authProvider = options.authProvider
     this.createWebSocket = options.createWebSocket ?? ((url) => new WebSocket(url))
+    this.createSdkWebSocketTransport =
+      options.createSdkWebSocketTransport ?? (() => new WebSocketTransport())
+    this.ensureLocalDaemon = options.ensureLocalDaemon ?? sdkEnsureLocalDaemon
+    this.resolveWebSocketUrl = options.resolveWebSocketUrl ?? sdkResolveWebSocketUrl
     this.resolveCandidatePorts = options.resolveCandidatePorts ?? resolveKnownDaemonPorts
     this.reconnectBaseDelayMs = options.reconnectBaseDelayMs ?? DEFAULT_RECONNECT_BASE_DELAY_MS
     this.reconnectMaxDelayMs = options.reconnectMaxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS
     this.refreshIntervalMs = options.refreshIntervalMs ?? DEFAULT_REFRESH_INTERVAL_MS
     this.onStateChange = options.onStateChange
+    this.useLegacyPortDiscovery = Boolean(options.createWebSocket || options.resolveCandidatePorts)
   }
 
   start(): void {
@@ -409,7 +508,7 @@ class ManagedDaemonTransport implements DaemonTransport {
     }
   }
 
-  private requireConnection(): WsRpcConnection {
+  private requireConnection(): DaemonRpcConnection {
     if (!this.connection || this.status !== 'connected') {
       throw new Error('Daemon is not connected.')
     }
@@ -425,6 +524,11 @@ class ManagedDaemonTransport implements DaemonTransport {
     this.connecting = true
 
     try {
+      if (!this.useLegacyPortDiscovery) {
+        await this.connectWithSdkTransport()
+        return
+      }
+
       const { connectedPort, lastError } = await discoverReachableDaemonPort({
         resolveCandidatePorts: this.resolveCandidatePorts,
         tryPort: (port) => this.connectToPort(port),
@@ -449,6 +553,61 @@ class ManagedDaemonTransport implements DaemonTransport {
       }
     } finally {
       this.connecting = false
+    }
+  }
+
+  private async connectWithSdkTransport(): Promise<void> {
+    const credentials = resolveDaemonCredentials(this.authProvider)
+
+    if (!credentials) {
+      throw new Error('Daemon authentication credentials are unavailable.')
+    }
+
+    const { port } = await this.ensureLocalDaemon()
+    const url = this.resolveWebSocketUrl({
+      apiKey: credentials.apiKey ?? credentials.token ?? '',
+      daemonPort: port,
+    })
+    const transport = this.createSdkWebSocketTransport()
+
+    await transport.connect(url)
+    const connection = new SdkTransportRpcConnection(transport)
+
+    try {
+      await authenticateDaemonConnection(connection, credentials)
+      const openedResult = await connection.request<DaemonOpenedSessionsResult>(
+        DAEMON_METHOD.LIST_OPENED_SESSIONS,
+        {},
+      )
+
+      this.assertDaemonCapabilities(openedResult)
+
+      const availableSessions = await this.listAvailableSessions(connection)
+
+      this.teardownConnection()
+      this.sdkTransport = transport
+      this.connection = connection
+      this.sdkTransport.onError((error) => {
+        connection.dispose(error)
+        this.handleConnectionLoss(error)
+      })
+      this.connectedPort = port
+      this.status = 'connected'
+      this.lastError = null
+      this.lastConnectedAt = new Date().toISOString()
+      this.lastSyncAt = this.lastConnectedAt
+      this.nextRetryDelayMs = null
+      this.hasConnectedOnce = true
+      this.supportedMethods = openedResult.supportedMethods
+        ? new Set(openedResult.supportedMethods)
+        : null
+      this.sessions = normalizeDaemonSessions(openedResult.sessions ?? [], availableSessions)
+      this.emitStateChange()
+      this.scheduleRefresh()
+    } catch (error) {
+      connection.dispose()
+      await transport.close().catch(() => undefined)
+      throw error
     }
   }
 
@@ -522,7 +681,7 @@ class ManagedDaemonTransport implements DaemonTransport {
   }
 
   private async listAvailableSessions(
-    connection: WsRpcConnection,
+    connection: DaemonRpcConnection,
   ): Promise<DaemonAvailableSession[]> {
     const sessions: DaemonAvailableSession[] = []
     let endBefore: number | undefined
@@ -651,6 +810,13 @@ class ManagedDaemonTransport implements DaemonTransport {
 
     this.connection?.dispose(error)
     this.connection = null
+
+    if (this.sdkTransport) {
+      this.sdkTransport.onMessage(() => undefined)
+      this.sdkTransport.onError(() => undefined)
+      void this.sdkTransport.close().catch(() => undefined)
+      this.sdkTransport = null
+    }
 
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.close(1000, 'client shutdown')

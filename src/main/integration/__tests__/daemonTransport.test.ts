@@ -59,6 +59,41 @@ class MockWebSocket extends EventEmitter {
   }
 }
 
+class MockSdkWebSocketTransport {
+  readonly sentMessages: Record<string, unknown>[] = []
+  readonly connect = vi.fn(async () => undefined)
+  readonly close = vi.fn(async () => undefined)
+  private messageHandler: ((message: Record<string, unknown>) => void) | null = null
+  private errorHandler: ((error: Error) => void) | null = null
+  isConnected = false
+
+  send(message: Record<string, unknown>): void {
+    this.sentMessages.push(message)
+  }
+
+  onMessage(callback: (message: Record<string, unknown>) => void): void {
+    this.messageHandler = callback
+  }
+
+  onError(callback: (error: Error) => void): void {
+    this.errorHandler = callback
+  }
+
+  respond(id: string, result: unknown): void {
+    this.messageHandler?.({
+      jsonrpc: '2.0',
+      factoryApiVersion: '1.0.0',
+      type: 'response',
+      id,
+      result,
+    })
+  }
+
+  fail(message: string): void {
+    this.errorHandler?.(new Error(message))
+  }
+}
+
 function getLastRequestId(socket: MockWebSocket): string {
   const payload = socket.sentPayloads.at(-1)
 
@@ -98,6 +133,16 @@ async function flushMicrotasks(): Promise<void> {
   for (let index = 0; index < 10; index += 1) {
     await Promise.resolve()
   }
+}
+
+function getLastSdkRequestId(transport: MockSdkWebSocketTransport): string {
+  const payload = transport.sentMessages.at(-1)
+
+  if (!payload || typeof payload.id !== 'string') {
+    throw new Error('Expected a sent SDK transport payload.')
+  }
+
+  return payload.id
 }
 
 describe('createDaemonTransport', () => {
@@ -213,6 +258,77 @@ describe('createDaemonTransport', () => {
     ])
 
     await transport.stop()
+  })
+
+  it('uses SDK local daemon and WebSocket primitives for default daemon connections', async () => {
+    const sdkTransport = new MockSdkWebSocketTransport()
+    const ensureLocalDaemon = vi.fn().mockResolvedValue({ port: 45678 })
+    const resolveWebSocketUrl = vi.fn().mockReturnValue('ws://127.0.0.1:45678')
+    const createSdkWebSocketTransport = vi.fn(() => sdkTransport)
+    const transport = createDaemonTransport({
+      authProvider: {
+        getApiKey: () => 'sdk-key',
+      },
+      ensureLocalDaemon,
+      resolveWebSocketUrl,
+      createSdkWebSocketTransport,
+      reconnectBaseDelayMs: 1_000,
+      refreshIntervalMs: 60_000,
+    })
+
+    transport.start()
+    await flushMicrotasks()
+
+    expect(ensureLocalDaemon).toHaveBeenCalledTimes(1)
+    expect(resolveWebSocketUrl).toHaveBeenCalledWith({
+      apiKey: 'sdk-key',
+      daemonPort: 45678,
+    })
+    expect(createSdkWebSocketTransport).toHaveBeenCalledTimes(1)
+    expect(sdkTransport.connect).toHaveBeenCalledWith('ws://127.0.0.1:45678')
+    expect(sdkTransport.sentMessages.at(-1)).toMatchObject({
+      method: 'daemon.authenticate',
+      params: {
+        apiKey: 'sdk-key',
+        caller: 'oxox',
+      },
+    })
+
+    sdkTransport.respond(getLastSdkRequestId(sdkTransport), {
+      userId: 'user-1',
+      orgId: 'org-1',
+    })
+    await flushMicrotasks()
+    sdkTransport.respond(getLastSdkRequestId(sdkTransport), {
+      sessions: [
+        {
+          sessionId: 'sdk-daemon-session',
+          cwd: '/tmp/sdk-daemon',
+          updatedAt: 1_779_999_100,
+          workingState: 'idle',
+        },
+      ],
+    })
+    await flushMicrotasks()
+    sdkTransport.respond(getLastSdkRequestId(sdkTransport), {
+      sessions: [],
+      hasMore: false,
+    })
+    await flushMicrotasks()
+
+    expect(transport.getStatus()).toMatchObject({
+      status: 'connected',
+      connectedPort: 45678,
+    })
+    expect(transport.listSessions()).toEqual([
+      expect.objectContaining({
+        id: 'sdk-daemon-session',
+        transport: 'daemon',
+      }),
+    ])
+
+    await transport.stop()
+    expect(sdkTransport.close).toHaveBeenCalledTimes(1)
   })
 
   it('tracks supported methods and exposes daemon fork and rename capabilities', async () => {
