@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMemoryPersistencePort } from '../../../platform/persistence'
+import { ModelPickerStore } from '../../../state/model-picker/model-picker.model'
 import { UIStore } from '../../../state/ui/ui.model'
 import { buildSessionComposerProps } from '../sessionComposerSelectors'
 
@@ -10,6 +11,7 @@ describe('buildSessionComposerProps', () => {
     const interruptSelected = vi.fn()
     const submit = vi.fn()
     const updatePreferences = vi.fn()
+    const modelPickerStore = new ModelPickerStore(createMemoryPersistencePort())
     const props = buildSessionComposerProps({
       composerStore: {
         attachSelected,
@@ -44,6 +46,7 @@ describe('buildSessionComposerProps', () => {
       liveSessionStore: {
         selectedSnapshot: { sessionId: 'live-1' },
       } as never,
+      modelPickerStore,
       onAttach: undefined,
       onSubmitDetached: undefined,
       sessionStore: {
@@ -89,6 +92,7 @@ describe('buildSessionComposerProps', () => {
     const onAttach = vi.fn()
     const onSubmitDetached = vi.fn()
     const updatePendingDraftPreferences = vi.fn()
+    const modelPickerStore = new ModelPickerStore(createMemoryPersistencePort())
     const props = buildSessionComposerProps({
       canComposeDetached: true,
       composerStore: {
@@ -118,6 +122,7 @@ describe('buildSessionComposerProps', () => {
       liveSessionStore: {
         selectedSnapshot: null,
       } as never,
+      modelPickerStore,
       onAttach,
       onSubmitDetached,
       sessionStore: {

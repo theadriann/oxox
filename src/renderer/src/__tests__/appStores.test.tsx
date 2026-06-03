@@ -1037,12 +1037,12 @@ describe('renderer store providers and sidebar shell', () => {
 
     fireEvent.click((await screen.findAllByTitle('Detached session'))[0])
 
-    const modelSelector = await screen.findByLabelText(/Model selector/i)
+    const modelPicker = await screen.findByLabelText(/Model picker/i)
     const composer = screen.getByLabelText(/Message composer/i)
     const modeSelector = screen.getByLabelText(/Mode selector/i)
 
     expect((composer as HTMLTextAreaElement).disabled).toBe(true)
-    expect((modelSelector as HTMLSelectElement).disabled).toBe(true)
+    expect((modelPicker as HTMLButtonElement).disabled).toBe(true)
     expect((modeSelector as HTMLSelectElement).disabled).toBe(true)
     expect(screen.getByText(/No detached models are available from the Droid CLI/i)).toBeTruthy()
   })

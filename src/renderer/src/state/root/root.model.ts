@@ -6,6 +6,7 @@ import { ComposerStore } from '../composer/composer.model'
 import { createStoreEventBus } from '../events/store-event-bus'
 import { FoundationStore } from '../foundation/foundation.model'
 import { LiveSessionStore } from '../live-sessions/live-session.model'
+import { ModelPickerStore } from '../model-picker/model-picker.model'
 import { PluginCapabilityStore } from '../plugins/plugin-capability.model'
 import { PluginHostStore } from '../plugins/plugin-host.model'
 import { SessionRuntimeCatalogStore } from '../runtime-catalog/runtime-catalog.model'
@@ -29,6 +30,7 @@ export class RootStore {
   readonly pluginHostStore: PluginHostStore
   readonly sessionRuntimeCatalogStore: SessionRuntimeCatalogStore
   readonly composerStore: ComposerStore
+  readonly modelPickerStore: ModelPickerStore
   readonly updateStore: UpdateStore
   private readonly disposers: Array<() => void> = []
 
@@ -97,6 +99,7 @@ export class RootStore {
       persistence,
       () => this.sessionRuntimeCatalogStore.contextStats,
     )
+    this.modelPickerStore = new ModelPickerStore(persistence)
   }
 
   dispose(): void {
@@ -105,5 +108,6 @@ export class RootStore {
     }
 
     this.foundationStore.dispose()
+    this.modelPickerStore.dispose()
   }
 }

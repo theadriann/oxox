@@ -3,6 +3,7 @@ import type { LiveSessionMessageImageSource } from '../../../../shared/ipc/contr
 import {
   useComposerStore,
   useLiveSessionStore,
+  useModelPickerStore,
   useSessionStore,
   useUIStore,
 } from '../../state/root/store-provider'
@@ -34,6 +35,7 @@ export function SessionComposerConnected({
   const liveSessionStore = useLiveSessionStore()
   const sessionStore = useSessionStore()
   const uiStore = useUIStore()
+  const modelPickerStore = useModelPickerStore()
   const controller = useOptionalAppShellControllerContext()
   const resolvedCanComposeDetached =
     canComposeDetached ?? Boolean(controller?.newSessionForm.path.trim())
@@ -63,6 +65,7 @@ export function SessionComposerConnected({
       composerStore,
       isSubmittingDetached: resolvedIsSubmittingDetached,
       liveSessionStore,
+      modelPickerStore,
       onAttach: resolvedOnAttach,
       onSubmitDetached: resolvedOnSubmitDetached,
       sessionStore,

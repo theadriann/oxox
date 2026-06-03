@@ -14,10 +14,11 @@ import type {
 } from '../../../../shared/ipc/contracts'
 import type { ComposerImageAttachment } from '../../state/composer/composer.types'
 import type { ComposerContextUsageState } from '../../state/composer/composer-context-usage.selectors'
+import type { ModelPickerViewModel } from '../../state/model-picker/model-picker.model'
 import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
-import { ModelSelector } from './ModelSelector'
+import { ModelPicker } from './ModelPicker'
 
 const MODE_OPTIONS = [
   { value: 'auto', label: 'Auto' },
@@ -68,6 +69,7 @@ export interface SessionComposerProps {
   isInterrupting: boolean
   composerContextUsage: ComposerContextUsageState | null
   composerContextUsageDisplayMode: 'percentage' | 'tokens'
+  modelPickerViewModel: ModelPickerViewModel
   onDraftChange: (value: string) => void
   onModelChange: (value: string) => void
   onModeChange: (value: string) => void
@@ -76,6 +78,9 @@ export interface SessionComposerProps {
   onImageAttachmentsAdd: (attachments: ComposerImageAttachment[]) => void
   onImageAttachmentRemove: (attachmentId: string) => void
   onImageAttachmentsClear: () => void
+  onModelPickerSearchChange: (query: string) => void
+  onModelPickerToggleFavorite: (modelId: string) => void
+  onModelPickerCategoryChange: (category: string) => void
   onSubmit: (payload: {
     text: string
     modelId: string
@@ -105,6 +110,7 @@ export function SessionComposer({
   isInterrupting,
   composerContextUsage,
   composerContextUsageDisplayMode,
+  modelPickerViewModel,
   onDraftChange,
   onModelChange,
   onModeChange,
@@ -113,6 +119,9 @@ export function SessionComposer({
   onImageAttachmentsAdd,
   onImageAttachmentRemove,
   onImageAttachmentsClear,
+  onModelPickerSearchChange,
+  onModelPickerToggleFavorite,
+  onModelPickerCategoryChange,
   onSubmit,
   onAttach,
   onInterrupt,
@@ -343,11 +352,15 @@ export function SessionComposer({
             </TooltipProvider>
           ) : null}
 
-          <ModelSelector
+          <ModelPicker
             models={modelOptions}
             selectedModelId={selectedModelId}
             disabled={areSelectorsDisabled}
             onModelChange={onModelChange}
+            viewModel={modelPickerViewModel}
+            onSearchChange={onModelPickerSearchChange}
+            onToggleFavorite={onModelPickerToggleFavorite}
+            onCategoryChange={onModelPickerCategoryChange}
           />
 
           <Select value={selectedMode} onValueChange={onModeChange} disabled={areSelectorsDisabled}>

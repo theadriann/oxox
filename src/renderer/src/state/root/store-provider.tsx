@@ -8,6 +8,7 @@ export interface StoreContextValue {
   composerStore: RootStore['composerStore']
   foundationStore: RootStore['foundationStore']
   liveSessionStore: RootStore['liveSessionStore']
+  modelPickerStore: RootStore['modelPickerStore']
   pluginCapabilityStore: RootStore['pluginCapabilityStore']
   pluginHostStore: RootStore['pluginHostStore']
   sessionRuntimeCatalogStore: RootStore['sessionRuntimeCatalogStore']
@@ -26,6 +27,7 @@ function createStores(
     composerStore: rootStore.composerStore,
     foundationStore: rootStore.foundationStore,
     liveSessionStore: rootStore.liveSessionStore,
+    modelPickerStore: rootStore.modelPickerStore,
     pluginCapabilityStore: rootStore.pluginCapabilityStore,
     pluginHostStore: rootStore.pluginHostStore,
     sessionRuntimeCatalogStore: rootStore.sessionRuntimeCatalogStore,
@@ -77,6 +79,10 @@ export function useFoundationStore(): StoreContextValue['foundationStore'] {
 
 export function useLiveSessionStore(): StoreContextValue['liveSessionStore'] {
   return useStoreContext().liveSessionStore
+}
+
+export function useModelPickerStore(): StoreContextValue['modelPickerStore'] {
+  return useStoreContext().modelPickerStore
 }
 
 export function usePluginCapabilityStore(): StoreContextValue['pluginCapabilityStore'] {

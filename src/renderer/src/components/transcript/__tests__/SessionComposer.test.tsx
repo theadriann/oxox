@@ -55,6 +55,19 @@ function ControlledComposer({
   const [autonomyLevel, setAutonomyLevel] = useState('medium')
   const [imageAttachments, setImageAttachments] = useState<ComposerImageAttachment[]>([])
 
+  const modelPickerViewModel = {
+    categories: [
+      { id: 'favorites', label: 'Favorites', count: 0 },
+      { id: 'factory', label: 'Factory AI', count: availableModels.length },
+      { id: 'custom', label: 'Custom', count: 0 },
+    ],
+    activeCategory: 'factory',
+    filteredModels: availableModels,
+    searchQuery: '',
+    selectedModelId: modelId,
+    favoriteModelIds: [],
+  }
+
   return (
     <SessionComposer
       availableModels={availableModels}
@@ -72,6 +85,7 @@ function ControlledComposer({
       selectedModelId={modelId}
       selectedReasoningEffort={reasoningEffort}
       status={status}
+      modelPickerViewModel={modelPickerViewModel}
       onAttach={onAttach}
       onAutonomyLevelChange={setAutonomyLevel}
       onDraftChange={setDraft}
@@ -88,6 +102,9 @@ function ControlledComposer({
       onModeChange={setInteractionMode}
       onModelChange={setModelId}
       onReasoningEffortChange={setReasoningEffort}
+      onModelPickerSearchChange={() => undefined}
+      onModelPickerToggleFavorite={() => undefined}
+      onModelPickerCategoryChange={() => undefined}
       onSubmit={onSubmit}
     />
   )

@@ -57,6 +57,17 @@ interface SessionComposerConnectedSelectorOptions {
   liveSessionStore: {
     selectedSnapshot: unknown
   }
+  modelPickerStore: {
+    buildViewModel: (
+      models: SessionComposerProps['availableModels'],
+      selectedModelId: string,
+    ) => SessionComposerProps['modelPickerViewModel']
+    searchQuery: string
+    activeCategory: string
+    toggleFavorite: (modelId: string) => void
+    set searchQuery(value: string)
+    set activeCategory(value: string)
+  }
   onAttach?: () => void
   onSubmitDetached?: (payload: {
     text: string
@@ -76,6 +87,7 @@ export function buildSessionComposerProps({
   composerStore,
   isSubmittingDetached,
   liveSessionStore,
+  modelPickerStore,
   onAttach,
   onSubmitDetached,
   sessionStore,
@@ -104,6 +116,10 @@ export function buildSessionComposerProps({
       isAttaching: composerStore.isAttachingSelected,
       isInterrupting: composerStore.isInterruptingSelected,
       isSubmitting: selectedSessionId ? composerStore.isSendingSelected : isSubmittingDetached,
+      modelPickerViewModel: modelPickerStore.buildViewModel(
+        composerStore.selectedAvailableModels,
+        composerStore.selectedPreferences.modelId,
+      ),
       onAttach: () => {
         if (onAttach) {
           onAttach()
@@ -148,6 +164,15 @@ export function buildSessionComposerProps({
         }
 
         void composerStore.updatePreferences(selectedSessionId, { reasoningEffort: value })
+      },
+      onModelPickerSearchChange: (query) => {
+        modelPickerStore.searchQuery = query
+      },
+      onModelPickerToggleFavorite: (modelId) => {
+        modelPickerStore.toggleFavorite(modelId)
+      },
+      onModelPickerCategoryChange: (category) => {
+        modelPickerStore.activeCategory = category
       },
       onSubmit: (payload) => {
         if (!selectedSessionId && onSubmitDetached) {
