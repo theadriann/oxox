@@ -538,6 +538,85 @@ describe('ComposerStore', () => {
     expect(liveSessionStore.selectedSnapshot?.title).toBe('Refreshed session')
   })
 
+  it('sends image attachments in the structured user-message payload and clears them after submit', async () => {
+    const addUserMessage = vi.fn().mockResolvedValue(undefined)
+    const updateSettings = vi.fn().mockResolvedValue(undefined)
+    const getSnapshot = vi.fn().mockResolvedValue(createLiveSnapshot({ title: 'After image send' }))
+
+    const { composerStore } = createStores({
+      snapshot: createLiveSnapshot(),
+      snapshotLoader: getSnapshot,
+      sessionApi: {
+        addUserMessage,
+        updateSettings,
+      },
+    })
+
+    composerStore.addImageAttachments([
+      {
+        id: 'attachment-1',
+        name: 'screenshot.png',
+        size: 10,
+        type: 'base64',
+        mediaType: 'image/png',
+        data: 'ZmFrZQ==',
+      },
+    ])
+
+    await composerStore.submit({
+      text: 'Describe this',
+      modelId: 'gpt-5.4',
+      interactionMode: 'auto',
+      autonomyLevel: 'medium',
+      images: [
+        {
+          type: 'base64',
+          mediaType: 'image/png',
+          data: 'ZmFrZQ==',
+        },
+      ],
+    })
+
+    expect(addUserMessage).toHaveBeenCalledWith('session-alpha', {
+      text: 'Describe this',
+      images: [
+        {
+          type: 'base64',
+          mediaType: 'image/png',
+          data: 'ZmFrZQ==',
+        },
+      ],
+    })
+    expect(composerStore.imageAttachments).toEqual([])
+  })
+
+  it('clears all image attachments from composer state', () => {
+    const { composerStore } = createStores()
+
+    composerStore.addImageAttachments([
+      {
+        id: 'attachment-1',
+        name: 'one.png',
+        size: 10,
+        type: 'base64',
+        mediaType: 'image/png',
+        data: 'b25l',
+      },
+      {
+        id: 'attachment-2',
+        name: 'two.png',
+        size: 10,
+        type: 'base64',
+        mediaType: 'image/png',
+        data: 'dHdv',
+      },
+    ])
+
+    composerStore.clearImageAttachments()
+
+    expect(composerStore.imageAttachments).toEqual([])
+  })
+
   it('attaches and detaches the selected session while surfacing feedback', async () => {
     const attachSnapshot = createLiveSnapshot({ title: 'Attached alpha' })
     const detachSnapshot = createLiveSnapshot({

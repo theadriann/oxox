@@ -1,5 +1,6 @@
 import type {
   AppUpdateState,
+  LiveSessionAddUserMessageRequest,
   RuntimeInfo,
   TranscriptPerformanceEvent,
 } from '../../shared/ipc/contracts'
@@ -169,8 +170,11 @@ export function registerAppIpcHandlers({
       removeRendererSessionAttachment(event.sender.id, sessionId)
       return snapshot
     },
-    [IPC_CHANNELS.sessionAddUserMessage]: (_event, sessionId: string, text: string) =>
-      service.addUserMessage(sessionId, text),
+    [IPC_CHANNELS.sessionAddUserMessage]: (
+      _event,
+      sessionId: string,
+      message: string | LiveSessionAddUserMessageRequest,
+    ) => service.addUserMessage(sessionId, message),
     [IPC_CHANNELS.sessionRename]: (_event, sessionId: string, title: string) =>
       service.renameSession(sessionId, title),
     [IPC_CHANNELS.sessionListTools]: (_event, sessionId: string) =>

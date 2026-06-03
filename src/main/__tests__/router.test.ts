@@ -313,6 +313,16 @@ describe('registerAppIpcHandlers', () => {
 
     expect(service.createSession).toHaveBeenCalledWith('/tmp/project', 'renderer:42')
     expect(service.detachSession).toHaveBeenCalledWith('session-1', 'renderer:42')
+
+    const addUserMessageHandler = ipcMain.handlers.get(IPC_CHANNELS.sessionAddUserMessage)
+    const messagePayload = {
+      text: 'Describe this image',
+      images: [{ type: 'base64' as const, data: 'ZmFrZQ==', mediaType: 'image/png' as const }],
+    }
+
+    await addUserMessageHandler?.({ sender }, 'session-1', messagePayload)
+
+    expect(service.addUserMessage).toHaveBeenCalledWith('session-1', messagePayload)
   })
 
   it('keeps foundation bootstrap readable during shutdown cleanup when requested', async () => {

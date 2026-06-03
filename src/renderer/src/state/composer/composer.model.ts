@@ -1,5 +1,6 @@
 import { batch, type Observable } from '@legendapp/state'
 import type {
+  LiveSessionAddUserMessageRequest,
   LiveSessionContextStatsInfo,
   LiveSessionModel,
 } from '../../../../shared/ipc/contracts'
@@ -12,7 +13,13 @@ import { PermissionResolutionStore } from '../workflows/permission-resolution/pe
 import { RenameWorkflowStore } from '../workflows/rename/rename-workflow.model'
 import { RewindWorkflowStore } from '../workflows/rewind/rewind-workflow.model'
 import { createComposerState$ } from './composer.state'
-import type { ComposerSessionGateway, ComposerState, ComposerStatus } from './composer.types'
+import type {
+  ComposerImageAttachment,
+  ComposerSessionGateway,
+  ComposerState,
+  ComposerStatus,
+  ComposerSubmitPayload,
+} from './composer.types'
 import {
   type ComposerContextUsageState,
   deriveComposerContextUsage,
@@ -118,6 +125,14 @@ export class ComposerStore {
 
   set draft(value: string) {
     this.state$.draft.set(value)
+  }
+
+  get imageAttachments(): ComposerImageAttachment[] {
+    return this.state$.imageAttachments.get()
+  }
+
+  set imageAttachments(value: ComposerImageAttachment[]) {
+    this.state$.imageAttachments.set(value)
   }
 
   get error(): string | null {
@@ -300,6 +315,21 @@ export class ComposerStore {
     this.draft = value
   }
 
+  addImageAttachments = (attachments: ComposerImageAttachment[]): void => {
+    if (attachments.length === 0) return
+    this.imageAttachments = [...this.imageAttachments, ...attachments]
+  }
+
+  removeImageAttachment = (attachmentId: string): void => {
+    this.imageAttachments = this.imageAttachments.filter(
+      (attachment) => attachment.id !== attachmentId,
+    )
+  }
+
+  clearImageAttachments = (): void => {
+    this.imageAttachments = []
+  }
+
   setError = (value: string | null): void => {
     this.error = value
   }
@@ -374,13 +404,7 @@ export class ComposerStore {
     this.pendingDraftPreferences = null
   }
 
-  submit = async (payload: {
-    text: string
-    modelId: string
-    interactionMode: string
-    reasoningEffort?: string
-    autonomyLevel: string
-  }): Promise<void> => {
+  submit = async (payload: ComposerSubmitPayload): Promise<void> => {
     const { addUserMessage, attach, create, updateSettings } = this.sessionApi
 
     const targetSessionId =
@@ -405,12 +429,13 @@ export class ComposerStore {
           ...(payload.reasoningEffort ? { reasoningEffort: payload.reasoningEffort } : {}),
           autonomyLevel: payload.autonomyLevel,
         })
-        await addUserMessage(liveSession.sessionId, payload.text)
+        await addUserMessage(liveSession.sessionId, buildUserMessagePayload(payload))
 
         batch(() => {
           this.pendingDraftWorkspacePath = null
           this.pendingDraftPreferences = null
           this.draft = ''
+          this.imageAttachments = []
         })
 
         this.liveSessionStore.upsertSnapshot(liveSession)
@@ -466,10 +491,11 @@ export class ComposerStore {
         ...(payload.reasoningEffort ? { reasoningEffort: payload.reasoningEffort } : {}),
         autonomyLevel: payload.autonomyLevel,
       })
-      await addUserMessage(liveSession.sessionId, payload.text)
+      await addUserMessage(liveSession.sessionId, buildUserMessagePayload(payload))
 
       batch(() => {
         this.draft = ''
+        this.imageAttachments = []
       })
 
       this.updatePreferences(liveSession.sessionId, {
@@ -659,6 +685,7 @@ export class ComposerStore {
   resetForSession = (sessionId: string): void => {
     if (sessionId !== this.lastSessionId) {
       this.draft = ''
+      this.imageAttachments = []
       this.error = null
     }
 
@@ -699,6 +726,19 @@ export class ComposerStore {
       })
       this.feedbackStore.showFeedback(message, 'error')
     }
+  }
+}
+
+function buildUserMessagePayload(
+  payload: ComposerSubmitPayload,
+): string | LiveSessionAddUserMessageRequest {
+  if (!payload.images || payload.images.length === 0) {
+    return payload.text
+  }
+
+  return {
+    text: payload.text,
+    images: payload.images,
   }
 }
 

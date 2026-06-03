@@ -4,6 +4,7 @@ import type { ComposerState } from './composer.types'
 export function createDefaultComposerState(): ComposerState {
   return {
     draft: '',
+    imageAttachments: [],
     error: null,
     preferencesBySessionId: {},
     pendingDraftWorkspacePath: null,

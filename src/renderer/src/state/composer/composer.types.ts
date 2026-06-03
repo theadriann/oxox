@@ -1,3 +1,4 @@
+import type { LiveSessionMessageImageSource } from '../../../../shared/ipc/contracts'
 import type { PlatformApiClient } from '../../platform/apiClient'
 import type { ComposerPreferences } from './composer-preferences.persistence'
 
@@ -12,8 +13,24 @@ export type ComposerStatus =
 
 export type ComposerSessionGateway = PlatformApiClient['session']
 
+export interface ComposerImageAttachment extends LiveSessionMessageImageSource {
+  id: string
+  name: string
+  size: number
+}
+
+export interface ComposerSubmitPayload {
+  text: string
+  modelId: string
+  interactionMode: string
+  reasoningEffort?: string
+  autonomyLevel: string
+  images?: LiveSessionMessageImageSource[]
+}
+
 export interface ComposerState {
   draft: string
+  imageAttachments: ComposerImageAttachment[]
   error: string | null
   preferencesBySessionId: Record<string, ComposerPreferences>
   pendingDraftWorkspacePath: string | null

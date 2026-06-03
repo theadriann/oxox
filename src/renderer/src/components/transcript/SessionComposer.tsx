@@ -1,7 +1,18 @@
-import { ArrowUp, Loader2, Plug, Square } from 'lucide-react'
-import { type KeyboardEvent, useCallback, useEffect, useRef } from 'react'
+import { ArrowUp, Loader2, Plug, Square, X } from 'lucide-react'
+import {
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react'
 
-import type { LiveSessionModel } from '../../../../shared/ipc/contracts'
+import type {
+  LiveSessionMessageImageSource,
+  LiveSessionModel,
+} from '../../../../shared/ipc/contracts'
+import type { ComposerImageAttachment } from '../../state/composer/composer.types'
 import type { ComposerContextUsageState } from '../../state/composer/composer-context-usage.selectors'
 import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
@@ -33,6 +44,12 @@ const REASONING_LABELS: Record<string, string> = {
 }
 
 const TEXTAREA_MAX_HEIGHT = 200
+const ACCEPTED_IMAGE_TYPES = new Set<LiveSessionMessageImageSource['mediaType']>([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+])
 
 export interface SessionComposerProps {
   draft: string
@@ -40,6 +57,7 @@ export interface SessionComposerProps {
   selectedMode: string
   selectedReasoningEffort: string
   selectedAutonomyLevel: string
+  imageAttachments: ComposerImageAttachment[]
   availableModels: LiveSessionModel[]
   status: 'idle' | 'active' | 'waiting' | 'completed' | 'reconnecting' | 'orphaned' | 'error'
   isAttached: boolean
@@ -55,12 +73,16 @@ export interface SessionComposerProps {
   onModeChange: (value: string) => void
   onReasoningEffortChange: (value: string) => void
   onAutonomyLevelChange: (value: string) => void
+  onImageAttachmentsAdd: (attachments: ComposerImageAttachment[]) => void
+  onImageAttachmentRemove: (attachmentId: string) => void
+  onImageAttachmentsClear: () => void
   onSubmit: (payload: {
     text: string
     modelId: string
     interactionMode: string
     reasoningEffort?: string
     autonomyLevel: string
+    images?: LiveSessionMessageImageSource[]
   }) => void
   onAttach: () => void
   onInterrupt: () => void
@@ -72,6 +94,7 @@ export function SessionComposer({
   selectedMode,
   selectedReasoningEffort,
   selectedAutonomyLevel,
+  imageAttachments,
   availableModels,
   status,
   isAttached,
@@ -87,6 +110,9 @@ export function SessionComposer({
   onModeChange,
   onReasoningEffortChange,
   onAutonomyLevelChange,
+  onImageAttachmentsAdd,
+  onImageAttachmentRemove,
+  onImageAttachmentsClear,
   onSubmit,
   onAttach,
   onInterrupt,
@@ -102,7 +128,8 @@ export function SessionComposer({
     isCompleted || isSubmitting || isAttaching || (!isConnected && !canComposeDetached)
   const isEditorDisabled =
     isSubmitting || isAttaching || isCompleted || (!isConnected && !canComposeDetached) || isWorking
-  const isSendDisabled = isEditorDisabled || trimmedDraft.length === 0
+  const isSendDisabled =
+    isEditorDisabled || (trimmedDraft.length === 0 && imageAttachments.length === 0)
   const attachActionLabel = isRecovering ? 'Reconnect' : 'Attach'
   const modelOptions =
     availableModels.length > 0
@@ -135,7 +162,42 @@ export function SessionComposer({
         ? { reasoningEffort: selectedReasoningEffort }
         : {}),
       autonomyLevel: selectedAutonomyLevel,
+      ...(imageAttachments.length > 0
+        ? { images: imageAttachments.map(toMessageImageSource) }
+        : {}),
     })
+  }
+
+  const handleImageFiles = useCallback(
+    async (files: File[]) => {
+      const imageFiles = files.filter(isAcceptedImageFile)
+      if (imageFiles.length === 0 || isEditorDisabled) return
+
+      const attachments = await Promise.all(imageFiles.map(readImageFileAsAttachment))
+      onImageAttachmentsAdd(attachments)
+    },
+    [isEditorDisabled, onImageAttachmentsAdd],
+  )
+
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = extractImageFilesFromItems(event.clipboardData.items)
+    if (files.length === 0) return
+
+    event.preventDefault()
+    void handleImageFiles(files)
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLTextAreaElement>) => {
+    if (isEditorDisabled || !hasImageDataTransferItems(event.dataTransfer.items)) return
+    event.preventDefault()
+  }
+
+  const handleDrop = (event: DragEvent<HTMLTextAreaElement>) => {
+    const files = extractImageFilesFromDataTransfer(event.dataTransfer)
+    if (files.length === 0) return
+
+    event.preventDefault()
+    void handleImageFiles(files)
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -162,6 +224,51 @@ export function SessionComposer({
 
   return (
     <>
+      {imageAttachments.length > 0 ? (
+        <div
+          data-testid="image-attachment-container"
+          className="max-h-[150px] overflow-y-auto border-b border-fd-border-subtle px-3 py-2"
+        >
+          <div className="flex flex-wrap gap-2">
+            {imageAttachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="group flex max-w-[180px] items-center gap-2 rounded-md border border-fd-border-subtle bg-fd-surface/60 p-1.5"
+              >
+                <img
+                  alt={`${attachment.name} attachment preview`}
+                  className="size-9 rounded border border-fd-border-subtle object-cover"
+                  src={`data:${attachment.mediaType};base64,${attachment.data}`}
+                />
+                <span className="min-w-0 flex-1 truncate text-[11px] text-fd-secondary">
+                  {attachment.name}
+                </span>
+                <button
+                  aria-label={`Remove ${attachment.name} attachment`}
+                  className="flex size-5 shrink-0 items-center justify-center rounded text-fd-tertiary transition-colors hover:bg-fd-surface hover:text-fd-primary"
+                  type="button"
+                  onClick={() => onImageAttachmentRemove(attachment.id)}
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          {imageAttachments.length > 1 ? (
+            <div className="mt-2 flex justify-start">
+              <button
+                aria-label="Clear all image attachments"
+                className="rounded px-2 py-1 text-[10px] font-medium text-fd-tertiary transition-colors hover:bg-fd-surface hover:text-fd-primary"
+                type="button"
+                onClick={onImageAttachmentsClear}
+              >
+                Clear all
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <textarea
         ref={textareaRef}
         aria-label="Message composer"
@@ -178,7 +285,10 @@ export function SessionComposer({
         style={{ maxHeight: `${TEXTAREA_MAX_HEIGHT}px` }}
         value={draft}
         onChange={(event) => onDraftChange(event.target.value)}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
       />
 
       <div className="flex items-center justify-between gap-2 border-t border-fd-border-subtle px-2 py-1.5">
@@ -402,4 +512,69 @@ function formatCompactTokens(value: number): string {
   })
     .format(value)
     .toLowerCase()
+}
+
+function isAcceptedImageFile(
+  file: File,
+): file is File & { type: LiveSessionMessageImageSource['mediaType'] } {
+  return ACCEPTED_IMAGE_TYPES.has(file.type as LiveSessionMessageImageSource['mediaType'])
+}
+
+function extractImageFilesFromItems(items: DataTransferItemList): File[] {
+  return Array.from(items)
+    .filter((item) => item.kind === 'file')
+    .flatMap((item) => {
+      const file = item.getAsFile()
+      return file && isAcceptedImageFile(file) ? [file] : []
+    })
+}
+
+function extractImageFilesFromDataTransfer(dataTransfer: DataTransfer): File[] {
+  const itemFiles = dataTransfer.items ? extractImageFilesFromItems(dataTransfer.items) : []
+  if (itemFiles.length > 0) return itemFiles
+
+  return Array.from(dataTransfer.files).filter(isAcceptedImageFile)
+}
+
+function hasImageDataTransferItems(items: DataTransferItemList): boolean {
+  return Array.from(items).some(
+    (item) =>
+      item.kind === 'file' &&
+      ACCEPTED_IMAGE_TYPES.has(item.type as LiveSessionMessageImageSource['mediaType']),
+  )
+}
+
+function readImageFileAsAttachment(file: File): Promise<ComposerImageAttachment> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.onerror = () => reject(new Error(`Unable to read ${file.name}.`))
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      const data = result.includes(',') ? result.slice(result.indexOf(',') + 1) : result
+
+      resolve({
+        id: createImageAttachmentId(file),
+        name: file.name,
+        size: file.size,
+        type: 'base64',
+        mediaType: file.type as LiveSessionMessageImageSource['mediaType'],
+        data,
+      })
+    }
+
+    reader.readAsDataURL(file)
+  })
+}
+
+function createImageAttachmentId(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}:${Math.random().toString(36).slice(2)}`
+}
+
+function toMessageImageSource(attachment: ComposerImageAttachment): LiveSessionMessageImageSource {
+  return {
+    type: 'base64',
+    mediaType: attachment.mediaType,
+    data: attachment.data,
+  }
 }

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
+import type { ComposerImageAttachment } from '../../../state/composer/composer.types'
 import type { ComposerContextUsageState } from '../../../state/composer/composer-context-usage.selectors'
 
 import { SessionComposer } from '../SessionComposer'
@@ -36,6 +37,7 @@ function ControlledComposer({
     interactionMode: string
     autonomyLevel: string
     reasoningEffort?: string
+    images?: Array<{ type: 'base64'; data: string; mediaType: 'image/png' }>
   }) => void
   composerContextUsage?: ComposerContextUsageState | null
   composerContextUsageDisplayMode?: 'percentage' | 'tokens'
@@ -51,6 +53,7 @@ function ControlledComposer({
   const [interactionMode, setInteractionMode] = useState('auto')
   const [reasoningEffort, setReasoningEffort] = useState('medium')
   const [autonomyLevel, setAutonomyLevel] = useState('medium')
+  const [imageAttachments, setImageAttachments] = useState<ComposerImageAttachment[]>([])
 
   return (
     <SessionComposer
@@ -64,6 +67,7 @@ function ControlledComposer({
       composerContextUsage={composerContextUsage}
       composerContextUsageDisplayMode={composerContextUsageDisplayMode}
       selectedAutonomyLevel={autonomyLevel}
+      imageAttachments={imageAttachments}
       selectedMode={interactionMode}
       selectedModelId={modelId}
       selectedReasoningEffort={reasoningEffort}
@@ -71,6 +75,15 @@ function ControlledComposer({
       onAttach={onAttach}
       onAutonomyLevelChange={setAutonomyLevel}
       onDraftChange={setDraft}
+      onImageAttachmentRemove={(attachmentId) => {
+        setImageAttachments((current) =>
+          current.filter((attachment) => attachment.id !== attachmentId),
+        )
+      }}
+      onImageAttachmentsClear={() => setImageAttachments([])}
+      onImageAttachmentsAdd={(attachments) => {
+        setImageAttachments((current) => [...current, ...attachments])
+      }}
       onInterrupt={onInterrupt}
       onModeChange={setInteractionMode}
       onModelChange={setModelId}
@@ -98,6 +111,128 @@ describe('SessionComposer', () => {
       interactionMode: 'auto',
       reasoningEffort: 'medium',
       autonomyLevel: 'medium',
+    })
+  })
+
+  it('attaches pasted image clipboard data and submits it with the message payload', async () => {
+    const onSubmit = vi.fn()
+    const imageFile = new File(['fake image'], 'screenshot.png', { type: 'image/png' })
+
+    render(<ControlledComposer onSubmit={onSubmit} />)
+
+    const composer = screen.getByLabelText(/Message composer/i)
+    fireEvent.paste(composer, {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => imageFile,
+          },
+        ],
+      },
+    })
+
+    expect(await screen.findByAltText('screenshot.png attachment preview')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Clear all image attachments/i })).toBeNull()
+
+    fireEvent.change(composer, {
+      target: { value: 'Describe this screenshot' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Send message/i }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: 'Describe this screenshot',
+          images: [
+            expect.objectContaining({
+              type: 'base64',
+              mediaType: 'image/png',
+            }),
+          ],
+        }),
+      )
+    })
+  })
+
+  it('attaches dropped image files and removes attachments before submit', async () => {
+    const onSubmit = vi.fn()
+    const imageFile = new File(['fake image'], 'drop.png', { type: 'image/png' })
+
+    render(<ControlledComposer onSubmit={onSubmit} />)
+
+    const composer = screen.getByLabelText(/Message composer/i)
+    fireEvent.drop(composer, {
+      dataTransfer: {
+        files: [imageFile],
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => imageFile,
+          },
+        ],
+      },
+    })
+
+    expect(await screen.findByAltText('drop.png attachment preview')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /Remove drop.png attachment/i }))
+    await waitFor(() => {
+      expect(screen.queryByAltText('drop.png attachment preview')).toBeNull()
+    })
+
+    fireEvent.change(composer, {
+      target: { value: 'No image now' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Send message/i }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'No image now',
+      }),
+    )
+    expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty('images')
+  })
+
+  it('shows a clear-all action for multiple image attachments', async () => {
+    const firstImage = new File(['fake image 1'], 'first.png', { type: 'image/png' })
+    const secondImage = new File(['fake image 2'], 'second.png', { type: 'image/png' })
+
+    render(<ControlledComposer />)
+
+    fireEvent.drop(screen.getByLabelText(/Message composer/i), {
+      dataTransfer: {
+        files: [firstImage, secondImage],
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => firstImage,
+          },
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => secondImage,
+          },
+        ],
+      },
+    })
+
+    expect(await screen.findByAltText('first.png attachment preview')).toBeTruthy()
+    expect(await screen.findByAltText('second.png attachment preview')).toBeTruthy()
+
+    const clearAllButton = screen.getByRole('button', { name: /Clear all image attachments/i })
+    expect(clearAllButton.parentElement?.className).toContain('justify-start')
+    expect(screen.getByTestId('image-attachment-container').className).toContain('max-h-[150px]')
+    expect(screen.getByTestId('image-attachment-container').className).toContain('overflow-y-auto')
+
+    fireEvent.click(clearAllButton)
+
+    await waitFor(() => {
+      expect(screen.queryByAltText('first.png attachment preview')).toBeNull()
+      expect(screen.queryByAltText('second.png attachment preview')).toBeNull()
     })
   })
 

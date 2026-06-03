@@ -23,6 +23,21 @@ describe('createOxoxBridge', () => {
     expect(result.isDarkModeForced).toBe(true)
   })
 
+  it('passes structured image message payloads through the session bridge', async () => {
+    const invoke = vi.fn().mockResolvedValue(undefined)
+    const bridge = createOxoxBridge(invoke)
+
+    await bridge.session.addUserMessage('session-1', {
+      text: 'Describe this image',
+      images: [{ type: 'base64', data: 'ZmFrZQ==', mediaType: 'image/png' }],
+    })
+
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionAddUserMessage, 'session-1', {
+      text: 'Describe this image',
+      images: [{ type: 'base64', data: 'ZmFrZQ==', mediaType: 'image/png' }],
+    })
+  })
+
   it('invokes transcript performance diagnostics through the typed bridge', async () => {
     const invoke = vi.fn().mockResolvedValue(undefined)
     const bridge = createOxoxBridge(invoke)

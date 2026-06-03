@@ -9,6 +9,9 @@ interface SessionComposerConnectedSelectorOptions {
     detachedComposerError: string | null
     draft: string
     error: string | null
+    imageAttachments: SessionComposerProps['imageAttachments']
+    addImageAttachments: SessionComposerProps['onImageAttachmentsAdd']
+    clearImageAttachments: SessionComposerProps['onImageAttachmentsClear']
     interruptSelected: () => Promise<void> | void
     isAttachingSelected: boolean
     isInterruptingSelected: boolean
@@ -22,6 +25,7 @@ interface SessionComposerConnectedSelectorOptions {
       reasoningEffort: string
     }
     selectedStatus: SessionComposerProps['status']
+    removeImageAttachment: SessionComposerProps['onImageAttachmentRemove']
     setDraft: (value: string) => void
     submit: (payload: {
       text: string
@@ -29,6 +33,7 @@ interface SessionComposerConnectedSelectorOptions {
       interactionMode: string
       reasoningEffort?: string
       autonomyLevel: string
+      images?: Parameters<SessionComposerProps['onSubmit']>[0]['images']
     }) => Promise<void> | void
     updatePendingDraftPreferences: (
       payload: Partial<{
@@ -58,6 +63,7 @@ interface SessionComposerConnectedSelectorOptions {
     modelId: string
     interactionMode: string
     autonomyLevel: string
+    images?: Parameters<SessionComposerProps['onSubmit']>[0]['images']
   }) => void | Promise<void>
   sessionStore: {
     selectedSessionId: string
@@ -93,6 +99,7 @@ export function buildSessionComposerProps({
       composerContextUsage: composerStore.selectedComposerContextUsage,
       composerContextUsageDisplayMode: uiStore.state$.composerContextUsageDisplayMode.get(),
       draft: composerStore.draft,
+      imageAttachments: composerStore.imageAttachments,
       isAttached: Boolean(liveSessionStore.selectedSnapshot),
       isAttaching: composerStore.isAttachingSelected,
       isInterrupting: composerStore.isInterruptingSelected,
@@ -114,6 +121,9 @@ export function buildSessionComposerProps({
         void composerStore.updatePreferences(selectedSessionId, { autonomyLevel: value })
       },
       onDraftChange: composerStore.setDraft,
+      onImageAttachmentsClear: composerStore.clearImageAttachments,
+      onImageAttachmentRemove: composerStore.removeImageAttachment,
+      onImageAttachmentsAdd: composerStore.addImageAttachments,
       onInterrupt: () => void composerStore.interruptSelected(),
       onModeChange: (value) => {
         if (!selectedSessionId) {

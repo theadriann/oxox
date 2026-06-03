@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import type { LiveSessionMessageImageSource } from '../../../shared/ipc/contracts'
 
 import type { PlatformApiClient } from '../platform/apiClient'
 import type { ComposerStore } from '../state/composer/composer.model'
@@ -27,7 +28,9 @@ interface UseNewSessionFormResult {
     text: string
     modelId: string
     interactionMode: string
+    reasoningEffort?: string
     autonomyLevel: string
+    images?: LiveSessionMessageImageSource[]
   }) => Promise<void>
   closeForm: () => void
 }
@@ -117,13 +120,15 @@ export function useNewSessionForm({
       interactionMode: string
       reasoningEffort?: string
       autonomyLevel: string
+      images?: LiveSessionMessageImageSource[]
     }) => {
       const cwd = path.trim()
       const initialPrompt = payload.text.trim()
+      const images = payload.images ?? []
 
       if (
         !cwd ||
-        !initialPrompt ||
+        (!initialPrompt && images.length === 0) ||
         !sessionApi.create ||
         !sessionApi.addUserMessage ||
         !sessionApi.updateSettings
@@ -143,7 +148,10 @@ export function useNewSessionForm({
           ...(payload.reasoningEffort ? { reasoningEffort: payload.reasoningEffort } : {}),
           autonomyLevel: payload.autonomyLevel,
         })
-        await sessionApi.addUserMessage(createdSession.sessionId, initialPrompt)
+        await sessionApi.addUserMessage(
+          createdSession.sessionId,
+          images.length > 0 ? { text: initialPrompt, images } : initialPrompt,
+        )
 
         const refreshedSnapshot =
           (await sessionApi.getSnapshot?.(createdSession.sessionId)) ?? createdSession

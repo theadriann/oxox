@@ -1,4 +1,5 @@
 import { useValue } from '@legendapp/state/react'
+import type { LiveSessionMessageImageSource } from '../../../../shared/ipc/contracts'
 import {
   useComposerStore,
   useLiveSessionStore,
@@ -19,6 +20,7 @@ interface SessionComposerConnectedProps {
     modelId: string
     interactionMode: string
     autonomyLevel: string
+    images?: LiveSessionMessageImageSource[]
   }) => void | Promise<void>
 }
 
@@ -52,6 +54,7 @@ export function SessionComposerConnected({
           modelId: string
           interactionMode: string
           autonomyLevel: string
+          images?: LiveSessionMessageImageSource[]
         }) => controller.newSessionForm.submitNewSession(payload)
       : undefined)
   const { composer, error } = useValue(() =>
