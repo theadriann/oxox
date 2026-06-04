@@ -28,9 +28,15 @@ export interface ComposerSubmitPayload {
   images?: LiveSessionMessageImageSource[]
 }
 
+export interface ComposerSessionDraftSnapshot {
+  draft: string
+  imageAttachments: ComposerImageAttachment[]
+}
+
 export interface ComposerState {
   draft: string
   imageAttachments: ComposerImageAttachment[]
+  draftsBySessionId: Record<string, ComposerSessionDraftSnapshot>
   error: string | null
   preferencesBySessionId: Record<string, ComposerPreferences>
   pendingDraftWorkspacePath: string | null

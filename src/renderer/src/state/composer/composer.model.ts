@@ -3,6 +3,7 @@ import type {
   LiveSessionAddUserMessageRequest,
   LiveSessionContextStatsInfo,
   LiveSessionModel,
+  LiveSessionSnapshot,
 } from '../../../../shared/ipc/contracts'
 import { createLocalStoragePort, type PersistencePort } from '../../platform/persistence'
 import type { FoundationStore } from '../foundation/foundation.model'
@@ -15,6 +16,7 @@ import { RewindWorkflowStore } from '../workflows/rewind/rewind-workflow.model'
 import { createComposerState$ } from './composer.state'
 import type {
   ComposerImageAttachment,
+  ComposerSessionDraftSnapshot,
   ComposerSessionGateway,
   ComposerState,
   ComposerStatus,
@@ -125,6 +127,7 @@ export class ComposerStore {
 
   set draft(value: string) {
     this.state$.draft.set(value)
+    this.saveSelectedDraftSnapshot()
   }
 
   get imageAttachments(): ComposerImageAttachment[] {
@@ -133,6 +136,7 @@ export class ComposerStore {
 
   set imageAttachments(value: ComposerImageAttachment[]) {
     this.state$.imageAttachments.set(value)
+    this.saveSelectedDraftSnapshot()
   }
 
   get error(): string | null {
@@ -491,7 +495,10 @@ export class ComposerStore {
         ...(payload.reasoningEffort ? { reasoningEffort: payload.reasoningEffort } : {}),
         autonomyLevel: payload.autonomyLevel,
       })
-      await addUserMessage(liveSession.sessionId, buildUserMessagePayload(payload))
+      await addUserMessage(
+        liveSession.sessionId,
+        buildUserMessagePayload(payload, getQueuePlacementForStatus(liveSession.status)),
+      )
 
       batch(() => {
         this.draft = ''
@@ -684,8 +691,10 @@ export class ComposerStore {
 
   resetForSession = (sessionId: string): void => {
     if (sessionId !== this.lastSessionId) {
-      this.draft = ''
-      this.imageAttachments = []
+      this.saveDraftSnapshot(this.lastSessionId)
+      const snapshot = this.state$.draftsBySessionId.peek()[sessionId]
+      this.draft = snapshot?.draft ?? ''
+      this.imageAttachments = snapshot?.imageAttachments ?? []
       this.error = null
     }
 
@@ -710,6 +719,26 @@ export class ComposerStore {
     persistComposerPreferences(this.persistence, preferences)
   }
 
+  private saveSelectedDraftSnapshot(): void {
+    this.saveDraftSnapshot(this.sessionStore.selectedSessionId || null)
+  }
+
+  private saveDraftSnapshot(sessionId: string | null): void {
+    if (!sessionId) {
+      return
+    }
+
+    const snapshot: ComposerSessionDraftSnapshot = {
+      draft: this.draft,
+      imageAttachments: this.imageAttachments,
+    }
+
+    this.state$.draftsBySessionId.set({
+      ...this.state$.draftsBySessionId.peek(),
+      [sessionId]: snapshot,
+    })
+  }
+
   private async writeSelectedIdToClipboard(sessionId: string): Promise<void> {
     try {
       if (!navigator.clipboard?.writeText) {
@@ -731,15 +760,23 @@ export class ComposerStore {
 
 function buildUserMessagePayload(
   payload: ComposerSubmitPayload,
+  queuePlacement?: LiveSessionAddUserMessageRequest['queuePlacement'],
 ): string | LiveSessionAddUserMessageRequest {
-  if (!payload.images || payload.images.length === 0) {
+  if (!queuePlacement && (!payload.images || payload.images.length === 0)) {
     return payload.text
   }
 
   return {
     text: payload.text,
-    images: payload.images,
+    ...(payload.images && payload.images.length > 0 ? { images: payload.images } : {}),
+    ...(queuePlacement ? { queuePlacement } : {}),
   }
+}
+
+function getQueuePlacementForStatus(
+  status: LiveSessionSnapshot['status'],
+): LiveSessionAddUserMessageRequest['queuePlacement'] | undefined {
+  return status === 'active' || status === 'waiting' ? 'end_of_turn' : undefined
 }
 
 function toComposerStatus(status: string | undefined): ComposerStatus {

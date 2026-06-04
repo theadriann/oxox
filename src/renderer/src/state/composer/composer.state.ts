@@ -5,6 +5,7 @@ export function createDefaultComposerState(): ComposerState {
   return {
     draft: '',
     imageAttachments: [],
+    draftsBySessionId: {},
     error: null,
     preferencesBySessionId: {},
     pendingDraftWorkspacePath: null,

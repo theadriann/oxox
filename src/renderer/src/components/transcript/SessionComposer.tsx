@@ -136,7 +136,7 @@ export function SessionComposer({
   const areSelectorsDisabled =
     isCompleted || isSubmitting || isAttaching || (!isConnected && !canComposeDetached)
   const isEditorDisabled =
-    isSubmitting || isAttaching || isCompleted || (!isConnected && !canComposeDetached) || isWorking
+    isSubmitting || isAttaching || isCompleted || (!isConnected && !canComposeDetached)
   const isSendDisabled =
     isEditorDisabled || (trimmedDraft.length === 0 && imageAttachments.length === 0)
   const attachActionLabel = isRecovering ? 'Reconnect' : 'Attach'
@@ -309,7 +309,7 @@ export function SessionComposer({
         disabled={isEditorDisabled}
         placeholder={
           isWorking
-            ? 'Agent is generating...'
+            ? 'Queue a follow-up for the next turn'
             : canUseComposer
               ? 'Ask anything, @tag files/folders, or use / to show available commands'
               : 'Connect to send a message'

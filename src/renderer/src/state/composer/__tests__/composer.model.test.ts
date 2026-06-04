@@ -219,7 +219,7 @@ describe('ComposerStore', () => {
     vi.restoreAllMocks()
   })
 
-  it('sets draft and error state, then clears them when the selected session changes', () => {
+  it('preserves draft text and image attachments independently per selected session', () => {
     const { composerStore, sessionStore } = createStores({
       sessions: [
         createSessionRecord({ id: 'session-alpha', title: 'Alpha session' }),
@@ -232,13 +232,49 @@ describe('ComposerStore', () => {
       ],
     })
 
-    composerStore.setDraft('Ship the composer store')
+    composerStore.setDraft('Alpha draft')
+    composerStore.addImageAttachments([
+      {
+        id: 'attachment-alpha',
+        name: 'alpha.png',
+        size: 10,
+        type: 'base64',
+        mediaType: 'image/png',
+        data: 'YWxwaGE=',
+      },
+    ])
     composerStore.setError('Composer failed')
+
     sessionStore.selectSession('session-beta')
     composerStore.resetForSession('session-beta')
 
     expect(composerStore.draft).toBe('')
+    expect(composerStore.imageAttachments).toEqual([])
     expect(composerStore.error).toBeNull()
+
+    composerStore.setDraft('Beta draft')
+
+    sessionStore.selectSession('session-alpha')
+    composerStore.resetForSession('session-alpha')
+
+    expect(composerStore.draft).toBe('Alpha draft')
+    expect(composerStore.imageAttachments).toEqual([
+      {
+        id: 'attachment-alpha',
+        name: 'alpha.png',
+        size: 10,
+        type: 'base64',
+        mediaType: 'image/png',
+        data: 'YWxwaGE=',
+      },
+    ])
+    expect(composerStore.error).toBeNull()
+
+    sessionStore.selectSession('session-beta')
+    composerStore.resetForSession('session-beta')
+
+    expect(composerStore.draft).toBe('Beta draft')
+    expect(composerStore.imageAttachments).toEqual([])
   })
 
   it('derives preferences and computed state from the selected session, snapshot, and foundation defaults', () => {
@@ -468,6 +504,7 @@ describe('ComposerStore', () => {
   it('submits a message by auto-attaching, updating settings, sending the draft, and refreshing the snapshot', async () => {
     const attachedSnapshot = createLiveSnapshot({
       title: 'Attached session',
+      status: 'idle',
       settings: {
         modelId: 'gpt-5.4-mini',
         interactionMode: 'spec',
@@ -475,6 +512,7 @@ describe('ComposerStore', () => {
     })
     const refreshedSnapshot = createLiveSnapshot({
       title: 'Refreshed session',
+      status: 'idle',
       messages: [
         {
           id: 'message-user-1',
@@ -544,7 +582,7 @@ describe('ComposerStore', () => {
     const getSnapshot = vi.fn().mockResolvedValue(createLiveSnapshot({ title: 'After image send' }))
 
     const { composerStore } = createStores({
-      snapshot: createLiveSnapshot(),
+      snapshot: createLiveSnapshot({ status: 'idle' }),
       snapshotLoader: getSnapshot,
       sessionApi: {
         addUserMessage,
@@ -588,6 +626,36 @@ describe('ComposerStore', () => {
       ],
     })
     expect(composerStore.imageAttachments).toEqual([])
+  })
+
+  it('queues messages submitted while the selected live session is working', async () => {
+    const addUserMessage = vi.fn().mockResolvedValue(undefined)
+    const updateSettings = vi.fn().mockResolvedValue(undefined)
+    const getSnapshot = vi.fn().mockResolvedValue(createLiveSnapshot({ status: 'waiting' }))
+
+    const { composerStore } = createStores({
+      snapshot: createLiveSnapshot({ status: 'active' }),
+      snapshotLoader: getSnapshot,
+      sessionApi: {
+        addUserMessage,
+        updateSettings,
+      },
+    })
+
+    composerStore.setDraft('Continue after this finishes')
+
+    await composerStore.submit({
+      text: 'Continue after this finishes',
+      modelId: 'gpt-5.4',
+      interactionMode: 'auto',
+      autonomyLevel: 'medium',
+    })
+
+    expect(addUserMessage).toHaveBeenCalledWith('session-alpha', {
+      text: 'Continue after this finishes',
+      queuePlacement: 'end_of_turn',
+    })
+    expect(composerStore.draft).toBe('')
   })
 
   it('clears all image attachments from composer state', () => {

@@ -237,6 +237,7 @@ export interface LiveSessionAddUserMessageRequest {
   images?: LiveSessionMessageImageSource[]
   files?: LiveSessionMessageDocumentSource[]
   outputFormat?: LiveSessionMessageOutputFormat
+  queuePlacement?: 'end_of_turn' | 'end_of_loop'
 }
 
 export interface LiveSessionBugReportRequest {

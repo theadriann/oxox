@@ -388,17 +388,42 @@ describe('SessionComposer', () => {
     expect(screen.queryByRole('combobox', { name: /Reasoning effort selector/i })).toBeNull()
   })
 
-  it('shows a working-state stop action and a completed-session disabled state', () => {
+  it('allows drafting and submitting a queued message while showing the working-state stop action', () => {
     const onInterrupt = vi.fn()
-    const { rerender } = render(
-      <ControlledComposer isAttached={true} onInterrupt={onInterrupt} status="active" />,
+    const onSubmit = vi.fn()
+    render(
+      <ControlledComposer
+        isAttached={true}
+        onInterrupt={onInterrupt}
+        onSubmit={onSubmit}
+        status="active"
+      />,
     )
 
+    const composer = screen.getByLabelText(/Message composer/i) as HTMLTextAreaElement
+
     expect(screen.getByText(/Generating/i)).toBeTruthy()
+    expect(composer.disabled).toBe(false)
+
+    fireEvent.change(composer, {
+      target: { value: 'Queue this next' },
+    })
+    fireEvent.keyDown(composer, { key: 'Enter' })
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      text: 'Queue this next',
+      modelId: 'gpt-5.4',
+      interactionMode: 'auto',
+      reasoningEffort: 'medium',
+      autonomyLevel: 'medium',
+    })
+
     fireEvent.click(screen.getByRole('button', { name: /Stop generation/i }))
     expect(onInterrupt).toHaveBeenCalledTimes(1)
+  })
 
-    rerender(<ControlledComposer canAttach={false} isAttached={false} status="completed" />)
+  it('disables the composer when the selected session is completed', () => {
+    render(<ControlledComposer canAttach={false} isAttached={false} status="completed" />)
 
     expect(screen.getByText(/Session ended/i)).toBeTruthy()
     expect((screen.getByLabelText(/Message composer/i) as HTMLTextAreaElement).disabled).toBe(true)
