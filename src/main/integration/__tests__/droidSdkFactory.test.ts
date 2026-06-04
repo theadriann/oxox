@@ -7,19 +7,19 @@ import {
 
 describe('buildDroidSdkProcessTransportOptions', () => {
   it('builds SDK process transport options for fresh sessions without overriding SDK exec args', () => {
-    expect(
-      buildDroidSdkProcessTransportOptions({
-        cwd: '/tmp/workspace',
-        droidPath: '/opt/factory/bin/droid',
-        homeDirectory: '/Users/tester',
-        processEnv: {
-          PATH: '/Users/tester/.factory/bin:/usr/bin:/bin:/usr/sbin:/sbin',
-          FOO: 'bar',
-        },
-        shellPath: '/bin/fish',
-        sessionId: null,
-      }),
-    ).toEqual({
+    const options = buildDroidSdkProcessTransportOptions({
+      cwd: '/tmp/workspace',
+      droidPath: '/opt/factory/bin/droid',
+      homeDirectory: '/Users/tester',
+      processEnv: {
+        PATH: '/Users/tester/.factory/bin:/usr/bin:/bin:/usr/sbin:/sbin',
+        FOO: 'bar',
+      },
+      shellPath: '/bin/fish',
+      sessionId: null,
+    })
+
+    expect(options).toEqual({
       cwd: '/tmp/workspace',
       env: {
         FOO: 'bar',
@@ -40,6 +40,7 @@ describe('buildDroidSdkProcessTransportOptions', () => {
       },
       execPath: '/opt/factory/bin/droid',
     })
+    expect(options).not.toHaveProperty('execArgs')
   })
 
   it('builds SDK process transport options for resumed sessions without overriding SDK exec args', () => {
