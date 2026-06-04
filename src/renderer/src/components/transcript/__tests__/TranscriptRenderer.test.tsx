@@ -795,7 +795,7 @@ describe('TranscriptRenderer (live)', () => {
     expect(screen.getByText('Ask user')).toBeTruthy()
     expect(screen.getByText('Stream warning')).toBeTruthy()
     expect(screen.getByText('Hook completed')).toBeTruthy()
-    expect(screen.getByText(/Connection lost/i)).toBeTruthy()
+    expect(screen.getByText('Connection interrupted')).toBeTruthy()
     expect(screen.getByText('Stream completed')).toBeTruthy()
     expect(screen.queryByText('Status changed')).toBeNull()
     expect(screen.queryByText('Title updated')).toBeNull()
@@ -816,7 +816,13 @@ describe('TranscriptRenderer (live)', () => {
     expect(screen.getByText('Approved')).toBeTruthy()
     expect(screen.getByText('Submitted answer')).toBeTruthy()
     expect(screen.getByText('npm test')).toBeTruthy()
-    expect(screen.getByText('Recoverable stream hiccup')).toBeTruthy()
+    expect(screen.queryByText('Recoverable stream hiccup')).toBeNull()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Show details for Connection interrupted/i }),
+    )
+
+    expect(screen.getByText(/Recoverable stream hiccup/)).toBeTruthy()
   })
 
   it('groups consecutive tool calls behind a collapsed summary and reveals nested tool details progressively', () => {
@@ -895,8 +901,9 @@ describe('TranscriptRenderer (live)', () => {
     )
 
     expect(screen.getByText('Partial answer')).toBeTruthy()
-    expect(screen.getByText(/Connection lost/i)).toBeTruthy()
-    expect(screen.getByText(/Attempting to reconnect/i)).toBeTruthy()
+    expect(screen.getByText('Connection interrupted')).toBeTruthy()
+    expect(screen.getByText(/Reconnecting… partial response preserved/i)).toBeTruthy()
+    expect(screen.queryByText(/droid exec exited unexpectedly/i)).toBeNull()
   })
 
   it('renders concurrent permission cards and routes each approval decision with the matching request id', () => {
@@ -1544,6 +1551,39 @@ describe('TranscriptRenderer (historical)', () => {
     expect(scrollToMock).toHaveBeenCalledWith(
       expect.objectContaining({ top: expect.any(Number), behavior: 'smooth' }),
     )
+  })
+
+  it('keeps compact runtime notice details collapsed until requested', () => {
+    render(
+      <TranscriptRenderer
+        items={[
+          {
+            kind: 'event',
+            id: 'event-stream-error',
+            title: 'Connection interrupted',
+            body: 'Reconnecting… partial response preserved.',
+            typeLabel: 'stream.error',
+            tone: 'warning',
+            layout: 'compact',
+            detailsLayout: 'disclosure',
+            details: [
+              'Details: 403 Forbidden — This model is not available due to your organization’s security settings.',
+            ],
+          },
+        ]}
+        isLive
+        isLoading={false}
+      />,
+    )
+
+    expect(screen.getByText('Connection interrupted')).toBeTruthy()
+    expect(screen.queryByText(/This model is not available/)).toBeNull()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Show details for Connection interrupted/i }),
+    )
+
+    expect(screen.getByText(/This model is not available/)).toBeTruthy()
   })
 
   it('scrolls to the latest transcript entry when a notification deep link requests it', async () => {

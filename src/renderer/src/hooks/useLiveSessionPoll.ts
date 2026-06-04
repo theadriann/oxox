@@ -5,6 +5,8 @@ import type {
   LiveSessionSnapshot,
   LiveSessionSnapshotChangedPayload,
 } from '../../../shared/ipc/contracts'
+import { showAppNotification } from '../components/notifications/notificationCenter'
+import { presentRuntimeEvent } from '../components/transcript/runtimeEventPresentation'
 import { logTranscriptPerformanceEvent } from '../diagnostics/transcriptPerformance'
 import { useMountEffect } from './useMountEffect'
 
@@ -30,6 +32,7 @@ export function useLiveSessionPoll({
   sessionApi,
 }: UseLiveSessionPollOptions): void {
   const selectedSnapshotIdRef = useRef<string | null>(null)
+  const shownRuntimeToastIdsRef = useRef(new Set<string>())
 
   useObserveEffect(() => {
     const selectedSnapshotId = liveSessionStore.selectedSnapshotId
@@ -134,6 +137,7 @@ export function useLiveSessionPoll({
         return
       }
 
+      showRuntimeEventToasts(payload, shownRuntimeToastIdsRef.current)
       pendingEventBatch = mergeEventBatches(pendingEventBatch, payload)
       logTranscriptPerformanceEvent({
         name: 'live_session_event_batch_received',
@@ -160,6 +164,27 @@ export function useLiveSessionPoll({
       }
     }
   })
+}
+
+function showRuntimeEventToasts(
+  payload: LiveSessionEventBatchPayload,
+  shownRuntimeToastIds: Set<string>,
+): void {
+  for (const event of payload.events) {
+    const presentation = presentRuntimeEvent(event)
+
+    if (!presentation?.toastKind || shownRuntimeToastIds.has(presentation.toastId)) {
+      continue
+    }
+
+    shownRuntimeToastIds.add(presentation.toastId)
+    showAppNotification({
+      description: presentation.body,
+      id: presentation.toastId,
+      kind: presentation.toastKind,
+      title: presentation.title,
+    })
+  }
 }
 
 function mergeEventBatches(

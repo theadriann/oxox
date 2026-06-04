@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import type { ReactNode } from 'react'
 import type {
   DaemonConnectionStatus,
   SessionSearchIndexingProgress,
@@ -16,6 +17,7 @@ export interface StatusBarProps {
   droidCliVersion: string | null
   searchIndexingProgress?: SessionSearchIndexingProgress | null
   updateStatusLabel?: string | null
+  notificationTray?: ReactNode
   now?: number
 }
 
@@ -48,6 +50,7 @@ export function StatusBar({
   droidCliVersion,
   now,
   nextRetryDelayMs,
+  notificationTray,
   searchIndexingProgress,
   updateStatusLabel,
 }: StatusBarProps) {
@@ -90,6 +93,7 @@ export function StatusBar({
       </div>
 
       <div className="flex items-center gap-4">
+        {notificationTray}
         {updateStatusLabel ? <span>{updateStatusLabel}</span> : null}
         {droidCliVersion ? (
           <span className="font-mono" title={droidCliVersion}>

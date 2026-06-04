@@ -7,6 +7,7 @@ import type {
   TranscriptMessageContentBlock,
 } from '../../../../shared/ipc/contracts'
 import { getNextToolInputMarkdown, isToolInputDetail } from './liveToolPayload'
+import { presentRuntimeEvent } from './runtimeEventPresentation'
 import type {
   AskUserTimelineItem,
   EventTone,
@@ -368,28 +369,22 @@ export function buildLiveTimeline(snapshot: LiveSessionSnapshot): TimelineItem[]
 
       case 'session.result':
         sealMessageSegments()
-        if (event.success) {
+        {
+          const presentation = presentRuntimeEvent(event)
+
+          if (!presentation) {
+            break
+          }
+
+          setItem(
+            eventKey(event.type, orderedKeys.length),
+            systemEventItem({
+              event,
+              ...presentation,
+            }),
+          )
           break
         }
-
-        setItem(
-          eventKey(event.type, orderedKeys.length),
-          systemEventItem({
-            event,
-            title: 'Turn failed',
-            body: event.text || 'Droid reported an error.',
-            details: [
-              `Duration: ${Math.round(event.durationMs / 100) / 10}s`,
-              `Turns: ${event.turnCount}`,
-              event.error ? `Error: ${event.error}` : null,
-              typeof event.structuredOutput !== 'undefined'
-                ? `Structured output: ${formatUnknownValue(event.structuredOutput)}`
-                : null,
-            ],
-            tone: 'danger',
-          }),
-        )
-        break
 
       case 'hook.execution':
         sealMessageSegments()
@@ -477,37 +472,40 @@ export function buildLiveTimeline(snapshot: LiveSessionSnapshot): TimelineItem[]
 
       case 'stream.warning':
         sealMessageSegments()
-        setItem(
-          eventKey(event.type, orderedKeys.length),
-          systemEventItem({
-            event,
-            title: 'Stream warning',
-            body: toOptionalString(event.warning) ?? 'The stream reported a warning.',
-            details: [optionalDetail('Kind', event.kind)],
-            tone: 'warning',
-          }),
-        )
+        {
+          const presentation = presentRuntimeEvent(event)
+
+          if (!presentation) {
+            break
+          }
+
+          setItem(
+            eventKey(event.type, orderedKeys.length),
+            systemEventItem({
+              event,
+              ...presentation,
+            }),
+          )
+        }
         break
 
       case 'stream.error':
         sealMessageSegments()
-        setItem(
-          eventKey(event.type, orderedKeys.length),
-          systemEventItem({
-            event,
-            title: event.recoverable ? 'Connection lost' : 'Stream error',
-            body: event.recoverable
-              ? 'Attempting to reconnect while preserving the partial response.'
-              : (extractErrorMessage(event.error) ?? 'The live stream reported an unknown error.'),
-            details: [
-              extractErrorMessage(event.error),
-              typeof event.recoverable === 'boolean'
-                ? `Recoverable: ${event.recoverable ? 'yes' : 'no'}`
-                : null,
-            ],
-            tone: 'danger',
-          }),
-        )
+        {
+          const presentation = presentRuntimeEvent(event)
+
+          if (!presentation) {
+            break
+          }
+
+          setItem(
+            eventKey(event.type, orderedKeys.length),
+            systemEventItem({
+              event,
+              ...presentation,
+            }),
+          )
+        }
         break
 
       case 'stream.completed':
@@ -667,6 +665,7 @@ function systemEventItem({
   details = [],
   tone = 'default',
   layout = 'default',
+  detailsLayout = 'inline',
   action,
 }: {
   event: LiveSessionEventRecord
@@ -675,6 +674,7 @@ function systemEventItem({
   details?: Array<string | null>
   tone?: EventTone
   layout?: SystemEventTimelineItem['layout']
+  detailsLayout?: SystemEventTimelineItem['detailsLayout']
   action?: SystemEventTimelineItem['action']
 }): SystemEventTimelineItem {
   return {
@@ -686,6 +686,7 @@ function systemEventItem({
     tone,
     details: details.filter((d): d is string => Boolean(d)),
     layout,
+    detailsLayout,
     action,
   }
 }
@@ -755,12 +756,6 @@ export function formatUnknownValue(value: unknown): string {
   } catch {
     return String(value)
   }
-}
-
-function extractErrorMessage(value: unknown): string | null {
-  if (value instanceof Error) return value.message
-  if (typeof value === 'string' && value.length > 0) return value
-  return null
 }
 
 function optionalDetail(label: string, value: unknown): string | null {

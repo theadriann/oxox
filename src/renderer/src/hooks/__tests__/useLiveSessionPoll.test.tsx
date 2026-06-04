@@ -8,11 +8,22 @@ import type {
   LiveSessionSnapshot,
   SessionRecord,
 } from '../../../../../shared/ipc/contracts'
+import { resetNotificationCenterForTesting } from '../../components/notifications/notificationCenter'
 import { createStoreEventBus } from '../../state/events/store-event-bus'
 import { LiveSessionStore } from '../../state/live-sessions/live-session.model'
 import { SessionStore } from '../../state/sessions/session.model'
 
 import { useLiveSessionPoll } from '../useLiveSessionPoll'
+
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+  warning: vi.fn(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: toastMocks,
+}))
 
 function createSnapshot(sessionId: string): LiveSessionSnapshot {
   return {
@@ -79,6 +90,8 @@ describe('useLiveSessionPoll', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    resetNotificationCenterForTesting()
+    vi.clearAllMocks()
   })
 
   it('refreshes the selected live session immediately and applies matching snapshot events', async () => {
@@ -265,6 +278,77 @@ describe('useLiveSessionPoll', () => {
         { type: 'message.delta', messageId: 'assistant-1', delta: 'lo' },
       ],
     })
+  })
+
+  it('shows compact toasts for notable selected-session runtime events', async () => {
+    const liveSessionStore = {
+      selectedSnapshotId: 'session-live-1',
+      refreshSnapshot: vi.fn().mockResolvedValue(undefined),
+      upsertSnapshot: vi.fn(),
+      applyEventBatch: vi.fn(),
+    }
+    let eventBatchListener: ((payload: LiveSessionEventBatchPayload) => void) | undefined
+    const sessionApi = {
+      onSnapshotChanged: vi.fn(),
+      onEventBatch: vi.fn((listener) => {
+        eventBatchListener = listener
+        return undefined
+      }),
+    }
+
+    render(<LiveSessionPollProbe liveSessionStore={liveSessionStore} sessionApi={sessionApi} />)
+
+    await act(async () => {
+      eventBatchListener?.({
+        sessionId: 'session-live-1',
+        sequenceStart: 1,
+        sequenceEnd: 3,
+        events: [
+          {
+            type: 'stream.error',
+            error:
+              '403 {"detail":"This model is not available due to your organization’s security settings.","status":403,"title":"Forbidden"}',
+            recoverable: true,
+          },
+          {
+            type: 'stream.warning',
+            warning: 'Connection restored. Streaming resumed.',
+            kind: 'reconnected',
+          },
+          {
+            type: 'session.result',
+            success: false,
+            text: 'Droid reported an error.',
+            durationMs: 1300,
+            turnCount: 1,
+            structuredOutput: undefined,
+            error:
+              '403 {"detail":"This model is not available due to your organization’s security settings.","status":403,"title":"Forbidden"}',
+          },
+        ],
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+
+    expect(toastMocks.warning).toHaveBeenCalledWith(
+      'Connection interrupted',
+      expect.objectContaining({
+        description: 'Reconnecting… partial response preserved.',
+      }),
+    )
+    expect(toastMocks.success).toHaveBeenCalledWith(
+      'Connection restored',
+      expect.objectContaining({
+        description: 'Streaming resumed.',
+      }),
+    )
+    expect(toastMocks.error).toHaveBeenCalledWith(
+      'Turn failed',
+      expect.objectContaining({
+        description:
+          '403 Forbidden — This model is not available due to your organization’s security settings.',
+      }),
+    )
   })
 
   it('does not resubscribe when live snapshot state changes', async () => {

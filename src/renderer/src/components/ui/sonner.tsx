@@ -11,10 +11,16 @@ import { Toaster as Sonner, type ToasterProps } from 'sonner'
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = 'system' } = useTheme()
 
+  if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+    return null
+  }
+
   return (
     <Sonner
       theme={theme as ToasterProps['theme']}
       className="toaster group"
+      closeButton
+      closeButtonAriaLabel="Dismiss notification"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
@@ -24,9 +30,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          '--normal-bg': 'var(--popover)',
-          '--normal-text': 'var(--popover-foreground)',
-          '--normal-border': 'var(--border)',
+          '--normal-bg': 'var(--fd-elevated)',
+          '--normal-bg-hover': 'var(--fd-panel)',
+          '--normal-text': 'var(--fd-text-primary)',
+          '--normal-border': 'var(--fd-border-strong)',
+          '--normal-border-hover': 'var(--fd-border-strong)',
           '--border-radius': 'var(--radius)',
         } as React.CSSProperties
       }
@@ -35,6 +43,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
           toast: 'cn-toast',
         },
       }}
+      position="bottom-right"
+      visibleToasts={3}
       {...props}
     />
   )

@@ -37,6 +37,93 @@ describe('liveTimelineAccumulator', () => {
     expect(result.items).toEqual([])
   })
 
+  it('renders failed session results as compact notices with summarized error details', () => {
+    const accumulator = createLiveTimelineAccumulator(createSnapshot())
+    const providerError =
+      '{"detail":"This model is not available due to your organization’s security settings.","status":403,"title":"Forbidden","requestId":"sin1::request"}'
+
+    const result = appendLiveTimelineEvents(accumulator, createSnapshot(), [
+      {
+        type: 'session.result',
+        success: false,
+        text: 'Droid reported an error.',
+        durationMs: 1300,
+        turnCount: 1,
+        structuredOutput: undefined,
+        error: `403 ${providerError}`,
+      },
+    ])
+
+    expect(result.items).toHaveLength(1)
+    const [item] = result.items
+    expect(item?.kind).toBe('event')
+    if (item?.kind !== 'event') return
+
+    expect(item).toMatchObject({
+      title: 'Turn failed',
+      body: '403 Forbidden — This model is not available due to your organization’s security settings.',
+      typeLabel: 'session.result',
+      tone: 'danger',
+      layout: 'compact',
+    })
+    expect(item.details).toEqual(['Duration: 1.3s', 'Turns: 1', `Details: 403 ${providerError}`])
+  })
+
+  it('renders recoverable stream errors as compact reconnecting notices', () => {
+    const accumulator = createLiveTimelineAccumulator(createSnapshot())
+
+    const result = appendLiveTimelineEvents(accumulator, createSnapshot(), [
+      {
+        type: 'stream.error',
+        error:
+          '403 {"detail":"This model is not available due to your organization’s security settings.","status":403,"title":"Forbidden"}',
+        recoverable: true,
+      },
+    ])
+
+    expect(result.items).toHaveLength(1)
+    const [item] = result.items
+    expect(item?.kind).toBe('event')
+    if (item?.kind !== 'event') return
+
+    expect(item).toMatchObject({
+      title: 'Connection interrupted',
+      body: 'Reconnecting… partial response preserved.',
+      typeLabel: 'stream.error',
+      tone: 'warning',
+      layout: 'compact',
+    })
+    expect(item.details).toEqual([
+      'Details: 403 Forbidden — This model is not available due to your organization’s security settings.',
+    ])
+  })
+
+  it('renders reconnected stream warnings as compact restored notices', () => {
+    const accumulator = createLiveTimelineAccumulator(createSnapshot())
+
+    const result = appendLiveTimelineEvents(accumulator, createSnapshot(), [
+      {
+        type: 'stream.warning',
+        warning: 'Connection restored. Streaming resumed.',
+        kind: 'reconnected',
+      },
+    ])
+
+    expect(result.items).toHaveLength(1)
+    const [item] = result.items
+    expect(item?.kind).toBe('event')
+    if (item?.kind !== 'event') return
+
+    expect(item).toMatchObject({
+      title: 'Connection restored',
+      body: 'Streaming resumed.',
+      typeLabel: 'stream.warning',
+      tone: 'success',
+      layout: 'compact',
+    })
+    expect(item.details).toEqual([])
+  })
+
   it('replaces empty live tool input with later structured input updates', () => {
     const accumulator = createLiveTimelineAccumulator(createSnapshot())
 

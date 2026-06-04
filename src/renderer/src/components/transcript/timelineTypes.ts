@@ -74,6 +74,7 @@ export interface SystemEventTimelineItem {
   tone: EventTone
   details: string[]
   layout?: 'default' | 'compact'
+  detailsLayout?: 'inline' | 'disclosure'
   action?: {
     label: string
     href: string

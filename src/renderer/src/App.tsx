@@ -1,6 +1,7 @@
 import { domAnimation, LazyMotion, MotionConfig, useReducedMotion } from 'framer-motion'
 
 import { AppShell } from './components/app-shell/AppShell'
+import { Toaster } from './components/ui/sonner'
 import { MOTION_DURATION_SECONDS, MOTION_EASING } from './lib/motion'
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
         }}
       >
         <AppShell />
+        <Toaster />
       </MotionConfig>
     </LazyMotion>
   )

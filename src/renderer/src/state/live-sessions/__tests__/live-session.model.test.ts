@@ -560,7 +560,7 @@ describe('LiveSessionStore', () => {
       },
       {
         kind: 'event',
-        title: 'Stream warning',
+        title: 'Connection restored',
       },
     ])
   })

@@ -8,6 +8,7 @@ import {
   useSessionStore,
   useUpdateStore,
 } from '../../state/root/store-provider'
+import { NotificationTray } from '../notifications/NotificationTray'
 import { StatusBar } from '../status-bar/StatusBar'
 import { buildStatusBarProps } from './connectedSelectors'
 
@@ -52,5 +53,11 @@ export function StatusBarConnected() {
     }
   })
 
-  return <StatusBar {...props} searchIndexingProgress={searchIndexingProgress} />
+  return (
+    <StatusBar
+      {...props}
+      notificationTray={<NotificationTray />}
+      searchIndexingProgress={searchIndexingProgress}
+    />
+  )
 }
