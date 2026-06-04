@@ -1,6 +1,7 @@
 import { useValue } from '@legendapp/state/react'
 import type { FoundationBootstrap } from '../../../../shared/ipc/contracts'
 import { useFoundationStore, useUIStore } from '../../state/root/store-provider'
+import { Switch } from '../ui/switch'
 
 export function GeneralSettings() {
   const uiStore = useUIStore()
@@ -306,22 +307,12 @@ function ToggleSwitch({
   label: string
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
+    <Switch
+      checked={checked}
+      className="cursor-pointer data-checked:bg-fd-ember-400 data-unchecked:bg-fd-tertiary/30"
       aria-label={label}
-      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-        checked ? 'bg-fd-ember-400' : 'bg-fd-tertiary/30'
-      }`}
-      onClick={onChange}
-    >
-      <span
-        className={`pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform ${
-          checked ? 'translate-x-[18px]' : 'translate-x-[3px]'
-        }`}
-      />
-    </button>
+      onCheckedChange={onChange}
+    />
   )
 }
 

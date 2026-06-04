@@ -232,6 +232,46 @@ describe('mapDroidMessageToSessionEvent', () => {
     ])
   })
 
+  it('uses default assistant message ids when matching embedded tool results', () => {
+    expect(
+      extractEmbeddedSessionEventsFromDroidMessage(
+        {
+          type: 'assistant',
+          text: '',
+          message: {
+            id: 'assistant-tool-message-1',
+            role: 'assistant',
+            createdAt: 2,
+            updatedAt: 2,
+            content: [
+              {
+                type: 'tool_use',
+                name: 'Read',
+                input: { file_path: '/tmp/demo.ts' },
+              },
+              {
+                type: 'tool_result',
+                tool_use_id: 'assistant-tool-message-1:tool-use:0',
+                is_error: false,
+                content: 'Read complete.',
+              },
+            ],
+          },
+        } satisfies DroidMessage,
+        'session-1',
+      ),
+    ).toEqual([
+      {
+        type: 'tool.result',
+        sessionId: 'session-1',
+        toolUseId: 'assistant-tool-message-1:tool-use:0',
+        toolName: 'Read',
+        content: 'Read complete.',
+        isError: false,
+      },
+    ])
+  })
+
   it('maps completed messages, settings updates, and process errors onto OXOX events', () => {
     const completedMessage = mapDroidMessageToSessionEvent(
       {

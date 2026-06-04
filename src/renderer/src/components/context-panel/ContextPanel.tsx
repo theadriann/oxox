@@ -21,11 +21,15 @@ import type {
 } from '../../../../shared/ipc/contracts'
 import { useTimeTick } from '../../hooks/useTimeTick'
 import { formatAbsoluteSessionTime, formatElapsedDuration } from '../../lib/sessionTime'
-import { normalizeContextStats } from '../../state/composer/composer-context-usage.selectors'
+import {
+  getLatestTokenUsageEvent,
+  normalizeContextStats,
+} from '../../state/composer/composer-context-usage.selectors'
 import type { SessionPreview } from '../../state/sessions/session.model'
 import { Button } from '../ui/button'
 import { SkeletonBlock } from '../ui/skeleton'
 import { StateCard } from '../ui/state-card'
+import { Switch } from '../ui/switch'
 
 export interface ContextPanelProps {
   factoryDefaultSettings?: FoundationBootstrap['factoryDefaultSettings']
@@ -64,14 +68,6 @@ export interface ContextPanelProps {
   onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void
 }
 
-type TokenUsageSnapshot = {
-  inputTokens: number
-  outputTokens: number
-  cacheCreationTokens: number
-  cacheReadTokens: number
-  thinkingTokens: number
-}
-
 const CONTEXT_PANEL_SKELETON_IDS = [
   'context-panel-skeleton-a',
   'context-panel-skeleton-b',
@@ -91,7 +87,7 @@ export function ContextPanel({
   width,
   onResizeStart,
 }: ContextPanelProps) {
-  const latestTokenUsage = getLatestTokenUsage(liveSession?.events ?? [])
+  const latestTokenUsage = getLatestTokenUsageEvent(liveSession)?.tokenUsage ?? null
   const liveModelId =
     liveSession?.settings.modelId ?? liveSession?.availableModels[0]?.id ?? selectedSession?.modelId
   const currentStatus = liveSession?.status ?? selectedSession?.status ?? 'idle'
@@ -521,21 +517,14 @@ function TokenMetric({ label, value }: { label: string; value: number }) {
 }
 
 function ContextStatsCard({ stats }: { stats: LiveSessionContextStatsInfo }) {
-  const normalizedStats = normalizeContextStats(stats)
-
-  if (!normalizedStats) {
-    return null
-  }
-
-  const usedPercentage =
-    normalizedStats.limit > 0 ? Math.round((normalizedStats.used / normalizedStats.limit) * 100) : 0
+  const usedPercentage = stats.limit > 0 ? Math.round((stats.used / stats.limit) * 100) : 0
   const clampedPercentage = Math.max(0, Math.min(100, usedPercentage))
 
   return (
     <div className="rounded-md border border-fd-border-subtle bg-fd-panel/50 p-2">
       <div className="flex items-baseline justify-between">
         <span className="text-[10px] text-fd-tertiary">
-          {formatContextAccuracy(normalizedStats.accuracy)}
+          {formatContextAccuracy(stats.accuracy)}
         </span>
         <span className="font-mono text-xs font-medium tabular-nums text-fd-primary">
           {clampedPercentage}% used
@@ -548,14 +537,14 @@ function ContextStatsCard({ stats }: { stats: LiveSessionContextStatsInfo }) {
         />
       </div>
       <p className="mt-1.5 font-mono text-[10px] tabular-nums text-fd-tertiary">
-        {normalizedStats.limit.toLocaleString()} token window
+        {stats.limit.toLocaleString()} token window
       </p>
       <div className="mt-1.5 flex items-center justify-between">
         <span className="font-mono text-[10px] tabular-nums text-fd-secondary">
-          {normalizedStats.used.toLocaleString()} used
+          {stats.used.toLocaleString()} used
         </span>
         <span className="font-mono text-[10px] tabular-nums text-fd-secondary">
-          {normalizedStats.remaining.toLocaleString()} remaining
+          {stats.remaining.toLocaleString()} remaining
         </span>
       </div>
       <p className="mt-1.5 text-[10px] leading-snug text-fd-quaternary">
@@ -569,7 +558,7 @@ function ContextStatsCard({ stats }: { stats: LiveSessionContextStatsInfo }) {
 interface CompactionSettings {
   isEnabled?: boolean
   thresholdTokens?: number
-  sourceLabel: string
+  source: 'session' | 'default'
 }
 
 function CompactionSettingsCard({
@@ -617,11 +606,13 @@ function CompactionSettingsCard({
       ) : null}
       <p className="mt-1.5 text-[10px] leading-snug text-fd-quaternary">
         {settings.isEnabled === false
-          ? 'Threshold checks are disabled for new Droid sessions.'
+          ? settings.source === 'session'
+            ? 'Threshold checks are disabled for this session.'
+            : 'Threshold checks are disabled for new Droid sessions.'
           : 'Droid compacts long-running sessions near this threshold to keep useful context available.'}
       </p>
       <p className="mt-1 text-[9px] uppercase tracking-wider text-fd-quaternary">
-        {settings.sourceLabel}
+        {formatCompactionSource(settings.source)}
       </p>
     </div>
   )
@@ -645,23 +636,13 @@ function ToolToggleRow({
           {tool.defaultAllowed ? ' · default on' : ' · default off'}
         </p>
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={tool.currentlyAllowed}
+      <Switch
+        checked={tool.currentlyAllowed}
+        className="data-checked:bg-fd-ember-400 data-unchecked:bg-fd-tertiary/30"
         aria-label={`Toggle ${tool.displayName} tool`}
-        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-          tool.currentlyAllowed ? 'bg-fd-ember-400' : 'bg-fd-tertiary/30'
-        }`}
         disabled={isUpdating}
-        onClick={() => onToggle?.(tool.llmId, !tool.currentlyAllowed)}
-      >
-        <span
-          className={`pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform ${
-            tool.currentlyAllowed ? 'translate-x-[18px]' : 'translate-x-[3px]'
-          }`}
-        />
-      </button>
+        onCheckedChange={(checked) => onToggle?.(tool.llmId, checked)}
+      />
     </div>
   )
 }
@@ -750,23 +731,13 @@ function McpToolRow({
           {tool.isReadOnly ? ' · read-only' : ''}
         </p>
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={tool.isEnabled}
+      <Switch
+        checked={tool.isEnabled}
+        className="data-checked:bg-fd-ember-400 data-unchecked:bg-fd-tertiary/30"
         aria-label={`Toggle ${tool.name} MCP tool`}
-        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-          tool.isEnabled ? 'bg-fd-ember-400' : 'bg-fd-tertiary/30'
-        }`}
         disabled={isUpdating}
-        onClick={() => onToggle?.(tool.serverName, tool.name, !tool.isEnabled)}
-      >
-        <span
-          className={`pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform ${
-            tool.isEnabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
-          }`}
-        />
-      </button>
+        onCheckedChange={(checked) => onToggle?.(tool.serverName, tool.name, checked)}
+      />
     </div>
   )
 }
@@ -908,11 +879,15 @@ function resolveCompactionSettings(
   return {
     ...(typeof isEnabled === 'boolean' ? { isEnabled } : {}),
     ...(typeof thresholdTokens === 'number' ? { thresholdTokens } : {}),
-    sourceLabel:
+    source:
       typeof sessionThresholdEnabled === 'boolean' || typeof sessionThresholdTokens === 'number'
-        ? 'Session setting'
-        : 'Droid default',
+        ? 'session'
+        : 'default',
   }
+}
+
+function formatCompactionSource(source: CompactionSettings['source']): string {
+  return source === 'session' ? 'Session setting' : 'Droid default'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -980,33 +955,4 @@ function formatJson(value: unknown): string {
   } catch {
     return String(value)
   }
-}
-
-function getLatestTokenUsage(events: LiveSessionEventRecord[]): TokenUsageSnapshot | null {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index]
-
-    if (event?.type !== 'session.tokenUsageChanged') {
-      continue
-    }
-
-    const tokenUsage =
-      event.tokenUsage && typeof event.tokenUsage === 'object'
-        ? (event.tokenUsage as Record<string, unknown>)
-        : {}
-
-    return {
-      inputTokens: toSafeNumber(tokenUsage.inputTokens),
-      outputTokens: toSafeNumber(tokenUsage.outputTokens),
-      cacheCreationTokens: toSafeNumber(tokenUsage.cacheCreationTokens),
-      cacheReadTokens: toSafeNumber(tokenUsage.cacheReadTokens),
-      thinkingTokens: toSafeNumber(tokenUsage.thinkingTokens),
-    }
-  }
-
-  return null
-}
-
-function toSafeNumber(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }

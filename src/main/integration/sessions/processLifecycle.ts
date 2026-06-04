@@ -1,8 +1,8 @@
-import { spawn, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import type { Readable } from 'node:stream'
 
 import type { DatabaseService, SessionRuntimeRecord } from '../database/service'
-import type { ReadableLike, SessionChildProcess, SpawnProcessRequest } from './types'
+import type { ReadableLike, SessionChildProcess } from './types'
 
 export function reconcilePersistedRuntimeStates(
   runtimes: SessionRuntimeRecord[],
@@ -102,19 +102,5 @@ export function waitForExit(child: SessionChildProcess): Promise<number | null> 
 
   return new Promise((resolve) => {
     child.once?.('exit', resolve)
-  })
-}
-
-export function createNodeChildProcess(request: SpawnProcessRequest): SessionChildProcess {
-  const child = spawn(request.command, request.args, {
-    cwd: request.cwd,
-    env: request.env,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  })
-
-  return Object.assign(child, {
-    exited: new Promise<number | null>((resolve) => {
-      child.once('exit', resolve)
-    }),
   })
 }

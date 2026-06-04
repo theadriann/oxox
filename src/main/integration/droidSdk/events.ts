@@ -473,7 +473,7 @@ export function extractEmbeddedSessionEventsFromDroidMessage(
 
     if (block.type === 'tool_use') {
       const toolUseId =
-        toOptionalString(block.id) ?? `${message.messageId}:tool-use:${blockIndex.toString()}`
+        toOptionalString(block.id) ?? `${messageId}:tool-use:${blockIndex.toString()}`
       const toolName = toOptionalString(block.name) ?? 'Unknown tool'
 
       toolNames.set(toolUseId, toolName)

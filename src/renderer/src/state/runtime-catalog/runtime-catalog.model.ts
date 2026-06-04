@@ -182,6 +182,10 @@ export class SessionRuntimeCatalogStore {
       return
     }
 
+    if (tool.currentlyAllowed === allowed) {
+      return
+    }
+
     batch(() => {
       this.updatingToolLlmId = toolLlmId
       this.refreshError = null
@@ -237,6 +241,12 @@ export class SessionRuntimeCatalogStore {
     enabled: boolean,
   ): Promise<void> => {
     if (!this.api.toggleMcpServer) {
+      return
+    }
+
+    const server = this.mcpServers.find((entry) => entry.name === serverName)
+    const isCurrentlyEnabled = server ? server.status !== 'disabled' : null
+    if (isCurrentlyEnabled === enabled) {
       return
     }
 
@@ -305,6 +315,13 @@ export class SessionRuntimeCatalogStore {
     enabled: boolean,
   ): Promise<void> => {
     if (!this.api.toggleMcpTool) {
+      return
+    }
+
+    const tool = this.mcpTools.find(
+      (entry) => entry.serverName === serverName && entry.name === toolName,
+    )
+    if (tool?.isEnabled === enabled) {
       return
     }
 

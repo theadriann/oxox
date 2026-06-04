@@ -7,7 +7,6 @@ import {
   useSessionStore,
   useTranscriptStore,
   useTransportStore,
-  useUIStore,
 } from '../../state/root/store-provider'
 import { useOptionalAppShellControllerContext } from './AppShellControllerContext'
 import { buildDetailPanelConnectedProps } from './connectedSelectors'
@@ -39,7 +38,6 @@ export function DetailPanelConnected({
   const sessionStore = useSessionStore()
   const transcriptStore = useTranscriptStore()
   const transportStore = useTransportStore()
-  const uiStore = useUIStore()
   const controller = useOptionalAppShellControllerContext()
   const resolvedNewSessionForm = newSessionForm ?? controller?.newSessionForm
   const resolvedTranscriptScrollSignal =
@@ -71,7 +69,6 @@ export function DetailPanelConnected({
       transcriptScrollSignal: resolvedTranscriptScrollSignal,
       transcriptStore,
       transportStore,
-      uiStore,
     }),
   )
   const handleResolvePermissionRequest = useCallback(

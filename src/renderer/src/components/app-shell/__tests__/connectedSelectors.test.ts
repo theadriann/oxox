@@ -75,10 +75,6 @@ describe('app-shell connected selectors', () => {
       transportStore: {
         protocol: 'artifacts',
       } as never,
-      uiStore: createUIStore({
-        isSidebarHidden: false,
-        sidebarWidth: 320,
-      }),
     })
 
     expect(props.showNewSessionForm).toBe(true)

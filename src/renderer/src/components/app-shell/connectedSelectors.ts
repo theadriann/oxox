@@ -54,7 +54,6 @@ interface BuildDetailPanelConnectedPropsOptions {
   transportStore: {
     protocol: string
   }
-  uiStore: UIStore
 }
 
 export function buildDetailPanelConnectedProps({
@@ -68,7 +67,6 @@ export function buildDetailPanelConnectedProps({
   transcriptScrollSignal,
   transcriptStore,
   transportStore,
-  uiStore,
 }: BuildDetailPanelConnectedPropsOptions): DetailPanelProps {
   const selectedSessionId = sessionStore.selectedSessionId
   const selectedTranscript = selectedSessionId
@@ -85,7 +83,6 @@ export function buildDetailPanelConnectedProps({
     isRefreshingTranscript: selectedSessionId
       ? transcriptStore.isRefreshingSession(selectedSessionId)
       : false,
-    isSidebarHidden: uiStore.state$.isSidebarHidden.get(),
     newSessionError: newSessionForm.error,
     newSessionPath: newSessionForm.path,
     onBrowseSessions,
@@ -115,7 +112,6 @@ export function buildDetailPanelConnectedProps({
       ? transcriptStore.refreshErrorForSession(selectedSessionId)
       : null,
     showNewSessionForm: newSessionForm.showForm,
-    sidebarWidth: uiStore.state$.sidebarWidth.get(),
     transcriptPrimaryActionRef,
     transcriptScrollSignal,
     transportProtocol: transportStore.protocol,

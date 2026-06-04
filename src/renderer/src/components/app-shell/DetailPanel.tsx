@@ -41,8 +41,6 @@ export interface DetailPanelProps {
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
-  isSidebarHidden: boolean
-  sidebarWidth: number
   transportProtocol: string
   onPickDirectory: () => void
   onRefreshFoundation: () => void
@@ -75,8 +73,6 @@ export function DetailPanel({
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
   transcriptPrimaryActionRef,
-  isSidebarHidden: _isSidebarHidden,
-  sidebarWidth: _sidebarWidth,
   transportProtocol,
   onPickDirectory,
   onRefreshFoundation,

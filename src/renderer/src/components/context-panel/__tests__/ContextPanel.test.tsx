@@ -279,6 +279,53 @@ describe('ContextPanel', () => {
     expect(screen.getByText('Threshold checks are disabled for new Droid sessions.')).toBeTruthy()
   })
 
+  it('distinguishes session-level disabled compaction from Droid defaults', () => {
+    render(
+      <ContextPanel
+        factoryDefaultSettings={{
+          compactionThresholdCheckEnabled: true,
+          compactionTokenLimit: 50_000,
+        }}
+        liveSession={{
+          id: 'live-session-1',
+          title: 'Transcript polish',
+          projectWorkspacePath: '/tmp/project-alpha',
+          status: 'active',
+          settings: {
+            modelId: 'gpt-5.4',
+            interactionMode: 'auto',
+            compactionThresholdCheckEnabled: false,
+            compactionTokenLimit: 40_000,
+          },
+          availableModels: [{ id: 'gpt-5.4', name: 'GPT 5.4' }],
+          messages: [],
+          events: [],
+        }}
+        onResizeStart={() => undefined}
+        runtimeCatalog={{
+          refreshError: null,
+          tools: [],
+          skills: [],
+          mcpServers: [],
+          contextStats: {
+            used: 12_000,
+            remaining: 88_000,
+            limit: 100_000,
+            accuracy: 'exact',
+            updatedAt: '2026-04-23T21:13:04.000Z',
+          },
+          updatingToolLlmId: null,
+        }}
+        selectedSession={selectedSession}
+        width={320}
+      />,
+    )
+
+    expect(screen.getByText('Session setting')).toBeTruthy()
+    expect(screen.getByText('40,000 threshold')).toBeTruthy()
+    expect(screen.getByText('Threshold checks are disabled for this session.')).toBeTruthy()
+  })
+
   it('hides over-limit estimated context stats because Droid can overestimate compacted sessions', () => {
     render(
       <ContextPanel

@@ -367,12 +367,12 @@ export const DROID_SDK_SETTINGS_PARITY_MATRIX = [
       init: 'not-applicable',
       update: 'blocked',
       defaults: 'supported',
-      ui: 'missing',
+      ui: 'supported',
       tests: 'supported',
     },
     status: 'blocked-by-sdk-public-schema',
     notes:
-      'Defaults are supported; update is blocked by the public SDK client schema and product UI controls are still missing.',
+      'Defaults and read-only UI are supported; update is blocked by the public SDK client schema.',
   }),
   matrixEntry({
     field: 'compactionThresholdCheckEnabled',

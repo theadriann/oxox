@@ -4,55 +4,16 @@ import {
 } from '@factory/droid-sdk'
 import { describe, expect, it } from 'vitest'
 
-import { DROID_SDK_SETTINGS_PARITY_MATRIX } from '../droidSdk/settingsParity'
-
-const EXPECTED_PARITY_FIELDS = [
-  'modelId',
-  'reasoningEffort',
-  'interactionMode',
-  'autonomyLevel',
-  'autonomyMode',
-  'specModeModelId',
-  'specModeReasoningEffort',
-  'enabledToolIds',
-  'disabledToolIds',
-  'mcpServers',
-  'sessionSource',
-  'sessionLocation',
-  'sessionOriginHint',
-  'tags',
-  'decompSessionType',
-  'decompMissionId',
-  'skipPermissionsUnsafe',
-  'missionSettings',
-  'worktree',
-  'worktreeDir',
-  'compactionTokenLimit',
-  'compactionThresholdCheckEnabled',
-  'compactionModel',
-  'compactionTokenLimitPerModel',
-  'runInWorktree',
-  'worktreeDirectory',
-  'subagentModelSettings',
-  'missionModelSettings',
-  'missionOrchestratorModel',
-  'missionOrchestratorReasoningEffort',
-  'providerLock',
-  'providerLockTimestamp',
-  'apiProviderLock',
-  'assistantActiveTimeMs',
-  'tokenUsage',
-  'inclusiveTokenUsage',
-  'childInclusiveTokenUsageBySessionId',
-  'archivedAt',
-  'effectiveFactoryRouterModel',
-] as const
+import {
+  DROID_SDK_SETTINGS_PARITY_MATRIX,
+  REQUIRED_DROID_SDK_SETTINGS_PARITY_FIELDS,
+} from '../droidSdk/settingsParity'
 
 describe('Droid SDK settings parity matrix', () => {
   it('covers every relevant SDK session init, update, default, and persisted settings field', () => {
     const fields = new Set(DROID_SDK_SETTINGS_PARITY_MATRIX.map((entry) => entry.field))
 
-    expect([...fields].sort()).toEqual([...EXPECTED_PARITY_FIELDS].sort())
+    expect([...fields].sort()).toEqual([...REQUIRED_DROID_SDK_SETTINGS_PARITY_FIELDS].sort())
   })
 
   it('classifies current OXOX support and known blockers explicitly', () => {
@@ -102,7 +63,7 @@ describe('Droid SDK settings parity matrix', () => {
           oxox: expect.objectContaining({
             update: 'blocked',
             defaults: 'supported',
-            ui: 'missing',
+            ui: 'supported',
           }),
         }),
         expect.objectContaining({

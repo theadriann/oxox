@@ -1,4 +1,4 @@
-export const SESSION_SEARCH_MODIFIERS = [
+const SESSION_SEARCH_MODIFIERS = [
   'title',
   'content',
   'project',

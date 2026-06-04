@@ -223,6 +223,42 @@ describe('SessionRuntimeCatalogStore', () => {
     expect(store.updatingMcpToolKey).toBeNull()
   })
 
+  it('skips MCP tool updates when the requested state already matches', async () => {
+    const toggleMcpTool = vi.fn().mockResolvedValue(undefined)
+    const store = new SessionRuntimeCatalogStore({
+      listMcpServers: vi.fn().mockResolvedValue([]),
+      listMcpTools: vi.fn().mockResolvedValue([createMcpTool()]),
+      listSkills: vi.fn().mockResolvedValue([]),
+      listTools: vi.fn().mockResolvedValue([]),
+      toggleMcpTool,
+    })
+
+    await store.refresh('session-1')
+    await store.setMcpToolEnabled('session-1', 'figma', 'get_design_context', true)
+
+    expect(toggleMcpTool).not.toHaveBeenCalled()
+    expect(store.updatingMcpToolKey).toBeNull()
+    expect(store.mcpTools).toEqual([createMcpTool()])
+  })
+
+  it('skips MCP server updates when the requested state already matches', async () => {
+    const toggleMcpServer = vi.fn().mockResolvedValue(undefined)
+    const store = new SessionRuntimeCatalogStore({
+      listMcpServers: vi.fn().mockResolvedValue([createMcpServer({ status: 'disabled' })]),
+      listMcpTools: vi.fn().mockResolvedValue([]),
+      listSkills: vi.fn().mockResolvedValue([]),
+      listTools: vi.fn().mockResolvedValue([]),
+      toggleMcpServer,
+    })
+
+    await store.refresh('session-1')
+    await store.setMcpServerEnabled('session-1', 'figma', false)
+
+    expect(toggleMcpServer).not.toHaveBeenCalled()
+    expect(store.updatingMcpServerName).toBeNull()
+    expect(store.mcpServers).toEqual([createMcpServer({ status: 'disabled' })])
+  })
+
   it('updates tool permissions through session settings and reflects the new tool state', async () => {
     const updateSettings = vi.fn().mockResolvedValue(undefined)
     const store = new SessionRuntimeCatalogStore({
@@ -241,6 +277,23 @@ describe('SessionRuntimeCatalogStore', () => {
     })
     expect(store.tools).toEqual([createTool({ currentlyAllowed: false })])
     expect(store.updatingToolLlmId).toBeNull()
+  })
+
+  it('skips tool permission updates when the requested state already matches', async () => {
+    const updateSettings = vi.fn().mockResolvedValue(undefined)
+    const store = new SessionRuntimeCatalogStore({
+      listMcpServers: vi.fn().mockResolvedValue([]),
+      listSkills: vi.fn().mockResolvedValue([]),
+      listTools: vi.fn().mockResolvedValue([createTool()]),
+      updateSettings,
+    })
+
+    await store.refresh('session-1')
+    await store.setToolAllowed('session-1', {}, 'Read', true)
+
+    expect(updateSettings).not.toHaveBeenCalled()
+    expect(store.updatingToolLlmId).toBeNull()
+    expect(store.tools).toEqual([createTool()])
   })
 
   it('refreshes context stats when the refresh key changes after session activity', async () => {

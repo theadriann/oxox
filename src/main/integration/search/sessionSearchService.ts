@@ -42,7 +42,7 @@ export interface SessionSearchStore {
   dispose?: () => void
 }
 
-export interface CreateSessionSearchServiceOptions {
+interface CreateSessionSearchServiceOptions {
   bootstrap: FoundationBootstrap
   loadSessionTranscript: (
     sessionId: string,
@@ -58,7 +58,7 @@ export interface CreateSessionSearchServiceOptions {
   searchDatabasePath?: string
 }
 
-export interface SessionSearchService {
+interface SessionSearchService {
   searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
   getIndexingProgress: () => SessionSearchIndexingProgress
   replaceFoundation: (bootstrap: FoundationBootstrap) => void
@@ -339,7 +339,7 @@ type SearchDocumentRow = {
   transcriptSourcePath: string | null
 }
 
-export function createSqliteSessionSearchStore(databasePath: string): SessionSearchStore {
+function createSqliteSessionSearchStore(databasePath: string): SessionSearchStore {
   const database = createSqliteDatabase(databasePath)
 
   database.pragma('journal_mode = WAL')
