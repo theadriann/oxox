@@ -20,7 +20,23 @@ function createMockIpcMain() {
 describe('registerAppIpcHandlers', () => {
   it('registers the app IPC surface and cleans it up', async () => {
     const ipcMain = createMockIpcMain()
+    const factoryApi = {
+      listMachineTemplates: vi.fn().mockResolvedValue({ templates: [] }),
+      getMachineTemplate: vi.fn().mockResolvedValue({ templateId: 'template-1' }),
+      listComputers: vi.fn().mockResolvedValue({ computers: [] }),
+      getComputer: vi.fn().mockResolvedValue({ id: 'computer-1' }),
+      createComputer: vi.fn().mockResolvedValue({ id: 'computer-1' }),
+      getComputerByName: vi.fn().mockResolvedValue({ id: 'computer-1' }),
+      updateComputer: vi.fn().mockResolvedValue({ id: 'computer-1' }),
+      deleteComputer: vi.fn().mockResolvedValue(undefined),
+      restartComputer: vi.fn().mockResolvedValue(undefined),
+      refreshComputer: vi.fn().mockResolvedValue({ configured: 1 }),
+      getComputerMetrics: vi.fn().mockResolvedValue([]),
+      retryInstallDeps: vi.fn().mockResolvedValue({ id: 'computer-1' }),
+      listRemoteSessions: vi.fn().mockResolvedValue({ sessions: [] }),
+    }
     const service = {
+      factoryApi,
       getBootstrap: vi.fn().mockReturnValue({ ok: true }),
       listProjects: vi.fn().mockReturnValue([{ id: 'project-1' }]),
       listSessions: vi.fn().mockReturnValue([]),
@@ -184,6 +200,92 @@ describe('registerAppIpcHandlers', () => {
     expect(await ipcMain.handlers.get(IPC_CHANNELS.databaseListProjects)?.()).toEqual([
       { id: 'project-1' },
     ])
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiListMachineTemplates)?.(undefined, {
+        limit: 10,
+      }),
+    ).toEqual({ templates: [] })
+    expect(factoryApi.listMachineTemplates).toHaveBeenCalledWith({ limit: 10 })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiGetMachineTemplate)?.(undefined, {
+        templateId: 'template-1',
+      }),
+    ).toEqual({ templateId: 'template-1' })
+    expect(factoryApi.getMachineTemplate).toHaveBeenCalledWith({ templateId: 'template-1' })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiListComputers)?.(undefined, { limit: 5 }),
+    ).toEqual({ computers: [] })
+    expect(factoryApi.listComputers).toHaveBeenCalledWith({ limit: 5 })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiGetComputer)?.(undefined, {
+        computerId: 'computer-1',
+      }),
+    ).toEqual({ id: 'computer-1' })
+    expect(factoryApi.getComputer).toHaveBeenCalledWith({ computerId: 'computer-1' })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiCreateComputer)?.(undefined, {
+        name: 'devbox',
+        remoteUser: 'factory',
+        repos: ['https://github.com/factory/test'],
+      }),
+    ).toEqual({ id: 'computer-1' })
+    expect(factoryApi.createComputer).toHaveBeenCalledWith({
+      name: 'devbox',
+      remoteUser: 'factory',
+      repos: ['https://github.com/factory/test'],
+    })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiGetComputerByName)?.(undefined, {
+        name: 'devbox',
+      }),
+    ).toEqual({ id: 'computer-1' })
+    expect(factoryApi.getComputerByName).toHaveBeenCalledWith({ name: 'devbox' })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiUpdateComputer)?.(undefined, {
+        computerId: 'computer-1',
+        name: 'renamed',
+      }),
+    ).toEqual({ id: 'computer-1' })
+    expect(factoryApi.updateComputer).toHaveBeenCalledWith({
+      computerId: 'computer-1',
+      name: 'renamed',
+    })
+    await ipcMain.handlers.get(IPC_CHANNELS.factoryApiDeleteComputer)?.(undefined, {
+      computerId: 'computer-1',
+    })
+    await ipcMain.handlers.get(IPC_CHANNELS.factoryApiRestartComputer)?.(undefined, {
+      computerId: 'computer-1',
+    })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiRefreshComputer)?.(undefined, {
+        computerId: 'computer-1',
+      }),
+    ).toEqual({ configured: 1 })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiGetComputerMetrics)?.(undefined, {
+        computerId: 'computer-1',
+        start: '2026-06-04T00:00:00Z',
+      }),
+    ).toEqual([])
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiRetryInstallDeps)?.(undefined, {
+        computerId: 'computer-1',
+      }),
+    ).toEqual({ id: 'computer-1' })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.factoryApiListRemoteSessions)?.(undefined, {
+        computerId: 'computer-1',
+      }),
+    ).toEqual({ sessions: [] })
+    expect(factoryApi.deleteComputer).toHaveBeenCalledWith({ computerId: 'computer-1' })
+    expect(factoryApi.restartComputer).toHaveBeenCalledWith({ computerId: 'computer-1' })
+    expect(factoryApi.refreshComputer).toHaveBeenCalledWith({ computerId: 'computer-1' })
+    expect(factoryApi.getComputerMetrics).toHaveBeenCalledWith({
+      computerId: 'computer-1',
+      start: '2026-06-04T00:00:00Z',
+    })
+    expect(factoryApi.retryInstallDeps).toHaveBeenCalledWith({ computerId: 'computer-1' })
+    expect(factoryApi.listRemoteSessions).toHaveBeenCalledWith({ computerId: 'computer-1' })
     expect(
       await ipcMain.handlers.get(IPC_CHANNELS.sessionSearch)?.(undefined, { query: 'sdk' }),
     ).toEqual({

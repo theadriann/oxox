@@ -44,6 +44,7 @@ import { resolveDroidCliStatus } from './droid/resolveDroidCliStatus'
 import { DroidSdkDaemonSessionTransport } from './droidSdk/daemonTransport'
 import type { DroidSdkMcpServerFactory, DroidSdkProcessTransportConfig } from './droidSdk/factory'
 import { DroidSdkSessionTransport } from './droidSdk/transport'
+import { createFactoryApiService, type FactoryApiService } from './factoryApi/service'
 import {
   createFoundationBootstrapState,
   parseDroidExecHelpBootstrap,
@@ -68,6 +69,7 @@ import type { StreamJsonRpcProcessTransportLike } from './sessions/types'
 import { loadSessionTranscriptFromFile } from './transcripts/service'
 
 export interface FoundationService {
+  factoryApi: FactoryApiService
   close: () => void
   createSession: (
     request: LiveSessionCreateRequest,
@@ -220,6 +222,7 @@ export function createFoundationService(
     foundationChangeBroadcaster?.broadcast()
   }
   const database = createDatabaseService(options)
+  const factoryApi = createFactoryApiService()
   const droidCliStatus = resolveDroidCliStatus()
   let readDaemonDefaultSettings = async (): Promise<unknown> => null
   const foundationBootstrapState = createFoundationBootstrapState({
@@ -318,6 +321,7 @@ export function createFoundationService(
   void foundationBootstrapState.refreshFromDroidCli()
 
   return {
+    factoryApi,
     close: () => {
       sessionCatalog.close()
       unsubscribeSearchLiveSnapshots()

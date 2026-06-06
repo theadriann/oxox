@@ -1,7 +1,27 @@
 import type {
+  Computer as DroidSdkComputer,
+  ComputerListResponse as DroidSdkComputerListResponse,
+  ComputerMetricsResponse as DroidSdkComputerMetricsResponse,
+  CreateComputerOptions as DroidSdkCreateComputerOptions,
+  DeleteComputerOptions as DroidSdkDeleteComputerOptions,
+  GetComputerByNameOptions as DroidSdkGetComputerByNameOptions,
+  GetComputerMetricsOptions as DroidSdkGetComputerMetricsOptions,
+  GetComputerOptions as DroidSdkGetComputerOptions,
+  GetMachineTemplateOptions as DroidSdkGetMachineTemplateOptions,
   InitializeSessionRequestParams as DroidSdkInitializeSessionRequestParams,
+  ListComputersOptions as DroidSdkListComputersOptions,
+  ListMachineTemplatesOptions as DroidSdkListMachineTemplatesOptions,
+  ListRemoteSessionsOptions as DroidSdkListRemoteSessionsOptions,
+  MachineTemplate as DroidSdkMachineTemplate,
+  MachineTemplateListResponse as DroidSdkMachineTemplateListResponse,
+  RefreshComputerOptions as DroidSdkRefreshComputerOptions,
+  RefreshComputerResponse as DroidSdkRefreshComputerResponse,
+  RemoteSessionListResponse as DroidSdkRemoteSessionListResponse,
+  RestartComputerOptions as DroidSdkRestartComputerOptions,
+  RetryInstallDepsOptions as DroidSdkRetryInstallDepsOptions,
   SessionSource as DroidSdkSessionSource,
   SessionTag as DroidSdkSessionTag,
+  UpdateComputerOptions as DroidSdkUpdateComputerOptions,
   UpdateSessionSettingsRequestParams as DroidSdkUpdateSessionSettingsRequestParams,
 } from '@factory/droid-sdk'
 import type {
@@ -30,6 +50,19 @@ export const IPC_CHANNELS = {
   databaseListProjects: 'database:list-projects',
   databaseListSessions: 'database:list-sessions',
   databaseListSyncMetadata: 'database:list-sync-metadata',
+  factoryApiListMachineTemplates: 'factory-api:list-machine-templates',
+  factoryApiGetMachineTemplate: 'factory-api:get-machine-template',
+  factoryApiListComputers: 'factory-api:list-computers',
+  factoryApiGetComputer: 'factory-api:get-computer',
+  factoryApiCreateComputer: 'factory-api:create-computer',
+  factoryApiGetComputerByName: 'factory-api:get-computer-by-name',
+  factoryApiUpdateComputer: 'factory-api:update-computer',
+  factoryApiDeleteComputer: 'factory-api:delete-computer',
+  factoryApiRestartComputer: 'factory-api:restart-computer',
+  factoryApiRefreshComputer: 'factory-api:refresh-computer',
+  factoryApiGetComputerMetrics: 'factory-api:get-computer-metrics',
+  factoryApiRetryInstallDeps: 'factory-api:retry-install-deps',
+  factoryApiListRemoteSessions: 'factory-api:list-remote-sessions',
   sessionSearch: 'session:search',
   sessionSearchIndexingProgress: 'session:search-indexing-progress',
   transcriptGetSessionTranscript: 'transcript:get-session-transcript',
@@ -139,6 +172,47 @@ export interface SyncMetadataRecord {
   lastSyncedAt: string
   checksum: string | null
 }
+
+type FactoryApiOptionsWithoutCredentials<TOptions extends { apiKey: string; baseUrl?: string }> =
+  Omit<TOptions, 'apiKey' | 'baseUrl'>
+
+export type FactoryApiListMachineTemplatesRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkListMachineTemplatesOptions>
+export type FactoryApiListMachineTemplatesResponse = DroidSdkMachineTemplateListResponse
+export type FactoryApiGetMachineTemplateRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkGetMachineTemplateOptions>
+export type FactoryApiGetMachineTemplateResponse = DroidSdkMachineTemplate
+export type FactoryApiListComputersRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkListComputersOptions>
+export type FactoryApiListComputersResponse = DroidSdkComputerListResponse
+export type FactoryApiGetComputerRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkGetComputerOptions>
+export type FactoryApiGetComputerResponse = DroidSdkComputer
+export type FactoryApiCreateComputerRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkCreateComputerOptions>
+export type FactoryApiCreateComputerResponse = DroidSdkComputer
+export type FactoryApiGetComputerByNameRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkGetComputerByNameOptions>
+export type FactoryApiGetComputerByNameResponse = DroidSdkComputer
+export type FactoryApiUpdateComputerRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkUpdateComputerOptions>
+export type FactoryApiUpdateComputerResponse = DroidSdkComputer
+export type FactoryApiDeleteComputerRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkDeleteComputerOptions>
+export type FactoryApiRestartComputerRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkRestartComputerOptions>
+export type FactoryApiRefreshComputerRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkRefreshComputerOptions>
+export type FactoryApiRefreshComputerResponse = DroidSdkRefreshComputerResponse
+export type FactoryApiGetComputerMetricsRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkGetComputerMetricsOptions>
+export type FactoryApiGetComputerMetricsResponse = DroidSdkComputerMetricsResponse
+export type FactoryApiRetryInstallDepsRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkRetryInstallDepsOptions>
+export type FactoryApiRetryInstallDepsResponse = DroidSdkComputer
+export type FactoryApiListRemoteSessionsRequest =
+  FactoryApiOptionsWithoutCredentials<DroidSdkListRemoteSessionsOptions>
+export type FactoryApiListRemoteSessionsResponse = DroidSdkRemoteSessionListResponse
 
 export interface LiveSessionToolInfo {
   id: string
@@ -874,6 +948,41 @@ export interface OxoxBridge {
     listProjects: () => Promise<ProjectRecord[]>
     listSessions: () => Promise<SessionRecord[]>
     listSyncMetadata: () => Promise<SyncMetadataRecord[]>
+  }
+  factoryApi: {
+    listMachineTemplates: (
+      request?: FactoryApiListMachineTemplatesRequest,
+    ) => Promise<FactoryApiListMachineTemplatesResponse>
+    getMachineTemplate: (
+      request: FactoryApiGetMachineTemplateRequest,
+    ) => Promise<FactoryApiGetMachineTemplateResponse>
+    listComputers: (
+      request?: FactoryApiListComputersRequest,
+    ) => Promise<FactoryApiListComputersResponse>
+    getComputer: (request: FactoryApiGetComputerRequest) => Promise<FactoryApiGetComputerResponse>
+    createComputer: (
+      request: FactoryApiCreateComputerRequest,
+    ) => Promise<FactoryApiCreateComputerResponse>
+    getComputerByName: (
+      request: FactoryApiGetComputerByNameRequest,
+    ) => Promise<FactoryApiGetComputerByNameResponse>
+    updateComputer: (
+      request: FactoryApiUpdateComputerRequest,
+    ) => Promise<FactoryApiUpdateComputerResponse>
+    deleteComputer: (request: FactoryApiDeleteComputerRequest) => Promise<void>
+    restartComputer: (request: FactoryApiRestartComputerRequest) => Promise<void>
+    refreshComputer: (
+      request: FactoryApiRefreshComputerRequest,
+    ) => Promise<FactoryApiRefreshComputerResponse>
+    getComputerMetrics: (
+      request: FactoryApiGetComputerMetricsRequest,
+    ) => Promise<FactoryApiGetComputerMetricsResponse>
+    retryInstallDeps: (
+      request: FactoryApiRetryInstallDepsRequest,
+    ) => Promise<FactoryApiRetryInstallDepsResponse>
+    listRemoteSessions: (
+      request?: FactoryApiListRemoteSessionsRequest,
+    ) => Promise<FactoryApiListRemoteSessionsResponse>
   }
   transcript: {
     getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>

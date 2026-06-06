@@ -14,10 +14,14 @@ describe('apiClient', () => {
 
     const client = createPlatformApiClient({
       oxox: {
+        factoryApi: {
+          listComputers: vi.fn(),
+        },
         runtime: { getInfo: vi.fn() },
       } as never,
     })
 
+    expect(client.factoryApi.listComputers).toBeTypeOf('function')
     expect(client.runtime.getInfo).toBeTypeOf('function')
     expect(warn).not.toHaveBeenCalled()
   })

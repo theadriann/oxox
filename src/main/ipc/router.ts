@@ -145,6 +145,58 @@ export function registerAppIpcHandlers({
     [IPC_CHANNELS.databaseListProjects]: () => service.listProjects(),
     [IPC_CHANNELS.databaseListSessions]: () => service.listSessions(),
     [IPC_CHANNELS.databaseListSyncMetadata]: () => service.listSyncMetadata(),
+    [IPC_CHANNELS.factoryApiListMachineTemplates]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['listMachineTemplates']>[0] = {},
+    ) => service.factoryApi.listMachineTemplates(request),
+    [IPC_CHANNELS.factoryApiGetMachineTemplate]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['getMachineTemplate']>[0],
+    ) => service.factoryApi.getMachineTemplate(request),
+    [IPC_CHANNELS.factoryApiListComputers]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['listComputers']>[0] = {},
+    ) => service.factoryApi.listComputers(request),
+    [IPC_CHANNELS.factoryApiGetComputer]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['getComputer']>[0],
+    ) => service.factoryApi.getComputer(request),
+    [IPC_CHANNELS.factoryApiCreateComputer]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['createComputer']>[0],
+    ) => service.factoryApi.createComputer(request),
+    [IPC_CHANNELS.factoryApiGetComputerByName]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['getComputerByName']>[0],
+    ) => service.factoryApi.getComputerByName(request),
+    [IPC_CHANNELS.factoryApiUpdateComputer]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['updateComputer']>[0],
+    ) => service.factoryApi.updateComputer(request),
+    [IPC_CHANNELS.factoryApiDeleteComputer]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['deleteComputer']>[0],
+    ) => service.factoryApi.deleteComputer(request),
+    [IPC_CHANNELS.factoryApiRestartComputer]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['restartComputer']>[0],
+    ) => service.factoryApi.restartComputer(request),
+    [IPC_CHANNELS.factoryApiRefreshComputer]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['refreshComputer']>[0],
+    ) => service.factoryApi.refreshComputer(request),
+    [IPC_CHANNELS.factoryApiGetComputerMetrics]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['getComputerMetrics']>[0],
+    ) => service.factoryApi.getComputerMetrics(request),
+    [IPC_CHANNELS.factoryApiRetryInstallDeps]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['retryInstallDeps']>[0],
+    ) => service.factoryApi.retryInstallDeps(request),
+    [IPC_CHANNELS.factoryApiListRemoteSessions]: (
+      _event,
+      request: Parameters<FoundationService['factoryApi']['listRemoteSessions']>[0] = {},
+    ) => service.factoryApi.listRemoteSessions(request),
     [IPC_CHANNELS.sessionSearch]: (
       _event,
       request: Parameters<FoundationService['searchSessions']>[0],

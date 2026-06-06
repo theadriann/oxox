@@ -17,6 +17,7 @@ export interface PlatformApiClient {
   dialog: OptionalGroup<OxoxBridge['dialog']>
   foundation: OptionalGroup<OxoxBridge['foundation']>
   database: OptionalGroup<OxoxBridge['database']>
+  factoryApi: OptionalGroup<OxoxBridge['factoryApi']>
   transcript: OptionalGroup<OxoxBridge['transcript']>
   search: OptionalGroup<OxoxBridge['search']>
   session: OptionalGroup<OxoxBridge['session']>
@@ -58,6 +59,7 @@ function buildPlatformApiClient(bridge: OxoxBridge | null): PlatformApiClient {
     dialog: bridge?.dialog ?? {},
     foundation: bridge?.foundation ?? {},
     database: bridge?.database ?? {},
+    factoryApi: bridge?.factoryApi ?? {},
     transcript: bridge?.transcript ?? {},
     search: bridge?.search ?? {},
     session: bridge?.session ?? {},

@@ -78,6 +78,74 @@ describe('createOxoxBridge', () => {
     ])
   })
 
+  it('exposes Factory REST APIs through a typed bridge group', async () => {
+    const invoke = vi.fn().mockResolvedValue({})
+    const bridge = createOxoxBridge(invoke)
+
+    await bridge.factoryApi.listMachineTemplates({ limit: 10 })
+    await bridge.factoryApi.getMachineTemplate({ templateId: 'template-1' })
+    await bridge.factoryApi.listComputers({ limit: 5 })
+    await bridge.factoryApi.getComputer({ computerId: 'computer-1' })
+    await bridge.factoryApi.createComputer({
+      name: 'devbox',
+      remoteUser: 'factory',
+      repos: ['https://github.com/factory/test'],
+    })
+    await bridge.factoryApi.getComputerByName({ name: 'devbox' })
+    await bridge.factoryApi.updateComputer({ computerId: 'computer-1', name: 'renamed' })
+    await bridge.factoryApi.deleteComputer({ computerId: 'computer-1' })
+    await bridge.factoryApi.restartComputer({ computerId: 'computer-1' })
+    await bridge.factoryApi.refreshComputer({ computerId: 'computer-1' })
+    await bridge.factoryApi.getComputerMetrics({
+      computerId: 'computer-1',
+      start: '2026-06-04T00:00:00Z',
+    })
+    await bridge.factoryApi.retryInstallDeps({ computerId: 'computer-1' })
+    await bridge.factoryApi.listRemoteSessions({ computerId: 'computer-1' })
+
+    expect(invoke).toHaveBeenNthCalledWith(1, IPC_CHANNELS.factoryApiListMachineTemplates, {
+      limit: 10,
+    })
+    expect(invoke).toHaveBeenNthCalledWith(2, IPC_CHANNELS.factoryApiGetMachineTemplate, {
+      templateId: 'template-1',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(3, IPC_CHANNELS.factoryApiListComputers, { limit: 5 })
+    expect(invoke).toHaveBeenNthCalledWith(4, IPC_CHANNELS.factoryApiGetComputer, {
+      computerId: 'computer-1',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(5, IPC_CHANNELS.factoryApiCreateComputer, {
+      name: 'devbox',
+      remoteUser: 'factory',
+      repos: ['https://github.com/factory/test'],
+    })
+    expect(invoke).toHaveBeenNthCalledWith(6, IPC_CHANNELS.factoryApiGetComputerByName, {
+      name: 'devbox',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(7, IPC_CHANNELS.factoryApiUpdateComputer, {
+      computerId: 'computer-1',
+      name: 'renamed',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(8, IPC_CHANNELS.factoryApiDeleteComputer, {
+      computerId: 'computer-1',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(9, IPC_CHANNELS.factoryApiRestartComputer, {
+      computerId: 'computer-1',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(10, IPC_CHANNELS.factoryApiRefreshComputer, {
+      computerId: 'computer-1',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(11, IPC_CHANNELS.factoryApiGetComputerMetrics, {
+      computerId: 'computer-1',
+      start: '2026-06-04T00:00:00Z',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(12, IPC_CHANNELS.factoryApiRetryInstallDeps, {
+      computerId: 'computer-1',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(13, IPC_CHANNELS.factoryApiListRemoteSessions, {
+      computerId: 'computer-1',
+    })
+  })
+
   it('exposes foundation and database IPC methods through the typed bridge', async () => {
     const invoke = vi.fn((channel: string) => {
       switch (channel) {

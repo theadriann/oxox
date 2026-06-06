@@ -1,6 +1,17 @@
 import type {
   AppUpdateState,
   AppUpdateStateChangedPayload,
+  FactoryApiCreateComputerResponse,
+  FactoryApiGetComputerByNameResponse,
+  FactoryApiGetComputerMetricsResponse,
+  FactoryApiGetComputerResponse,
+  FactoryApiGetMachineTemplateResponse,
+  FactoryApiListComputersResponse,
+  FactoryApiListMachineTemplatesResponse,
+  FactoryApiListRemoteSessionsResponse,
+  FactoryApiRefreshComputerResponse,
+  FactoryApiRetryInstallDepsResponse,
+  FactoryApiUpdateComputerResponse,
   FoundationBootstrap,
   FoundationChangedPayload,
   LiveSessionCompactResult,
@@ -137,6 +148,78 @@ export function createOxoxBridge(
       listSessions: () => invokeTyped<SessionRecord[]>(invoke, IPC_CHANNELS.databaseListSessions),
       listSyncMetadata: () =>
         invokeTyped<SyncMetadataRecord[]>(invoke, IPC_CHANNELS.databaseListSyncMetadata),
+    },
+    factoryApi: {
+      listMachineTemplates: (request = {}) =>
+        invokeTyped<FactoryApiListMachineTemplatesResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiListMachineTemplates,
+          request,
+        ),
+      getMachineTemplate: (request) =>
+        invokeTyped<FactoryApiGetMachineTemplateResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiGetMachineTemplate,
+          request,
+        ),
+      listComputers: (request = {}) =>
+        invokeTyped<FactoryApiListComputersResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiListComputers,
+          request,
+        ),
+      getComputer: (request) =>
+        invokeTyped<FactoryApiGetComputerResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiGetComputer,
+          request,
+        ),
+      createComputer: (request) =>
+        invokeTyped<FactoryApiCreateComputerResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiCreateComputer,
+          request,
+        ),
+      getComputerByName: (request) =>
+        invokeTyped<FactoryApiGetComputerByNameResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiGetComputerByName,
+          request,
+        ),
+      updateComputer: (request) =>
+        invokeTyped<FactoryApiUpdateComputerResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiUpdateComputer,
+          request,
+        ),
+      deleteComputer: (request) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.factoryApiDeleteComputer, request),
+      restartComputer: (request) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.factoryApiRestartComputer, request),
+      refreshComputer: (request) =>
+        invokeTyped<FactoryApiRefreshComputerResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiRefreshComputer,
+          request,
+        ),
+      getComputerMetrics: (request) =>
+        invokeTyped<FactoryApiGetComputerMetricsResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiGetComputerMetrics,
+          request,
+        ),
+      retryInstallDeps: (request) =>
+        invokeTyped<FactoryApiRetryInstallDepsResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiRetryInstallDeps,
+          request,
+        ),
+      listRemoteSessions: (request = {}) =>
+        invokeTyped<FactoryApiListRemoteSessionsResponse>(
+          invoke,
+          IPC_CHANNELS.factoryApiListRemoteSessions,
+          request,
+        ),
     },
     transcript: {
       getSessionTranscript: (sessionId) =>
