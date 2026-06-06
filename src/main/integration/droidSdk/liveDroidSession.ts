@@ -20,6 +20,7 @@ import type {
   ListToolsRequestParams,
   ListToolsResult,
   LoadSessionResult,
+  MessageOptions,
   RemoveMcpServerRequestParams,
   RemoveMcpServerResult,
   RenameSessionRequestParams,
@@ -53,7 +54,7 @@ export interface OxoxLiveDroidSessionOptions {
 
 export class OxoxLiveDroidSession {
   constructor(
-    private readonly client: DroidClient,
+    _client: DroidClient,
     private readonly sdkSession: DroidSession,
     private readonly lifecycleCleanups: Array<() => Promise<void>> = [],
   ) {}
@@ -68,10 +69,9 @@ export class OxoxLiveDroidSession {
 
   async addUserMessage(request: OxoxLiveDroidSessionAddUserMessageRequest): Promise<string> {
     const messageId = request.messageId ?? randomUUID()
-    await this.client.addUserMessage({
-      ...request,
-      messageId,
-    })
+    void drainDroidSessionStream(
+      this.sdkSession.stream(request.text, createDroidSessionMessageOptions(request, messageId)),
+    ).catch(() => undefined)
     return messageId
   }
 
@@ -238,4 +238,22 @@ function mergeLoadLifecycleParams(
   extensions: Awaited<ReturnType<typeof prepareOxoxLiveDroidSessionLoadLifecycle>>['extensions'],
 ) {
   return Object.assign({}, ...extensions.map((extension) => extension.params ?? {}))
+}
+
+function createDroidSessionMessageOptions(
+  request: OxoxLiveDroidSessionAddUserMessageRequest,
+  messageId: string,
+): MessageOptions {
+  return {
+    messageId,
+    ...(request.images ? { images: request.images } : {}),
+    ...(request.files ? { files: request.files } : {}),
+    ...(request.outputFormat ? { outputFormat: request.outputFormat } : {}),
+    ...(request.queuePlacement ? { queuePlacement: request.queuePlacement } : {}),
+  }
+}
+
+async function drainDroidSessionStream(stream: AsyncIterable<unknown>): Promise<void> {
+  for await (const _message of stream) {
+  }
 }

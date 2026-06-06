@@ -1,7 +1,11 @@
 import { type DroidClient, SDK_TAG } from '@factory/droid-sdk'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createOxoxLiveDroidSession, loadOxoxLiveDroidSession } from '../droidSdk/liveDroidSession'
+import {
+  createOxoxLiveDroidSession,
+  loadOxoxLiveDroidSession,
+  OxoxLiveDroidSession,
+} from '../droidSdk/liveDroidSession'
 
 class FakeDroidClient {
   sessionId: string | null = null
@@ -11,6 +15,7 @@ class FakeDroidClient {
   readonly addUserMessageCalls: Array<Record<string, unknown>> = []
   readonly updateSessionSettingsCalls: Array<Record<string, unknown>> = []
   readonly closeSessionCalls: Array<Record<string, unknown>> = []
+  private readonly notificationHandlers = new Set<(notification: Record<string, unknown>) => void>()
   interruptSessionCalls = 0
   closeCalls = 0
   forkSessionCalls = 0
@@ -43,6 +48,13 @@ class FakeDroidClient {
     return {}
   }
 
+  onNotification(callback: (notification: Record<string, unknown>) => void): () => void {
+    this.notificationHandlers.add(callback)
+    return () => {
+      this.notificationHandlers.delete(callback)
+    }
+  }
+
   async updateSessionSettings(params: Record<string, unknown>) {
     this.updateSessionSettingsCalls.push(params)
     return {}
@@ -69,6 +81,36 @@ class FakeDroidClient {
 }
 
 describe('OxoxLiveDroidSession', () => {
+  it('sends user messages through SDK DroidSession stream instead of the raw client', async () => {
+    const client = {
+      addUserMessage: vi.fn(() => {
+        throw new Error('raw client send should not be used')
+      }),
+    }
+    const sdkSession = {
+      sessionId: 'session-1',
+      initResult: { session: { messages: [] } },
+      stream: vi.fn(async function* () {
+        yield* []
+      }),
+    }
+    const session = new OxoxLiveDroidSession(client as unknown as DroidClient, sdkSession as never)
+
+    const messageId = await session.addUserMessage({
+      text: 'Continue from OXOX',
+      messageId: 'rewind-boundary-1',
+      queuePlacement: 'end_of_turn',
+    })
+    await Promise.resolve()
+
+    expect(messageId).toBe('rewind-boundary-1')
+    expect(client.addUserMessage).not.toHaveBeenCalled()
+    expect(sdkSession.stream).toHaveBeenCalledWith('Continue from OXOX', {
+      messageId: 'rewind-boundary-1',
+      queuePlacement: 'end_of_turn',
+    })
+  })
+
   it('creates SDK DroidSession lifecycle while preserving OXOX add-user-message options', async () => {
     const client = new FakeDroidClient()
     const session = await createOxoxLiveDroidSession(client as unknown as DroidClient, {

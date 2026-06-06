@@ -107,7 +107,7 @@ class FakeDroidClient {
   interruptSessionCalls = 0
   closeCalls = 0
 
-  private notificationHandler: ((notification: Record<string, unknown>) => void) | null = null
+  private readonly notificationHandlers = new Set<(notification: Record<string, unknown>) => void>()
   private permissionHandler:
     | ((params: Record<string, unknown>) => Promise<string> | string)
     | null = null
@@ -383,10 +383,10 @@ class FakeDroidClient {
   }
 
   onNotification(callback: (notification: Record<string, unknown>) => void): () => void {
-    this.notificationHandler = callback
+    this.notificationHandlers.add(callback)
 
     return () => {
-      this.notificationHandler = null
+      this.notificationHandlers.delete(callback)
     }
   }
 
@@ -411,7 +411,9 @@ class FakeDroidClient {
   }
 
   emitNotification(notification: Record<string, unknown>): void {
-    this.notificationHandler?.(notification)
+    for (const handler of this.notificationHandlers) {
+      handler(notification)
+    }
   }
 
   requestPermission(
