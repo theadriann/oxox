@@ -4,6 +4,9 @@ import type {
   LiveSessionCreateRequest,
   RuntimeInfo,
   TranscriptPerformanceEvent,
+  WorkspaceFileContentRequest,
+  WorkspaceFilesListRequest,
+  WorkspaceFilesSearchRequest,
 } from '../../shared/ipc/contracts'
 import { IPC_CHANNELS } from '../../shared/ipc/contracts'
 import type { PluginRegistry } from '../app/PluginRegistry'
@@ -145,6 +148,12 @@ export function registerAppIpcHandlers({
     [IPC_CHANNELS.databaseListProjects]: () => service.listProjects(),
     [IPC_CHANNELS.databaseListSessions]: () => service.listSessions(),
     [IPC_CHANNELS.databaseListSyncMetadata]: () => service.listSyncMetadata(),
+    [IPC_CHANNELS.workspaceFilesList]: (_event, request: WorkspaceFilesListRequest) =>
+      service.listWorkspaceFiles(request),
+    [IPC_CHANNELS.workspaceFilesSearch]: (_event, request: WorkspaceFilesSearchRequest) =>
+      service.searchWorkspaceFiles(request),
+    [IPC_CHANNELS.workspaceFilesGetContent]: (_event, request: WorkspaceFileContentRequest) =>
+      service.getWorkspaceFileContent(request),
     [IPC_CHANNELS.factoryApiListMachineTemplates]: (
       _event,
       request: Parameters<FoundationService['factoryApi']['listMachineTemplates']>[0] = {},

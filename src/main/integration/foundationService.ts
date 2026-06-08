@@ -33,6 +33,12 @@ import type {
   SessionSearchResponse,
   SessionTranscript,
   SyncMetadataRecord,
+  WorkspaceFileContentRequest,
+  WorkspaceFileContentResponse,
+  WorkspaceFilesListRequest,
+  WorkspaceFilesListResponse,
+  WorkspaceFilesSearchRequest,
+  WorkspaceFilesSearchResponse,
 } from '../../shared/ipc/contracts'
 import type { PluginRegistry } from '../app/PluginRegistry'
 import { createBackgroundArtifactScanner } from './artifacts/backgroundScanner'
@@ -67,6 +73,12 @@ import { createSessionSearchService } from './search/sessionSearchService'
 import { createSessionProcessManager } from './sessions/processManager'
 import type { StreamJsonRpcProcessTransportLike } from './sessions/types'
 import { loadSessionTranscriptFromFile } from './transcripts/service'
+import {
+  getLocalWorkspaceFileContent,
+  listLocalWorkspaceFiles,
+  searchLocalWorkspaceFiles,
+} from './workspaceFiles/localWorkspaceFiles'
+import { resolveWorkspaceFileAccessTarget } from './workspaceFiles/source'
 
 export interface FoundationService {
   factoryApi: FactoryApiService
@@ -143,6 +155,13 @@ export interface FoundationService {
   listProjects: () => ProjectRecord[]
   listSessions: () => SessionRecord[]
   listSyncMetadata: () => SyncMetadataRecord[]
+  listWorkspaceFiles: (request: WorkspaceFilesListRequest) => Promise<WorkspaceFilesListResponse>
+  searchWorkspaceFiles: (
+    request: WorkspaceFilesSearchRequest,
+  ) => Promise<WorkspaceFilesSearchResponse>
+  getWorkspaceFileContent: (
+    request: WorkspaceFileContentRequest,
+  ) => Promise<WorkspaceFileContentResponse>
   getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
   searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
   getSearchIndexingProgress: () => SessionSearchIndexingProgress
@@ -313,6 +332,68 @@ export function createFoundationService(
     sessionCatalog,
     sessionsRoot,
   })
+  const resolveWorkspaceFileAccessTargetForSession = (sessionId: string) => {
+    const catalogSessions = sessionCatalog.listSessions()
+    return resolveWorkspaceFileAccessTarget({
+      sessionId,
+      catalogSessions,
+      liveSessions: liveSessionRuntime.listLiveSessionSnapshots(),
+      isDaemonBackedSession: catalogSessions.some(
+        (session) => session.id === sessionId && session.transport === 'daemon',
+      ),
+    })
+  }
+  const listWorkspaceFiles = async (
+    request: WorkspaceFilesListRequest,
+  ): Promise<WorkspaceFilesListResponse> => {
+    const target = resolveWorkspaceFileAccessTargetForSession(request.sessionId)
+
+    if (target.kind === 'daemon') {
+      return daemonTransport.listFiles(request)
+    }
+
+    return listLocalWorkspaceFiles({
+      workspacePath: target.workspacePath,
+      showHidden: request.showHidden,
+    })
+  }
+  const searchWorkspaceFiles = async (
+    request: WorkspaceFilesSearchRequest,
+  ): Promise<WorkspaceFilesSearchResponse> => {
+    const target = resolveWorkspaceFileAccessTargetForSession(request.sessionId)
+
+    if (target.kind === 'daemon') {
+      return daemonTransport.searchFiles(request)
+    }
+
+    return searchLocalWorkspaceFiles({
+      workspacePath: target.workspacePath,
+      query: request.query,
+      maxResults: request.maxResults,
+      showHidden: request.showHidden,
+    })
+  }
+  const getWorkspaceFileContent = async (
+    request: WorkspaceFileContentRequest,
+  ): Promise<WorkspaceFileContentResponse> => {
+    const target = resolveWorkspaceFileAccessTargetForSession(request.sessionId)
+    const result =
+      target.kind === 'daemon'
+        ? await daemonTransport.getWorkspaceFileContent(request)
+        : await getLocalWorkspaceFileContent({
+            workspacePath: target.workspacePath,
+            filePath: request.filePath,
+            encoding: request.encoding,
+          })
+
+    return {
+      content: result.content,
+      byteLength: result.byteLength,
+      encoding: result.encoding ?? 'utf8',
+      mimeType: result.mimeType ?? null,
+      isBinary: result.isBinary ?? false,
+    }
+  }
   foundationChangeBroadcaster.prime()
   const unsubscribeSearchLiveSnapshots = liveSessionRuntime.subscribeToSnapshots((sessionId) => {
     liveSearchIndexScheduler.schedule(sessionId)
@@ -392,6 +473,9 @@ export function createFoundationService(
     listProjects: queries.listProjects,
     listSessions: queries.listSessions,
     listSyncMetadata: queries.listSyncMetadata,
+    listWorkspaceFiles,
+    searchWorkspaceFiles,
+    getWorkspaceFileContent,
     getSessionTranscript: queries.getSessionTranscript,
     searchSessions: searchService.searchSessions,
     getSearchIndexingProgress: searchService.getIndexingProgress,

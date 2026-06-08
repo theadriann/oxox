@@ -20,6 +20,28 @@ describe('SessionStore', () => {
     expect(store.hasHydratedSessions).toBe(false)
   })
 
+  it('preserves each session transport in renderer previews', () => {
+    const store = new SessionStore()
+
+    store.hydrateSessions([
+      {
+        id: 'session-daemon',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        title: 'Daemon session',
+        status: 'active',
+        transport: 'daemon',
+        createdAt: '2026-03-24T08:00:00.000Z',
+        lastActivityAt: '2026-03-24T09:00:00.000Z',
+        updatedAt: '2026-03-24T09:00:00.000Z',
+      },
+    ])
+
+    expect(store.sessions[0]?.transport).toBe('daemon')
+    expect(store.sessionsById['session-daemon']?.transport).toBe('daemon')
+  })
+
   it('groups sessions by project and sorts groups by most recent activity', () => {
     const store = new SessionStore()
 
@@ -73,7 +95,7 @@ describe('SessionStore', () => {
     expect(store.selectedSessionId).toBe('session-beta-new')
   })
 
-  it('keeps derived fork and subagent chains under their recorded parents', () => {
+  it('keeps forked sessions top-level while nesting subagent sessions under their recorded parents', () => {
     const store = new SessionStore()
 
     store.hydrateSessions([
@@ -122,9 +144,9 @@ describe('SessionStore', () => {
     ])
 
     expect(store.projectGroups[0]?.sessions.map((session) => session.id)).toEqual([
-      'session-root',
       'session-fork',
       'session-subagent',
+      'session-root',
     ])
   })
 

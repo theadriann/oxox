@@ -34,6 +34,7 @@ export function createSessionPreview(session: SessionRecord): SessionPreview {
     derivationType: session.derivationType ?? null,
     hasUserMessage: session.hasUserMessage ?? true,
     status: toSessionStatus(session.status),
+    transport: session.transport ?? null,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     lastActivityAt,

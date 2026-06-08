@@ -1,11 +1,14 @@
 import { ArrowUp, Loader2, Plug, Square, X } from 'lucide-react'
 import {
+  type ChangeEvent,
   type ClipboardEvent,
   type DragEvent,
   type KeyboardEvent,
+  type SyntheticEvent,
   useCallback,
   useEffect,
   useRef,
+  useState,
 } from 'react'
 
 import type {
@@ -52,6 +55,19 @@ const ACCEPTED_IMAGE_TYPES = new Set<LiveSessionMessageImageSource['mediaType']>
   'image/webp',
 ])
 
+export interface WorkspaceFileSearchState {
+  enabled: boolean
+  files: string[]
+  isLoading: boolean
+  onQueryChange: (query: string) => void
+}
+
+interface ActiveWorkspaceFileMention {
+  start: number
+  end: number
+  query: string
+}
+
 export interface SessionComposerProps {
   draft: string
   selectedModelId: string
@@ -69,6 +85,7 @@ export interface SessionComposerProps {
   isInterrupting: boolean
   composerContextUsage: ComposerContextUsageState | null
   composerContextUsageDisplayMode: 'percentage' | 'tokens'
+  workspaceFileSearch?: WorkspaceFileSearchState
   modelPickerViewModel: ModelPickerViewModel
   onDraftChange: (value: string) => void
   onModelChange: (value: string) => void
@@ -110,6 +127,7 @@ export function SessionComposer({
   isInterrupting,
   composerContextUsage,
   composerContextUsageDisplayMode,
+  workspaceFileSearch,
   modelPickerViewModel,
   onDraftChange,
   onModelChange,
@@ -127,6 +145,8 @@ export function SessionComposer({
   onInterrupt,
 }: SessionComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [activeWorkspaceFileMention, setActiveWorkspaceFileMention] =
+    useState<ActiveWorkspaceFileMention | null>(null)
   const trimmedDraft = draft.trim()
   const isRecovering = status === 'reconnecting' || status === 'orphaned' || status === 'error'
   const isWorking = isAttached && (status === 'active' || status === 'waiting')
@@ -148,6 +168,9 @@ export function SessionComposer({
         : []
   const selectedModel = modelOptions.find((model) => model.id === selectedModelId)
   const reasoningEffortOptions = selectedModel?.supportedReasoningEfforts ?? []
+  const isWorkspaceFileSearchEnabled = Boolean(workspaceFileSearch?.enabled && !isEditorDisabled)
+  const isWorkspaceFilePopoverVisible =
+    isWorkspaceFileSearchEnabled && activeWorkspaceFileMention !== null
 
   const resizeTextarea = useCallback(() => {
     const el = textareaRef.current
@@ -174,6 +197,58 @@ export function SessionComposer({
       ...(imageAttachments.length > 0
         ? { images: imageAttachments.map(toMessageImageSource) }
         : {}),
+    })
+  }
+
+  const syncWorkspaceFileMention = useCallback(
+    (value: string, cursor: number) => {
+      if (!isWorkspaceFileSearchEnabled || !workspaceFileSearch) {
+        setActiveWorkspaceFileMention(null)
+        return
+      }
+
+      const mention = getActiveWorkspaceFileMention(value, cursor)
+      setActiveWorkspaceFileMention(mention)
+
+      if (mention) {
+        workspaceFileSearch.onQueryChange(mention.query)
+      }
+    },
+    [isWorkspaceFileSearchEnabled, workspaceFileSearch],
+  )
+
+  const handleDraftChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    const nextDraft = event.currentTarget.value
+    const cursor = event.currentTarget.selectionStart ?? nextDraft.length
+
+    onDraftChange(nextDraft)
+    syncWorkspaceFileMention(nextDraft, cursor)
+  }
+
+  const handleTextareaSelect = (event: SyntheticEvent<HTMLTextAreaElement>) => {
+    syncWorkspaceFileMention(
+      event.currentTarget.value,
+      event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+    )
+  }
+
+  const handleWorkspaceFileSelect = (filePath: string) => {
+    if (!activeWorkspaceFileMention) {
+      return
+    }
+
+    const mentionText = `@${filePath}`
+    const nextDraft = replaceWorkspaceFileMention(draft, activeWorkspaceFileMention, mentionText)
+    onDraftChange(nextDraft)
+    setActiveWorkspaceFileMention(null)
+
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+
+      const nextCursor = activeWorkspaceFileMention.start + mentionText.length + 1
+      textarea.focus()
+      textarea.setSelectionRange(nextCursor, nextCursor)
     })
   }
 
@@ -234,6 +309,10 @@ export function SessionComposer({
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === ' ') {
+      setActiveWorkspaceFileMention(null)
+    }
+
     if (event.key !== 'Enter' || event.shiftKey) return
     event.preventDefault()
     handleSubmit()
@@ -302,6 +381,14 @@ export function SessionComposer({
         </div>
       ) : null}
 
+      {isWorkspaceFilePopoverVisible ? (
+        <WorkspaceFileMentionPopover
+          files={workspaceFileSearch?.files ?? []}
+          isLoading={workspaceFileSearch?.isLoading ?? false}
+          onSelect={handleWorkspaceFileSelect}
+        />
+      ) : null}
+
       <textarea
         ref={textareaRef}
         aria-label="Message composer"
@@ -317,11 +404,12 @@ export function SessionComposer({
         rows={2}
         style={{ maxHeight: `${TEXTAREA_MAX_HEIGHT}px` }}
         value={draft}
-        onChange={(event) => onDraftChange(event.target.value)}
+        onChange={handleDraftChange}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
+        onSelect={handleTextareaSelect}
       />
 
       <div className="flex items-center justify-between gap-2 border-t border-fd-border-subtle px-2 py-1.5">
@@ -469,6 +557,86 @@ export function SessionComposer({
   )
 }
 
+function WorkspaceFileMentionPopover({
+  files,
+  isLoading,
+  onSelect,
+}: {
+  files: string[]
+  isLoading: boolean
+  onSelect: (filePath: string) => void
+}) {
+  const [scrollState, setScrollState] = useState({
+    canScrollDown: false,
+    canScrollUp: false,
+    fileCount: -1,
+  })
+  const hasMeasuredCurrentList = scrollState.fileCount === files.length
+  const showTopShadow = hasMeasuredCurrentList && scrollState.canScrollUp
+  const showBottomShadow =
+    !isLoading && (hasMeasuredCurrentList ? scrollState.canScrollDown : files.length > 6)
+
+  const handleScroll = (event: SyntheticEvent<HTMLDivElement>) => {
+    const element = event.currentTarget
+    const canScrollUp = element.scrollTop > 0
+    const canScrollDown = element.scrollTop + element.clientHeight < element.scrollHeight - 1
+
+    setScrollState({
+      canScrollDown,
+      canScrollUp,
+      fileCount: files.length,
+    })
+  }
+
+  return (
+    <div
+      data-testid="workspace-file-search-panel"
+      className="relative border-b border-fd-border-subtle bg-fd-surface-elevated"
+    >
+      {showTopShadow ? (
+        <div
+          data-testid="workspace-file-search-top-shadow"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-linear-to-b from-fd-canvas/45 to-transparent"
+        />
+      ) : null}
+      <div
+        aria-label="Workspace files"
+        role="listbox"
+        className="max-h-48 overflow-y-auto p-1"
+        onScroll={handleScroll}
+      >
+        {isLoading ? (
+          <div className="flex items-center gap-2 px-2 py-2 text-[12px] text-fd-tertiary">
+            <Loader2 className="size-3 animate-spin" />
+            Searching files…
+          </div>
+        ) : files.length === 0 ? (
+          <div className="px-2 py-2 text-[12px] text-fd-tertiary">No matching files</div>
+        ) : (
+          files.map((filePath) => (
+            <button
+              key={filePath}
+              type="button"
+              role="option"
+              aria-selected="false"
+              className="flex w-full min-w-0 items-center rounded-md px-2 py-1.5 text-left text-[12px] text-fd-secondary transition-colors hover:bg-fd-surface-hover hover:text-fd-primary"
+              onClick={() => onSelect(filePath)}
+            >
+              <span className="truncate font-mono">{filePath}</span>
+            </button>
+          ))
+        )}
+      </div>
+      {showBottomShadow ? (
+        <div
+          data-testid="workspace-file-search-bottom-shadow"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-5 bg-linear-to-t from-fd-canvas/55 to-transparent"
+        />
+      ) : null}
+    </div>
+  )
+}
+
 function ContextUsageIndicator({
   usage,
   displayMode,
@@ -530,6 +698,44 @@ function ContextUsageIndicator({
       </Tooltip>
     </TooltipProvider>
   )
+}
+
+function getActiveWorkspaceFileMention(
+  value: string,
+  cursor: number,
+): ActiveWorkspaceFileMention | null {
+  if (cursor < 1 || cursor > value.length) {
+    return null
+  }
+
+  const beforeCursor = value.slice(0, cursor)
+  const tokenStart = Math.max(
+    beforeCursor.lastIndexOf(' '),
+    beforeCursor.lastIndexOf('\n'),
+    beforeCursor.lastIndexOf('\t'),
+  )
+  const start = tokenStart + 1
+  const token = beforeCursor.slice(start)
+
+  if (!token.startsWith('@') || /\s/.test(token) || token.length < 1) {
+    return null
+  }
+
+  return {
+    start,
+    end: cursor,
+    query: token.slice(1),
+  }
+}
+
+function replaceWorkspaceFileMention(
+  draft: string,
+  mention: ActiveWorkspaceFileMention,
+  mentionText: string,
+): string {
+  const suffix = draft.slice(mention.end)
+  const separator = suffix.startsWith(' ') ? '' : ' '
+  return `${draft.slice(0, mention.start)}${mentionText}${separator}${suffix}`
 }
 
 function formatContextUsageAccuracy(usage: ComposerContextUsageState): string {

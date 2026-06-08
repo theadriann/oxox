@@ -66,6 +66,12 @@ type DaemonSearchFilesParams = ReturnType<
 type DaemonSearchFilesResult = ReturnType<
   (typeof protocol.daemon.DaemonSearchFilesResultSchema)['parse']
 >
+type DaemonGetWorkspaceFileContentParams = ReturnType<
+  (typeof protocol.daemon.DaemonGetWorkspaceFileContentRequestSchema.shape.params)['parse']
+>
+type DaemonGetWorkspaceFileContentResult = ReturnType<
+  (typeof protocol.daemon.DaemonGetWorkspaceFileContentResultSchema)['parse']
+>
 type DaemonGetDefaultSettingsResult = ReturnType<
   (typeof protocol.daemon.DaemonGetDefaultSettingsResultSchema)['parse']
 >
@@ -207,6 +213,9 @@ export interface DaemonTransport {
   unarchiveSession: (sessionId: string) => Promise<DaemonUnarchiveSessionResult>
   listFiles: (params: DaemonListFilesParams) => Promise<DaemonListFilesResult>
   searchFiles: (params: DaemonSearchFilesParams) => Promise<DaemonSearchFilesResult>
+  getWorkspaceFileContent: (
+    params: DaemonGetWorkspaceFileContentParams,
+  ) => Promise<DaemonGetWorkspaceFileContentResult>
   getDefaultSettings: () => Promise<DaemonGetDefaultSettingsResult>
   getMcpConfig: () => Promise<DaemonGetMcpConfigResult>
   updateMcpConfig: (params: DaemonUpdateMcpConfigParams) => Promise<DaemonUpdateMcpConfigResult>
@@ -654,6 +663,17 @@ class ManagedDaemonTransport implements DaemonTransport {
       DAEMON_METHOD.SEARCH_FILES,
       protocol.daemon.DaemonSearchFilesRequestParamsSchema,
       protocol.daemon.DaemonSearchFilesResultSchema,
+      params,
+    )
+  }
+
+  async getWorkspaceFileContent(
+    params: DaemonGetWorkspaceFileContentParams,
+  ): Promise<DaemonGetWorkspaceFileContentResult> {
+    return this.requestSupportedDaemonMethod(
+      DAEMON_METHOD.GET_WORKSPACE_FILE_CONTENT,
+      protocol.daemon.DaemonGetWorkspaceFileContentRequestSchema.shape.params,
+      protocol.daemon.DaemonGetWorkspaceFileContentResultSchema,
       params,
     )
   }

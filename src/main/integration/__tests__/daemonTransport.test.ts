@@ -963,6 +963,7 @@ describe('createDaemonTransport', () => {
         daemonMethod.UNARCHIVE_SESSION,
         daemonMethod.LIST_FILES,
         daemonMethod.SEARCH_FILES,
+        daemonMethod.GET_WORKSPACE_FILE_CONTENT,
       ],
       supportedNotifications: [],
       sessions: [],
@@ -1103,6 +1104,34 @@ describe('createDaemonTransport', () => {
     await expect(fileSearch).resolves.toEqual({
       files: ['AGENTS.md'],
       totalFiles: 2,
+    })
+
+    const fileContent = transport.getWorkspaceFileContent({
+      sessionId: 'session-alpha',
+      filePath: 'src/main.ts',
+      encoding: 'utf8',
+    })
+    expect(JSON.parse(socket.sentPayloads.at(-1) ?? '{}')).toMatchObject({
+      method: daemonMethod.GET_WORKSPACE_FILE_CONTENT,
+      params: {
+        sessionId: 'session-alpha',
+        filePath: 'src/main.ts',
+        encoding: 'utf8',
+      },
+    })
+    socket.respond(getLastRequestId(socket), {
+      content: 'export const answer = 42\n',
+      byteLength: 25,
+      encoding: 'utf8',
+      mimeType: 'text/typescript',
+      isBinary: false,
+    })
+    await expect(fileContent).resolves.toEqual({
+      content: 'export const answer = 42\n',
+      byteLength: 25,
+      encoding: 'utf8',
+      mimeType: 'text/typescript',
+      isBinary: false,
     })
 
     await transport.stop()

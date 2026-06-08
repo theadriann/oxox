@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import { useState } from 'react'
 import type { ComposerImageAttachment } from '../../../state/composer/composer.types'
 import type { ComposerContextUsageState } from '../../../state/composer/composer-context-usage.selectors'
@@ -16,6 +17,7 @@ function ControlledComposer({
   onSubmit = () => undefined,
   composerContextUsage = null,
   composerContextUsageDisplayMode = 'percentage',
+  workspaceFileSearch,
   availableModels = [
     {
       id: 'gpt-5.4',
@@ -41,6 +43,7 @@ function ControlledComposer({
   }) => void
   composerContextUsage?: ComposerContextUsageState | null
   composerContextUsageDisplayMode?: 'percentage' | 'tokens'
+  workspaceFileSearch?: ComponentProps<typeof SessionComposer>['workspaceFileSearch']
   availableModels?: Array<{
     id: string
     name: string
@@ -79,6 +82,7 @@ function ControlledComposer({
       isSubmitting={false}
       composerContextUsage={composerContextUsage}
       composerContextUsageDisplayMode={composerContextUsageDisplayMode}
+      workspaceFileSearch={workspaceFileSearch}
       selectedAutonomyLevel={autonomyLevel}
       imageAttachments={imageAttachments}
       selectedMode={interactionMode}
@@ -129,6 +133,158 @@ describe('SessionComposer', () => {
       reasoningEffort: 'medium',
       autonomyLevel: 'medium',
     })
+  })
+
+  it('opens a workspace file popover after an @ token and hides it after whitespace', () => {
+    const onQueryChange = vi.fn()
+
+    render(
+      <ControlledComposer
+        workspaceFileSearch={{
+          enabled: true,
+          files: ['src/App.tsx', 'src/main.ts'],
+          isLoading: false,
+          onQueryChange,
+        }}
+      />,
+    )
+
+    const composer = screen.getByLabelText(/Message composer/i) as HTMLTextAreaElement
+    fireEvent.change(composer, {
+      target: { value: 'Review @sr', selectionStart: 10, selectionEnd: 10 },
+    })
+
+    expect(onQueryChange).toHaveBeenLastCalledWith('sr')
+    expect(screen.getByRole('listbox', { name: /Workspace files/i })).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'src/App.tsx' })).toBeTruthy()
+    expect(screen.queryByText('Workspace files')).toBeNull()
+    expect(screen.getByTestId('workspace-file-search-panel').className).toContain('border-b')
+
+    fireEvent.change(composer, {
+      target: { value: 'Review @sr ', selectionStart: 11, selectionEnd: 11 },
+    })
+
+    expect(screen.queryByRole('listbox', { name: /Workspace files/i })).toBeNull()
+  })
+
+  it('shows workspace file scroll gradients only where more results remain', () => {
+    render(
+      <ControlledComposer
+        workspaceFileSearch={{
+          enabled: true,
+          files: Array.from({ length: 12 }, (_, index) => `src/file-${index}.ts`),
+          isLoading: false,
+          onQueryChange: vi.fn(),
+        }}
+      />,
+    )
+
+    const composer = screen.getByLabelText(/Message composer/i) as HTMLTextAreaElement
+    fireEvent.change(composer, {
+      target: { value: '@src', selectionStart: 4, selectionEnd: 4 },
+    })
+
+    const listbox = screen.getByRole('listbox', { name: /Workspace files/i })
+    expect(screen.queryByTestId('workspace-file-search-top-shadow')).toBeNull()
+    expect(screen.getByTestId('workspace-file-search-bottom-shadow')).toBeTruthy()
+
+    Object.defineProperty(listbox, 'scrollTop', { configurable: true, value: 40 })
+    Object.defineProperty(listbox, 'clientHeight', { configurable: true, value: 120 })
+    Object.defineProperty(listbox, 'scrollHeight', { configurable: true, value: 240 })
+    fireEvent.scroll(listbox)
+
+    expect(screen.getByTestId('workspace-file-search-top-shadow')).toBeTruthy()
+    expect(screen.getByTestId('workspace-file-search-bottom-shadow')).toBeTruthy()
+
+    Object.defineProperty(listbox, 'scrollTop', { configurable: true, value: 120 })
+    fireEvent.scroll(listbox)
+
+    expect(screen.getByTestId('workspace-file-search-top-shadow')).toBeTruthy()
+    expect(screen.queryByTestId('workspace-file-search-bottom-shadow')).toBeNull()
+  })
+
+  it('replaces the active @ token with a reusable @ file mention and preserves image payloads', async () => {
+    const onSubmit = vi.fn()
+    const onQueryChange = vi.fn()
+    const imageFile = new File(['fake image'], 'attached.png', { type: 'image/png' })
+
+    render(
+      <ControlledComposer
+        onSubmit={onSubmit}
+        workspaceFileSearch={{
+          enabled: true,
+          files: ['src/App.tsx'],
+          isLoading: false,
+          onQueryChange,
+        }}
+      />,
+    )
+
+    const composer = screen.getByLabelText(/Message composer/i) as HTMLTextAreaElement
+    fireEvent.paste(composer, {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => imageFile,
+          },
+        ],
+      },
+    })
+    expect(await screen.findByAltText('attached.png attachment preview')).toBeTruthy()
+
+    fireEvent.change(composer, {
+      target: { value: 'Review @ap', selectionStart: 10, selectionEnd: 10 },
+    })
+    fireEvent.click(screen.getByRole('option', { name: 'src/App.tsx' }))
+
+    expect(composer.value).toBe('Review @src/App.tsx ')
+
+    fireEvent.select(composer, {
+      target: { selectionStart: 19, selectionEnd: 19 },
+    })
+
+    expect(onQueryChange).toHaveBeenLastCalledWith('src/App.tsx')
+    expect(screen.getByRole('listbox', { name: /Workspace files/i })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /Send message/i }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: 'Review @src/App.tsx',
+          images: [
+            expect.objectContaining({
+              type: 'base64',
+              mediaType: 'image/png',
+            }),
+          ],
+        }),
+      )
+    })
+  })
+
+  it('does not show workspace file mentions when the selected session is not daemon-backed', () => {
+    const onQueryChange = vi.fn()
+
+    render(
+      <ControlledComposer
+        workspaceFileSearch={{
+          enabled: false,
+          files: ['src/App.tsx'],
+          isLoading: false,
+          onQueryChange,
+        }}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText(/Message composer/i), {
+      target: { value: '@sr', selectionStart: 3, selectionEnd: 3 },
+    })
+
+    expect(onQueryChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('listbox', { name: /Workspace files/i })).toBeNull()
   })
 
   it('attaches pasted image clipboard data and submits it with the message payload', async () => {

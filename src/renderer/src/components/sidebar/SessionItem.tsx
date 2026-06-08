@@ -80,7 +80,7 @@ export const SessionItem = memo(function SessionItem({
   const lastActivityAt = useValue(session$.lastActivityAt)
   const updatedAt = useValue(session$.updatedAt)
   const now = useValue(now$)
-  const isDerivedChild = Boolean(parentSessionId)
+  const isDerivedChild = Boolean(parentSessionId && derivationType !== 'fork')
   const isSubagent = derivationType === 'subagent'
   const effectiveStatus = isSubagent ? 'idle' : status
   const statusDot = STATUS_DOT[effectiveStatus] ?? ''

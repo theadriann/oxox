@@ -5,7 +5,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { StoreProvider, useStores } from '../../../state/root/store-provider'
 import { SessionComposerConnected } from '../SessionComposerConnected'
 
-function SessionSelectionBootstrap() {
+function SessionSelectionBootstrap({
+  transport = 'artifacts',
+  workspacePath = '/tmp/project-alpha',
+}: {
+  transport?: string
+  workspacePath?: string | null
+} = {}) {
   const { foundationStore, liveSessionStore, sessionStore } = useStores()
 
   foundationStore.foundation = {
@@ -29,14 +35,14 @@ function SessionSelectionBootstrap() {
     {
       id: 'session-live-1',
       projectId: 'project-alpha',
-      projectWorkspacePath: '/tmp/project-alpha',
+      projectWorkspacePath: workspacePath,
       projectDisplayName: null,
       modelId: 'gpt-5.4',
       parentSessionId: null,
       derivationType: null,
       title: 'Connected composer session',
       status: 'active',
-      transport: 'artifacts',
+      transport,
       createdAt: '2026-03-25T00:00:00.000Z',
       lastActivityAt: '2026-03-25T00:00:00.000Z',
       updatedAt: '2026-03-25T00:00:00.000Z',
@@ -50,7 +56,7 @@ function SessionSelectionBootstrap() {
     transport: 'stream-jsonrpc',
     processId: 42,
     viewerCount: 1,
-    projectWorkspacePath: '/tmp/project-alpha',
+    projectWorkspacePath: workspacePath,
     parentSessionId: null,
     availableModels: [
       {
@@ -106,5 +112,73 @@ describe('SessionComposerConnected', () => {
       'session-live-1',
       'Use store-driven composer wiring',
     )
+  })
+
+  it('searches selected workspace files for @ mentions', async () => {
+    window.oxox = {
+      session: {
+        updateSettings: vi.fn().mockResolvedValue(undefined),
+        addUserMessage: vi.fn().mockResolvedValue(undefined),
+      },
+      workspaceFiles: {
+        list: vi.fn().mockResolvedValue({ files: ['src/App.tsx'] }),
+        search: vi.fn().mockResolvedValue({ files: ['src/App.tsx'], totalFiles: 1 }),
+        getContent: vi.fn().mockResolvedValue({
+          content: 'export function App() {}\n',
+          byteLength: 25,
+          encoding: 'utf8',
+          isBinary: false,
+        }),
+      },
+    } as typeof window.oxox
+
+    render(
+      <StoreProvider>
+        <SessionSelectionBootstrap transport="stream-jsonrpc" />
+      </StoreProvider>,
+    )
+
+    const composer = await screen.findByLabelText(/message composer/i)
+    fireEvent.change(composer, {
+      target: { value: 'Read @ap', selectionStart: 8, selectionEnd: 8 },
+    })
+
+    await waitFor(() => {
+      expect(window.oxox.workspaceFiles.search).toHaveBeenCalledWith({
+        sessionId: 'session-live-1',
+        query: 'ap',
+        maxResults: 60,
+        showHidden: false,
+      })
+    })
+    expect(await screen.findByRole('option', { name: 'src/App.tsx' })).toBeTruthy()
+  })
+
+  it('does not search workspace files when the selected session has no workspace path', async () => {
+    window.oxox = {
+      session: {
+        updateSettings: vi.fn().mockResolvedValue(undefined),
+        addUserMessage: vi.fn().mockResolvedValue(undefined),
+      },
+      workspaceFiles: {
+        list: vi.fn().mockResolvedValue({ files: ['src/App.tsx'] }),
+        search: vi.fn().mockResolvedValue({ files: ['src/App.tsx'], totalFiles: 1 }),
+        getContent: vi.fn(),
+      },
+    } as typeof window.oxox
+
+    render(
+      <StoreProvider>
+        <SessionSelectionBootstrap transport="stream-jsonrpc" workspacePath={null} />
+      </StoreProvider>,
+    )
+
+    const composer = await screen.findByLabelText(/message composer/i)
+    fireEvent.change(composer, {
+      target: { value: 'Read @ap', selectionStart: 8, selectionEnd: 8 },
+    })
+
+    expect(screen.queryByRole('listbox', { name: /workspace files/i })).toBeNull()
+    expect(window.oxox.workspaceFiles.search).not.toHaveBeenCalled()
   })
 })

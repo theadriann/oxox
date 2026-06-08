@@ -17,11 +17,15 @@ describe('apiClient', () => {
         factoryApi: {
           listComputers: vi.fn(),
         },
+        workspaceFiles: {
+          search: vi.fn(),
+        },
         runtime: { getInfo: vi.fn() },
       } as never,
     })
 
     expect(client.factoryApi.listComputers).toBeTypeOf('function')
+    expect(client.workspaceFiles.search).toBeTypeOf('function')
     expect(client.runtime.getInfo).toBeTypeOf('function')
     expect(warn).not.toHaveBeenCalled()
   })

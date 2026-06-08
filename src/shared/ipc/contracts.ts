@@ -50,6 +50,9 @@ export const IPC_CHANNELS = {
   databaseListProjects: 'database:list-projects',
   databaseListSessions: 'database:list-sessions',
   databaseListSyncMetadata: 'database:list-sync-metadata',
+  workspaceFilesList: 'workspace-files:list',
+  workspaceFilesSearch: 'workspace-files:search',
+  workspaceFilesGetContent: 'workspace-files:get-content',
   factoryApiListMachineTemplates: 'factory-api:list-machine-templates',
   factoryApiGetMachineTemplate: 'factory-api:get-machine-template',
   factoryApiListComputers: 'factory-api:list-computers',
@@ -171,6 +174,43 @@ export interface SyncMetadataRecord {
   lastMtimeMs: number
   lastSyncedAt: string
   checksum: string | null
+}
+
+export interface WorkspaceFilesListRequest {
+  sessionId: string
+  showHidden?: boolean
+}
+
+export interface WorkspaceFilesListResponse {
+  files: string[]
+}
+
+export interface WorkspaceFilesSearchRequest {
+  sessionId: string
+  query: string
+  maxResults?: number
+  showHidden?: boolean
+}
+
+export interface WorkspaceFilesSearchResponse {
+  files: string[]
+  totalFiles?: number
+}
+
+export type WorkspaceFileContentEncoding = 'utf8' | 'base64'
+
+export interface WorkspaceFileContentRequest {
+  sessionId: string
+  filePath: string
+  encoding?: WorkspaceFileContentEncoding
+}
+
+export interface WorkspaceFileContentResponse {
+  content: string
+  byteLength: number
+  encoding: WorkspaceFileContentEncoding
+  mimeType: string | null
+  isBinary: boolean
 }
 
 type FactoryApiOptionsWithoutCredentials<TOptions extends { apiKey: string; baseUrl?: string }> =
@@ -948,6 +988,11 @@ export interface OxoxBridge {
     listProjects: () => Promise<ProjectRecord[]>
     listSessions: () => Promise<SessionRecord[]>
     listSyncMetadata: () => Promise<SyncMetadataRecord[]>
+  }
+  workspaceFiles: {
+    list: (request: WorkspaceFilesListRequest) => Promise<WorkspaceFilesListResponse>
+    search: (request: WorkspaceFilesSearchRequest) => Promise<WorkspaceFilesSearchResponse>
+    getContent: (request: WorkspaceFileContentRequest) => Promise<WorkspaceFileContentResponse>
   }
   factoryApi: {
     listMachineTemplates: (

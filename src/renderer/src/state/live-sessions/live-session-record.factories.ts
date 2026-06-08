@@ -27,7 +27,7 @@ export function toSessionRecord(
     derivationType: existingSession?.derivationType ?? null,
     title: snapshot.title,
     status: snapshot.status,
-    transport: snapshot.transport,
+    transport: existingSession?.transport ?? snapshot.transport,
     createdAt: existingSession?.createdAt ?? timestamp,
     lastActivityAt: activityTimestamp,
     updatedAt: existingSession?.updatedAt ?? activityTimestamp,

@@ -39,6 +39,9 @@ import type {
   SessionSearchResponse,
   SessionTranscript,
   SyncMetadataRecord,
+  WorkspaceFileContentResponse,
+  WorkspaceFilesListResponse,
+  WorkspaceFilesSearchResponse,
 } from '../shared/ipc/contracts'
 import { IPC_CHANNELS } from '../shared/ipc/contracts'
 
@@ -148,6 +151,22 @@ export function createOxoxBridge(
       listSessions: () => invokeTyped<SessionRecord[]>(invoke, IPC_CHANNELS.databaseListSessions),
       listSyncMetadata: () =>
         invokeTyped<SyncMetadataRecord[]>(invoke, IPC_CHANNELS.databaseListSyncMetadata),
+    },
+    workspaceFiles: {
+      list: (request) =>
+        invokeTyped<WorkspaceFilesListResponse>(invoke, IPC_CHANNELS.workspaceFilesList, request),
+      search: (request) =>
+        invokeTyped<WorkspaceFilesSearchResponse>(
+          invoke,
+          IPC_CHANNELS.workspaceFilesSearch,
+          request,
+        ),
+      getContent: (request) =>
+        invokeTyped<WorkspaceFileContentResponse>(
+          invoke,
+          IPC_CHANNELS.workspaceFilesGetContent,
+          request,
+        ),
     },
     factoryApi: {
       listMachineTemplates: (request = {}) =>

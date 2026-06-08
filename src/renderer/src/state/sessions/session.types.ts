@@ -20,6 +20,7 @@ export interface SessionPreview {
   derivationType: string | null
   hasUserMessage: boolean
   status: ExtendedSessionStatus
+  transport: string | null
   createdAt: string
   updatedAt: string
   lastActivityAt: string | null

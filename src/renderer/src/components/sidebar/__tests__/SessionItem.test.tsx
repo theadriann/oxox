@@ -88,11 +88,40 @@ describe('SessionItem', () => {
     expect(screen.getByTitle('Renamed alpha')).toBeTruthy()
   })
 
-  it('indents any session with recorded lineage', () => {
+  it('does not indent forked sessions as child rows', () => {
     const session$ = observable(
       createSessionPreview({
         parentSessionId: 'session-parent',
         derivationType: 'fork',
+      }),
+    )
+    const now$ = observable(Date.parse('2026-03-25T00:00:00.000Z'))
+
+    render(
+      <SessionItem
+        session$={session$}
+        focusKey="project:project-alpha:session-alpha"
+        isPinned={false}
+        isSelected={false}
+        isFocused={false}
+        now$={now$}
+        onSelectSession={vi.fn()}
+        onTogglePinnedSession={vi.fn()}
+        onKeyDown={vi.fn()}
+        onFocus={vi.fn()}
+        setSessionRef={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTitle('Alpha').className).toContain('pl-2.5')
+    expect(screen.getByTitle('Alpha').className).not.toContain('pl-7')
+  })
+
+  it('indents subagent sessions as child rows', () => {
+    const session$ = observable(
+      createSessionPreview({
+        parentSessionId: 'session-parent',
+        derivationType: 'subagent',
       }),
     )
     const now$ = observable(Date.parse('2026-03-25T00:00:00.000Z'))

@@ -41,6 +41,15 @@ describe('registerAppIpcHandlers', () => {
       listProjects: vi.fn().mockReturnValue([{ id: 'project-1' }]),
       listSessions: vi.fn().mockReturnValue([]),
       listSyncMetadata: vi.fn().mockReturnValue([]),
+      listWorkspaceFiles: vi.fn().mockResolvedValue({ files: ['src/App.tsx'] }),
+      searchWorkspaceFiles: vi.fn().mockResolvedValue({ files: ['src/App.tsx'], totalFiles: 4 }),
+      getWorkspaceFileContent: vi.fn().mockResolvedValue({
+        content: 'export function App() {}\n',
+        byteLength: 25,
+        encoding: 'utf8',
+        mimeType: 'text/typescript',
+        isBinary: false,
+      }),
       searchSessions: vi.fn().mockReturnValue({
         query: 'sdk',
         matches: [{ sessionId: 'session-1', score: 10, reasons: [] }],
@@ -293,6 +302,46 @@ describe('registerAppIpcHandlers', () => {
       matches: [{ sessionId: 'session-1', score: 10, reasons: [] }],
     })
     expect(service.searchSessions).toHaveBeenCalledWith({ query: 'sdk' })
+    await expect(
+      ipcMain.handlers.get(IPC_CHANNELS.workspaceFilesList)?.(undefined, {
+        sessionId: 'session-daemon',
+        showHidden: true,
+      }),
+    ).resolves.toEqual({ files: ['src/App.tsx'] })
+    await expect(
+      ipcMain.handlers.get(IPC_CHANNELS.workspaceFilesSearch)?.(undefined, {
+        sessionId: 'session-daemon',
+        query: 'app',
+        maxResults: 8,
+      }),
+    ).resolves.toEqual({ files: ['src/App.tsx'], totalFiles: 4 })
+    await expect(
+      ipcMain.handlers.get(IPC_CHANNELS.workspaceFilesGetContent)?.(undefined, {
+        sessionId: 'session-daemon',
+        filePath: 'src/App.tsx',
+        encoding: 'utf8',
+      }),
+    ).resolves.toEqual({
+      content: 'export function App() {}\n',
+      byteLength: 25,
+      encoding: 'utf8',
+      mimeType: 'text/typescript',
+      isBinary: false,
+    })
+    expect(service.listWorkspaceFiles).toHaveBeenCalledWith({
+      sessionId: 'session-daemon',
+      showHidden: true,
+    })
+    expect(service.searchWorkspaceFiles).toHaveBeenCalledWith({
+      sessionId: 'session-daemon',
+      query: 'app',
+      maxResults: 8,
+    })
+    expect(service.getWorkspaceFileContent).toHaveBeenCalledWith({
+      sessionId: 'session-daemon',
+      filePath: 'src/App.tsx',
+      encoding: 'utf8',
+    })
     expect(await ipcMain.handlers.get(IPC_CHANNELS.sessionSearchIndexingProgress)?.()).toEqual({
       indexedSessions: 4,
       totalSessions: 10,
@@ -362,6 +411,9 @@ describe('registerAppIpcHandlers', () => {
       listProjects: vi.fn(),
       listSessions: vi.fn(),
       listSyncMetadata: vi.fn(),
+      listWorkspaceFiles: vi.fn(),
+      searchWorkspaceFiles: vi.fn(),
+      getWorkspaceFileContent: vi.fn(),
       getSessionTranscript: vi.fn(),
       createSession: vi.fn().mockResolvedValue(snapshot),
       getSessionSnapshot: vi.fn(),
@@ -434,6 +486,9 @@ describe('registerAppIpcHandlers', () => {
       listProjects: vi.fn().mockReturnValue([]),
       listSessions: vi.fn().mockReturnValue([]),
       listSyncMetadata: vi.fn().mockReturnValue([]),
+      listWorkspaceFiles: vi.fn(),
+      searchWorkspaceFiles: vi.fn(),
+      getWorkspaceFileContent: vi.fn(),
       getSessionTranscript: vi.fn(),
       createSession: vi.fn(),
       getSessionSnapshot: vi.fn(),

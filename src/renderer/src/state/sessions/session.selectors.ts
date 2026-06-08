@@ -146,6 +146,7 @@ function nestDerivedSessions(sessions: SessionPreview[]): SessionPreview[] {
   for (const session of sessions) {
     if (
       session.derivationType &&
+      session.derivationType !== 'fork' &&
       session.parentSessionId &&
       sessionIds.has(session.parentSessionId)
     ) {

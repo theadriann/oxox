@@ -38,6 +38,67 @@ describe('createOxoxBridge', () => {
     })
   })
 
+  it('exposes daemon workspace file APIs through the typed bridge', async () => {
+    const invoke = vi.fn((channel: string) => {
+      switch (channel) {
+        case IPC_CHANNELS.workspaceFilesList:
+          return Promise.resolve({ files: ['src/App.tsx', 'README.md'] })
+        case IPC_CHANNELS.workspaceFilesSearch:
+          return Promise.resolve({ files: ['src/App.tsx'], totalFiles: 2 })
+        case IPC_CHANNELS.workspaceFilesGetContent:
+          return Promise.resolve({
+            content: 'export function App() {}\n',
+            byteLength: 25,
+            encoding: 'utf8',
+            mimeType: 'text/typescript',
+            isBinary: false,
+          })
+        default:
+          return Promise.reject(new Error(`Unexpected channel ${channel}`))
+      }
+    })
+    const bridge = createOxoxBridge(invoke)
+
+    await expect(
+      bridge.workspaceFiles.list({ sessionId: 'session-daemon', showHidden: true }),
+    ).resolves.toEqual({ files: ['src/App.tsx', 'README.md'] })
+    await expect(
+      bridge.workspaceFiles.search({
+        sessionId: 'session-daemon',
+        query: 'app',
+        maxResults: 8,
+      }),
+    ).resolves.toEqual({ files: ['src/App.tsx'], totalFiles: 2 })
+    await expect(
+      bridge.workspaceFiles.getContent({
+        sessionId: 'session-daemon',
+        filePath: 'src/App.tsx',
+        encoding: 'utf8',
+      }),
+    ).resolves.toEqual({
+      content: 'export function App() {}\n',
+      byteLength: 25,
+      encoding: 'utf8',
+      mimeType: 'text/typescript',
+      isBinary: false,
+    })
+
+    expect(invoke).toHaveBeenNthCalledWith(1, IPC_CHANNELS.workspaceFilesList, {
+      sessionId: 'session-daemon',
+      showHidden: true,
+    })
+    expect(invoke).toHaveBeenNthCalledWith(2, IPC_CHANNELS.workspaceFilesSearch, {
+      sessionId: 'session-daemon',
+      query: 'app',
+      maxResults: 8,
+    })
+    expect(invoke).toHaveBeenNthCalledWith(3, IPC_CHANNELS.workspaceFilesGetContent, {
+      sessionId: 'session-daemon',
+      filePath: 'src/App.tsx',
+      encoding: 'utf8',
+    })
+  })
+
   it('exposes an Electron file path resolver through the dialog bridge', () => {
     const file = new File(['notes'], 'notes.txt', { type: 'text/plain' })
     const bridge = createOxoxBridge(
