@@ -179,6 +179,39 @@ describe('createSessionSearchService', () => {
     expect(result.matches[0]?.reasons[0]?.field).toBe('title')
   })
 
+  it('indexes daemon-only session metadata without transcript hydration', async () => {
+    const daemonSession = createSession({
+      id: 'daemon-only',
+      title: 'Remote daemon investigation',
+      projectWorkspacePath: '/tmp/remote-workspace',
+      status: 'active',
+      transport: 'daemon',
+    })
+    const loadSessionTranscript = vi.fn()
+    const service = createSessionSearchService({
+      bootstrap: {
+        ...createBootstrap([daemonSession]),
+        syncMetadata: [],
+      },
+      loadSessionTranscript,
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    expect(service.searchSessions({ query: 'remote status:active' }).matches[0]?.sessionId).toBe(
+      'daemon-only',
+    )
+
+    await service.waitForHydration()
+
+    expect(loadSessionTranscript).not.toHaveBeenCalled()
+    expect(service.getIndexingProgress()).toMatchObject({
+      indexedSessions: 0,
+      totalSessions: 0,
+      isIndexing: false,
+    })
+  })
+
   it('hydrates transcript and tool content asynchronously newest-first', async () => {
     const loadSessionTranscript = vi.fn(async (sessionId: string) =>
       createTranscript(

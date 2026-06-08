@@ -51,6 +51,31 @@ function chooseValue<T>(
   return currentValue
 }
 
+function hasValue<T>(value: T): boolean {
+  return value !== null && value !== undefined && value !== ''
+}
+
+function chooseDurableValue<T>(
+  currentValue: T,
+  currentSource: SessionSource,
+  nextValue: T,
+  nextSource: SessionSource,
+): T {
+  if (!hasValue(nextValue)) {
+    return currentValue
+  }
+
+  if (nextSource === 'daemon' && hasValue(currentValue)) {
+    return currentValue
+  }
+
+  if (nextSource === 'artifacts' && currentSource !== 'artifacts') {
+    return nextValue
+  }
+
+  return chooseValue(currentValue, currentSource, nextValue, nextSource)
+}
+
 function chooseTitleValue(
   currentValue: string,
   currentSource: SessionSource,
@@ -81,11 +106,23 @@ function chooseTitleValue(
     return nextValue
   }
 
-  return chooseValue(currentValue, currentSource, nextValue, nextSource)
+  if (nextSource === 'daemon' && currentValue !== '' && !isLocalPlaceholderTitle(currentValue)) {
+    return currentValue
+  }
+
+  if (nextSource === 'daemon' && isLocalPlaceholderTitle(currentValue)) {
+    return nextValue
+  }
+
+  return chooseDurableValue(currentValue, currentSource, nextValue, nextSource)
 }
 
 function isDaemonFallbackTitle(value: string): boolean {
   return value === 'Daemon session'
+}
+
+function isLocalPlaceholderTitle(value: string): boolean {
+  return value === 'Untitled session'
 }
 
 function mergeSessionRecord(
@@ -96,48 +133,48 @@ function mergeSessionRecord(
 ): SessionRecord {
   return {
     id: current.id,
-    projectId: chooseValue(current.projectId, currentSource, next.projectId, nextSource),
-    projectWorkspacePath: chooseValue(
+    projectId: chooseDurableValue(current.projectId, currentSource, next.projectId, nextSource),
+    projectWorkspacePath: chooseDurableValue(
       current.projectWorkspacePath,
       currentSource,
       next.projectWorkspacePath,
       nextSource,
     ),
-    projectDisplayName: chooseValue(
+    projectDisplayName: chooseDurableValue(
       current.projectDisplayName,
       currentSource,
       next.projectDisplayName,
       nextSource,
     ),
-    hasUserMessage: chooseValue(
+    hasUserMessage: chooseDurableValue(
       current.hasUserMessage,
       currentSource,
       next.hasUserMessage,
       nextSource,
     ),
-    modelId: chooseValue(current.modelId, currentSource, next.modelId, nextSource),
-    parentSessionId: chooseValue(
+    modelId: chooseDurableValue(current.modelId, currentSource, next.modelId, nextSource),
+    parentSessionId: chooseDurableValue(
       current.parentSessionId,
       currentSource,
       next.parentSessionId,
       nextSource,
     ),
-    derivationType: chooseValue(
+    derivationType: chooseDurableValue(
       current.derivationType,
       currentSource,
       next.derivationType,
       nextSource,
     ),
-    owner: chooseValue(current.owner, currentSource, next.owner, nextSource),
+    owner: chooseDurableValue(current.owner, currentSource, next.owner, nextSource),
     messageCount: chooseValue(current.messageCount, currentSource, next.messageCount, nextSource),
-    isFavorite: chooseValue(current.isFavorite, currentSource, next.isFavorite, nextSource),
-    decompSessionType: chooseValue(
+    isFavorite: chooseDurableValue(current.isFavorite, currentSource, next.isFavorite, nextSource),
+    decompSessionType: chooseDurableValue(
       current.decompSessionType,
       currentSource,
       next.decompSessionType,
       nextSource,
     ),
-    decompMissionId: chooseValue(
+    decompMissionId: chooseDurableValue(
       current.decompMissionId,
       currentSource,
       next.decompMissionId,
@@ -146,7 +183,7 @@ function mergeSessionRecord(
     title: chooseTitleValue(current.title, currentSource, next.title, nextSource),
     status: chooseValue(current.status, currentSource, next.status, nextSource),
     transport: chooseValue(current.transport, currentSource, next.transport, nextSource),
-    createdAt: chooseValue(current.createdAt, currentSource, next.createdAt, nextSource),
+    createdAt: chooseDurableValue(current.createdAt, currentSource, next.createdAt, nextSource),
     lastActivityAt: chooseValue(
       current.lastActivityAt,
       currentSource,

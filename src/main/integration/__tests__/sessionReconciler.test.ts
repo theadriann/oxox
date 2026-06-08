@@ -13,6 +13,13 @@ function createSession(
     projectDisplayName: overrides.projectDisplayName ?? null,
     parentSessionId: overrides.parentSessionId ?? null,
     derivationType: overrides.derivationType ?? null,
+    hasUserMessage: overrides.hasUserMessage,
+    modelId: overrides.modelId,
+    owner: overrides.owner,
+    messageCount: overrides.messageCount,
+    isFavorite: overrides.isFavorite,
+    decompSessionType: overrides.decompSessionType,
+    decompMissionId: overrides.decompMissionId,
     title: overrides.title ?? 'Untitled session',
     status: overrides.status ?? 'idle',
     transport: overrides.transport ?? null,
@@ -121,6 +128,96 @@ describe('reconcileSessionRecords', () => {
       daemonSessions: [daemonSession],
     })
 
-    expect(reconciled.title).toBe('Renamed in live session')
+    expect(reconciled.title).toBe('Original artifact title')
+  })
+
+  it('keeps local durable metadata while using daemon runtime enrichment', () => {
+    const artifactSession = createSession({
+      id: 'session-shared',
+      title: 'Local indexed title',
+      projectWorkspacePath: '/tmp/local-workspace',
+      modelId: 'claude-sonnet-4',
+      owner: 'brojbean',
+      messageCount: 8,
+      isFavorite: true,
+      decompSessionType: 'primary',
+      decompMissionId: 'mission-local',
+      status: 'idle',
+      transport: 'artifacts',
+      lastActivityAt: '2026-03-24T20:01:00.000Z',
+      updatedAt: '2026-03-24T20:01:00.000Z',
+    })
+    const daemonSession = createSession({
+      id: 'session-shared',
+      title: 'Daemon title',
+      projectWorkspacePath: '/tmp/daemon-workspace',
+      modelId: null,
+      owner: null,
+      messageCount: 12,
+      isFavorite: false,
+      decompSessionType: null,
+      decompMissionId: null,
+      status: 'active',
+      transport: 'daemon',
+      lastActivityAt: '2026-03-24T20:05:00.000Z',
+      updatedAt: '2026-03-24T20:05:00.000Z',
+    })
+
+    const [reconciled] = reconcileSessionRecords({
+      cachedSessions: [],
+      artifactSessions: [artifactSession],
+      daemonSessions: [daemonSession],
+    })
+
+    expect(reconciled).toMatchObject({
+      title: 'Local indexed title',
+      projectWorkspacePath: '/tmp/local-workspace',
+      modelId: 'claude-sonnet-4',
+      owner: 'brojbean',
+      isFavorite: true,
+      decompSessionType: 'primary',
+      decompMissionId: 'mission-local',
+      status: 'active',
+      transport: 'daemon',
+      messageCount: 12,
+      lastActivityAt: '2026-03-24T20:05:00.000Z',
+      updatedAt: '2026-03-24T20:05:00.000Z',
+    })
+  })
+
+  it('fills missing cached metadata from daemon while artifact processing catches up', () => {
+    const cachedSession = createSession({
+      id: 'session-cache-only',
+      title: 'Untitled session',
+      projectWorkspacePath: null,
+      messageCount: undefined,
+      status: 'completed',
+      transport: 'artifacts',
+      updatedAt: '2026-03-24T20:01:00.000Z',
+    })
+    const daemonSession = createSession({
+      id: 'session-cache-only',
+      title: 'Daemon enriched title',
+      projectWorkspacePath: '/tmp/daemon-workspace',
+      messageCount: 5,
+      status: 'active',
+      transport: 'daemon',
+      updatedAt: '2026-03-24T20:04:00.000Z',
+    })
+
+    const [reconciled] = reconcileSessionRecords({
+      cachedSessions: [cachedSession],
+      artifactSessions: [],
+      daemonSessions: [daemonSession],
+    })
+
+    expect(reconciled).toMatchObject({
+      title: 'Daemon enriched title',
+      projectWorkspacePath: '/tmp/daemon-workspace',
+      messageCount: 5,
+      status: 'active',
+      transport: 'daemon',
+      updatedAt: '2026-03-24T20:04:00.000Z',
+    })
   })
 })
