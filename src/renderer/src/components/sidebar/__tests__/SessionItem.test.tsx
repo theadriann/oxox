@@ -18,6 +18,7 @@ function createSessionPreview(overrides: Partial<SessionPreview> = {}): SessionP
     parentSessionId: null,
     hasUserMessage: true,
     status: 'active',
+    transport: 'stream-jsonrpc',
     createdAt: '2026-03-24T23:30:00.000Z',
     updatedAt: '2026-03-24T23:40:00.000Z',
     lastActivityAt: '2026-03-24T23:40:00.000Z',
@@ -86,6 +87,61 @@ describe('SessionItem', () => {
     })
 
     expect(screen.getByTitle('Renamed alpha')).toBeTruthy()
+  })
+
+  it('surfaces the session transport ownership', () => {
+    const session$ = observable(
+      createSessionPreview({
+        transport: 'daemon',
+      }),
+    )
+    const now$ = observable(Date.parse('2026-03-25T00:00:00.000Z'))
+
+    render(
+      <SessionItem
+        session$={session$}
+        focusKey="project:project-alpha:session-alpha"
+        isPinned={false}
+        isSelected={false}
+        isFocused={false}
+        now$={now$}
+        onSelectSession={vi.fn()}
+        onTogglePinnedSession={vi.fn()}
+        onKeyDown={vi.fn()}
+        onFocus={vi.fn()}
+        setSessionRef={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTitle('Session transport: Daemon')).toBeTruthy()
+  })
+
+  it('distinguishes remote daemon sessions from local daemon sessions', () => {
+    const session$ = observable(
+      createSessionPreview({
+        transport: 'daemon',
+        transportLocation: 'remote',
+      }),
+    )
+    const now$ = observable(Date.parse('2026-03-25T00:00:00.000Z'))
+
+    render(
+      <SessionItem
+        session$={session$}
+        focusKey="project:project-alpha:session-alpha"
+        isPinned={false}
+        isSelected={false}
+        isFocused={false}
+        now$={now$}
+        onSelectSession={vi.fn()}
+        onTogglePinnedSession={vi.fn()}
+        onKeyDown={vi.fn()}
+        onFocus={vi.fn()}
+        setSessionRef={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTitle('Session transport: Remote daemon')).toBeTruthy()
   })
 
   it('does not indent forked sessions as child rows', () => {

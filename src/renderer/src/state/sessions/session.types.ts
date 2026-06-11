@@ -21,6 +21,7 @@ export interface SessionPreview {
   hasUserMessage: boolean
   status: ExtendedSessionStatus
   transport: string | null
+  transportLocation?: 'local' | 'remote' | null
   createdAt: string
   updatedAt: string
   lastActivityAt: string | null

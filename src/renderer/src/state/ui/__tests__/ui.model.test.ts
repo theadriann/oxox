@@ -122,6 +122,34 @@ describe('UIStore', () => {
     expect(store.state$.isCommandPaletteOpen.get()).toBe(false)
   })
 
+  it('opens one right sidebar panel mode at a time', () => {
+    const store = new UIStore()
+    const panelStore = store as unknown as {
+      setContextPanelMode: (mode: 'session-details' | 'git-diff') => void
+      toggleContextPanelMode: (mode: 'session-details' | 'git-diff') => void
+      state$: UIStore['state$'] & {
+        contextPanelMode: { get: () => 'session-details' | 'git-diff' }
+      }
+    }
+
+    expect(panelStore.state$.contextPanelMode.get()).toBe('session-details')
+
+    panelStore.setContextPanelMode('git-diff')
+
+    expect(panelStore.state$.contextPanelMode.get()).toBe('git-diff')
+    expect(store.state$.isContextPanelHidden.get()).toBe(false)
+
+    panelStore.toggleContextPanelMode('git-diff')
+
+    expect(store.state$.isContextPanelHidden.get()).toBe(true)
+    expect(panelStore.state$.contextPanelMode.get()).toBe('git-diff')
+
+    panelStore.toggleContextPanelMode('session-details')
+
+    expect(store.state$.isContextPanelHidden.get()).toBe(false)
+    expect(panelStore.state$.contextPanelMode.get()).toBe('session-details')
+  })
+
   it('exposes UI state as a Legend observable data graph', () => {
     const store = new UIStore()
     const observedHiddenStates: boolean[] = []

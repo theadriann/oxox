@@ -4,6 +4,7 @@ import type {
   LiveSessionModel,
   LiveSessionSettings,
   LiveSessionSnapshot,
+  LiveSessionTransportKind,
   ManagedSession,
   StreamJsonRpcModel,
 } from './types'
@@ -29,7 +30,7 @@ export function toSnapshot(session: ManagedSession): LiveSessionSnapshot {
     sessionId: session.sessionId,
     title: session.title,
     status: toVisibleStatus(session),
-    transport: 'stream-jsonrpc',
+    transport: getManagedSessionTransportKind(session),
     processId: session.processId,
     viewerCount: session.viewerIds.size,
     projectWorkspacePath: session.cwd,
@@ -40,6 +41,10 @@ export function toSnapshot(session: ManagedSession): LiveSessionSnapshot {
     messages: cloneMessages(session.messages),
     events: [...session.events],
   }
+}
+
+export function getManagedSessionTransportKind(session: ManagedSession): LiveSessionTransportKind {
+  return session.transport?.transportKind ?? 'stream-jsonrpc'
 }
 
 export function cloneMessages(messages: LiveSessionMessage[]): LiveSessionMessage[] {

@@ -329,6 +329,7 @@ describe('createDaemonTransport', () => {
       expect.objectContaining({
         id: 'sdk-daemon-session',
         transport: 'daemon',
+        transportLocation: 'local',
       }),
     ])
 
@@ -964,6 +965,10 @@ describe('createDaemonTransport', () => {
         daemonMethod.LIST_FILES,
         daemonMethod.SEARCH_FILES,
         daemonMethod.GET_WORKSPACE_FILE_CONTENT,
+        daemonMethod.GET_GIT_DIFF,
+        daemonMethod.GIT_COMMIT,
+        daemonMethod.GIT_PUSH,
+        daemonMethod.CREATE_PR,
       ],
       supportedNotifications: [],
       sessions: [],
@@ -1132,6 +1137,121 @@ describe('createDaemonTransport', () => {
       encoding: 'utf8',
       mimeType: 'text/typescript',
       isBinary: false,
+    })
+
+    const gitDiff = (
+      transport as unknown as {
+        getGitDiff: (params: {
+          sessionId: string
+          baseBranch?: string
+          statsOnly?: boolean
+        }) => Promise<unknown>
+      }
+    ).getGitDiff({
+      sessionId: 'session-alpha',
+      baseBranch: 'main',
+      statsOnly: true,
+    })
+    expect(JSON.parse(socket.sentPayloads.at(-1) ?? '{}')).toMatchObject({
+      method: daemonMethod.GET_GIT_DIFF,
+      params: {
+        sessionId: 'session-alpha',
+        baseBranch: 'main',
+        statsOnly: true,
+      },
+    })
+    socket.respond(getLastRequestId(socket), {
+      success: true,
+      data: {
+        diff: 'diff --git a/src/App.tsx b/src/App.tsx\n',
+        branch: 'feature/oxo-22',
+        baseBranch: 'main',
+        files: [{ path: 'src/App.tsx', additions: 2, deletions: 1, status: 'modified' }],
+        totalAdditions: 2,
+        totalDeletions: 1,
+        remoteUrl: 'https://github.com/theadriann/oxox.git',
+        commits: [{ hash: 'abc123', message: 'Update app' }],
+      },
+    })
+    await expect(gitDiff).resolves.toEqual({
+      success: true,
+      data: expect.objectContaining({
+        branch: 'feature/oxo-22',
+        committedDiff: '',
+        unstagedDiff: '',
+      }),
+    })
+
+    const gitCommit = (
+      transport as unknown as {
+        gitCommit: (params: { sessionId: string; message: string }) => Promise<unknown>
+      }
+    ).gitCommit({
+      sessionId: 'session-alpha',
+      message: 'Add OXO-22 support',
+    })
+    expect(JSON.parse(socket.sentPayloads.at(-1) ?? '{}')).toMatchObject({
+      method: daemonMethod.GIT_COMMIT,
+      params: { sessionId: 'session-alpha', message: 'Add OXO-22 support' },
+    })
+    socket.respond(getLastRequestId(socket), { success: true })
+    await expect(gitCommit).resolves.toEqual({ success: true })
+
+    const gitPush = (
+      transport as unknown as {
+        gitPush: (params: { sessionId: string }) => Promise<unknown>
+      }
+    ).gitPush({ sessionId: 'session-alpha' })
+    expect(JSON.parse(socket.sentPayloads.at(-1) ?? '{}')).toMatchObject({
+      method: daemonMethod.GIT_PUSH,
+      params: { sessionId: 'session-alpha' },
+    })
+    socket.respond(getLastRequestId(socket), { success: true })
+    await expect(gitPush).resolves.toEqual({ success: true })
+
+    const createPullRequest = (
+      transport as unknown as {
+        createPullRequest: (params: {
+          sessionId: string
+          title: string
+          body?: string
+          baseBranch: string
+          draft?: boolean
+          linearIssueIds?: string[]
+        }) => Promise<unknown>
+      }
+    ).createPullRequest({
+      sessionId: 'session-alpha',
+      title: 'Add OXO-22 support',
+      body: 'Implements daemon git actions.',
+      baseBranch: 'main',
+      draft: true,
+      linearIssueIds: ['OXO-22'],
+    })
+    expect(JSON.parse(socket.sentPayloads.at(-1) ?? '{}')).toMatchObject({
+      method: daemonMethod.CREATE_PR,
+      params: {
+        sessionId: 'session-alpha',
+        title: 'Add OXO-22 support',
+        body: 'Implements daemon git actions.',
+        baseBranch: 'main',
+        draft: true,
+        linearIssueIds: ['OXO-22'],
+      },
+    })
+    socket.respond(getLastRequestId(socket), {
+      number: 22,
+      title: 'Add OXO-22 support',
+      url: 'https://github.com/theadriann/oxox/pull/22',
+      state: 'open',
+      draft: true,
+    })
+    await expect(createPullRequest).resolves.toEqual({
+      number: 22,
+      title: 'Add OXO-22 support',
+      url: 'https://github.com/theadriann/oxox/pull/22',
+      state: 'open',
+      draft: true,
     })
 
     await transport.stop()

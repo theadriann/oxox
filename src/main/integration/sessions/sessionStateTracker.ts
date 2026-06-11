@@ -1,6 +1,6 @@
 import type { SessionRuntimeUpsert, SessionUpsert } from '../database/service'
 import type { SessionEvent } from '../protocol/sessionEvents'
-import { toSnapshot, toVisibleStatus } from './snapshotConverter'
+import { getManagedSessionTransportKind, toSnapshot, toVisibleStatus } from './snapshotConverter'
 import type { LiveSessionNotificationSummary, ManagedSession, SessionEventSink } from './types'
 
 export interface SessionStateTrackerOptions {
@@ -27,6 +27,7 @@ export function createSessionStateTracker(options: SessionStateTrackerOptions) {
   const persist = (session: ManagedSession): void => {
     const visibleStatus = toVisibleStatus(session)
     const timestamp = session.lastEventAt ?? session.updatedAt
+    const transportKind = getManagedSessionTransportKind(session)
     const persisted: SessionUpsert = {
       sessionId: session.sessionId,
       projectWorkspacePath: session.cwd,
@@ -36,14 +37,14 @@ export function createSessionStateTracker(options: SessionStateTrackerOptions) {
       ),
       title: session.title,
       status: visibleStatus,
-      transport: 'stream-jsonrpc',
+      transport: transportKind,
       createdAt: session.createdAt,
       lastActivityAt: timestamp,
       updatedAt: session.updatedAt,
     }
     const runtime: SessionRuntimeUpsert = {
       sessionId: session.sessionId,
-      transport: 'stream-jsonrpc',
+      transport: transportKind,
       status: visibleStatus,
       processId: session.processId,
       viewerCount: session.viewerIds.size,

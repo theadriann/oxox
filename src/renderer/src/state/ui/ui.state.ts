@@ -10,12 +10,14 @@ export type AppView = 'sessions' | 'settings'
 export type SettingsSection = 'general' | 'archive'
 export type ContentLayout = 'fluid' | 'fixed'
 export type ComposerContextUsageDisplayMode = 'percentage' | 'tokens'
+export type ContextPanelMode = 'session-details' | 'git-diff'
 
 export interface PersistedSidebarState {
   sidebarWidth?: number
   isSidebarHidden?: boolean
   contextPanelWidth?: number
   isContextPanelHidden?: boolean
+  contextPanelMode?: ContextPanelMode
   collapsedProjectKeys?: string[]
   contentLayout?: ContentLayout
   composerContextUsageDisplayMode?: ComposerContextUsageDisplayMode
@@ -27,6 +29,7 @@ export interface UIState {
   isResizingSidebar: boolean
   contextPanelWidth: number
   isContextPanelHidden: boolean
+  contextPanelMode: ContextPanelMode
   isResizingContextPanel: boolean
   isCommandPaletteOpen: boolean
   collapsedProjectKeys: string[]
@@ -43,6 +46,7 @@ export function createDefaultUIState(): UIState {
     isResizingSidebar: false,
     contextPanelWidth: DEFAULT_CONTEXT_PANEL_WIDTH,
     isContextPanelHidden: false,
+    contextPanelMode: 'session-details',
     isResizingContextPanel: false,
     isCommandPaletteOpen: false,
     collapsedProjectKeys: [],

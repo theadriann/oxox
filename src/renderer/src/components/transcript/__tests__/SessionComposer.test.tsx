@@ -265,7 +265,7 @@ describe('SessionComposer', () => {
     })
   })
 
-  it('does not show workspace file mentions when the selected session is not daemon-backed', () => {
+  it('does not show workspace file mentions when the selected session has no workspace path', () => {
     const onQueryChange = vi.fn()
 
     render(

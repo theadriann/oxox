@@ -38,7 +38,7 @@ describe('createOxoxBridge', () => {
     })
   })
 
-  it('exposes daemon workspace file APIs through the typed bridge', async () => {
+  it('exposes workspace file APIs through the typed bridge', async () => {
     const invoke = vi.fn((channel: string) => {
       switch (channel) {
         case IPC_CHANNELS.workspaceFilesList:
@@ -204,6 +204,49 @@ describe('createOxoxBridge', () => {
     })
     expect(invoke).toHaveBeenNthCalledWith(13, IPC_CHANNELS.factoryApiListRemoteSessions, {
       computerId: 'computer-1',
+    })
+  })
+
+  it('exposes git workflow APIs through a typed bridge group', async () => {
+    const invoke = vi.fn().mockResolvedValue({})
+    const bridge = createOxoxBridge(invoke)
+
+    await bridge.git.getDiff({
+      sessionId: 'session-daemon',
+      baseBranch: 'main',
+      statsOnly: true,
+    })
+    await bridge.git.commit({
+      sessionId: 'session-daemon',
+      message: 'Add git workflow support',
+    })
+    await bridge.git.push({ sessionId: 'session-daemon' })
+    await bridge.git.createPullRequest({
+      sessionId: 'session-daemon',
+      title: 'Add git workflow support',
+      baseBranch: 'main',
+      draft: true,
+      linearIssueIds: ['OXO-22'],
+    })
+
+    expect(invoke).toHaveBeenNthCalledWith(1, IPC_CHANNELS.gitGetDiff, {
+      sessionId: 'session-daemon',
+      baseBranch: 'main',
+      statsOnly: true,
+    })
+    expect(invoke).toHaveBeenNthCalledWith(2, IPC_CHANNELS.gitCommit, {
+      sessionId: 'session-daemon',
+      message: 'Add git workflow support',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(3, IPC_CHANNELS.gitPush, {
+      sessionId: 'session-daemon',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(4, IPC_CHANNELS.gitCreatePullRequest, {
+      sessionId: 'session-daemon',
+      title: 'Add git workflow support',
+      baseBranch: 'main',
+      draft: true,
+      linearIssueIds: ['OXO-22'],
     })
   })
 

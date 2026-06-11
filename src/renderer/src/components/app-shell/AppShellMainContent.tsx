@@ -41,6 +41,9 @@ export function AppShellMainContent({ prefersReducedMotion }: AppShellMainConten
   const settingsSection = useValue(uiStore.state$.settingsSection)
   const isContextPanelHidden = useValue(uiStore.state$.isContextPanelHidden)
   const contentLayout = useValue(uiStore.state$.contentLayout)
+  const contextLayoutClass = isContextPanelHidden
+    ? 'oxox-content-area--with-context-rail'
+    : 'oxox-content-area--with-context'
 
   if (isSettingsOpen) {
     return (
@@ -55,9 +58,7 @@ export function AppShellMainContent({ prefersReducedMotion }: AppShellMainConten
       <AppShellFeedbackConnected />
       <UpdatePromptConnected />
 
-      <div
-        className={`oxox-content-area flex-1 min-h-0 ${isContextPanelHidden ? 'oxox-content-area--without-context' : 'oxox-content-area--with-context'}`}
-      >
+      <div className={`oxox-content-area flex-1 min-h-0 ${contextLayoutClass}`}>
         <motion.section
           layout
           ref={detailPanelRef}

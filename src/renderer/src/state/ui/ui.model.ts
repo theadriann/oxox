@@ -3,6 +3,7 @@ import { createLocalStoragePort, type PersistencePort } from '../../platform/per
 import {
   type ComposerContextUsageDisplayMode,
   type ContentLayout,
+  type ContextPanelMode,
   createUIState$,
   DEFAULT_CONTEXT_PANEL_WIDTH,
   DEFAULT_SIDEBAR_WIDTH,
@@ -18,6 +19,7 @@ export type {
   AppView,
   ComposerContextUsageDisplayMode,
   ContentLayout,
+  ContextPanelMode,
   SettingsSection,
   UIState,
 } from './ui.state'
@@ -103,6 +105,25 @@ export class UIStore {
     this.persist()
   }
 
+  setContextPanelMode = (mode: ContextPanelMode): void => {
+    batch(() => {
+      this.state$.contextPanelMode.set(mode)
+      this.state$.isContextPanelHidden.set(false)
+    })
+    this.persist()
+  }
+
+  toggleContextPanelMode = (mode: ContextPanelMode): void => {
+    const isActiveVisible =
+      this.state$.contextPanelMode.get() === mode && !this.state$.isContextPanelHidden.get()
+
+    batch(() => {
+      this.state$.contextPanelMode.set(mode)
+      this.state$.isContextPanelHidden.set(isActiveVisible)
+    })
+    this.persist()
+  }
+
   setIsResizingContextPanel = (value: boolean): void => {
     this.state$.isResizingContextPanel.set(value)
   }
@@ -180,6 +201,8 @@ export class UIStore {
           nextState.contextPanelWidth ?? DEFAULT_CONTEXT_PANEL_WIDTH,
         ),
         isContextPanelHidden: nextState.isContextPanelHidden ?? false,
+        contextPanelMode:
+          nextState.contextPanelMode === 'git-diff' ? 'git-diff' : 'session-details',
         collapsedProjectKeys: nextState.collapsedProjectKeys ?? [],
         contentLayout: nextState.contentLayout === 'fluid' ? 'fluid' : 'fixed',
         composerContextUsageDisplayMode:
@@ -195,6 +218,7 @@ export class UIStore {
       isSidebarHidden: current.isSidebarHidden,
       contextPanelWidth: current.contextPanelWidth,
       isContextPanelHidden: current.isContextPanelHidden,
+      contextPanelMode: current.contextPanelMode,
       collapsedProjectKeys: [...current.collapsedProjectKeys],
       contentLayout: current.contentLayout,
       composerContextUsageDisplayMode: current.composerContextUsageDisplayMode,
@@ -237,6 +261,7 @@ function readPersistedSidebarState(persistence: PersistencePort): PersistedSideb
       isSidebarHidden: parsed.isSidebarHidden,
       contextPanelWidth: parsed.contextPanelWidth,
       isContextPanelHidden: parsed.isContextPanelHidden,
+      contextPanelMode: parsed.contextPanelMode,
       contentLayout: parsed.contentLayout,
       composerContextUsageDisplayMode: parsed.composerContextUsageDisplayMode,
       collapsedProjectKeys: Array.isArray(parsed.collapsedProjectKeys)

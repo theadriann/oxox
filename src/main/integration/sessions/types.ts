@@ -107,11 +107,13 @@ export interface LiveSessionMessage {
   contentBlocks?: TranscriptMessageContentBlock[]
 }
 
+export type LiveSessionTransportKind = 'stream-jsonrpc' | 'daemon'
+
 export interface LiveSessionSnapshot {
   sessionId: string
   title: string
   status: string
-  transport: 'stream-jsonrpc'
+  transport: LiveSessionTransportKind
   processId: number | null
   viewerCount: number
   projectWorkspacePath: string | null
@@ -232,6 +234,7 @@ export interface ManagedSession {
  * Avoids circular dependencies between shared session types and transport implementations.
  */
 export interface StreamJsonRpcProcessTransportLike {
+  readonly transportKind?: LiveSessionTransportKind
   readonly processId: number
   subscribe(sink: SessionEventSink): () => void
   initializeSession(

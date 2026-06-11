@@ -75,6 +75,8 @@ export const SessionItem = memo(function SessionItem({
   const sessionId = useValue(session$.id)
   const title = useValue(session$.title)
   const status = useValue(session$.status)
+  const transport = useValue(session$.transport)
+  const transportLocation = useValue(session$.transportLocation)
   const parentSessionId = useValue(session$.parentSessionId)
   const derivationType = useValue(session$.derivationType)
   const lastActivityAt = useValue(session$.lastActivityAt)
@@ -84,6 +86,7 @@ export const SessionItem = memo(function SessionItem({
   const isSubagent = derivationType === 'subagent'
   const effectiveStatus = isSubagent ? 'idle' : status
   const statusDot = STATUS_DOT[effectiveStatus] ?? ''
+  const transportLabel = getSessionTransportLabel(transport, transportLocation)
 
   return (
     <div
@@ -110,6 +113,15 @@ export const SessionItem = memo(function SessionItem({
       <span className="shrink-0 pr-2 text-[11px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-state=open]]/row:hidden">
         {formatRelativeSessionTime(lastActivityAt ?? updatedAt, now)}
       </span>
+
+      {transportLabel ? (
+        <span
+          className="mr-2 hidden shrink-0 rounded border border-fd-border-subtle px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-fd-tertiary group-hover/row:inline-flex group-has-[[data-state=open]]/row:inline-flex"
+          title={`Session transport: ${transportLabel}`}
+        >
+          {transportLabel}
+        </span>
+      ) : null}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -171,3 +183,27 @@ export const SessionItem = memo(function SessionItem({
     </div>
   )
 })
+
+function getSessionTransportLabel(
+  transport: string | null,
+  transportLocation?: 'local' | 'remote' | null,
+): string | null {
+  switch (transport) {
+    case 'stream-jsonrpc':
+      return 'Local exec'
+    case 'daemon':
+      if (transportLocation === 'local') {
+        return 'Local daemon'
+      }
+
+      if (transportLocation === 'remote') {
+        return 'Remote daemon'
+      }
+
+      return 'Daemon'
+    case 'artifacts':
+      return 'Local history'
+    default:
+      return null
+  }
+}

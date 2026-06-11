@@ -1,5 +1,9 @@
 import type {
   AppUpdateState,
+  CreatePullRequestRequest,
+  GitCommitRequest,
+  GitDiffRequest,
+  GitPushRequest,
   LiveSessionAddUserMessageRequest,
   LiveSessionCreateRequest,
   RuntimeInfo,
@@ -154,6 +158,12 @@ export function registerAppIpcHandlers({
       service.searchWorkspaceFiles(request),
     [IPC_CHANNELS.workspaceFilesGetContent]: (_event, request: WorkspaceFileContentRequest) =>
       service.getWorkspaceFileContent(request),
+    [IPC_CHANNELS.gitGetDiff]: (_event, request: GitDiffRequest) => service.getGitDiff(request),
+    [IPC_CHANNELS.gitCommit]: (_event, request: GitCommitRequest) =>
+      service.commitGitChanges(request),
+    [IPC_CHANNELS.gitPush]: (_event, request: GitPushRequest) => service.pushGitBranch(request),
+    [IPC_CHANNELS.gitCreatePullRequest]: (_event, request: CreatePullRequestRequest) =>
+      service.createGitPullRequest(request),
     [IPC_CHANNELS.factoryApiListMachineTemplates]: (
       _event,
       request: Parameters<FoundationService['factoryApi']['listMachineTemplates']>[0] = {},

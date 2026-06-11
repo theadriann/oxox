@@ -5,8 +5,10 @@ import { useMemo } from 'react'
 import { createPanelVariants } from '../../lib/motion'
 import { useUIStore } from '../../state/root/store-provider'
 import { ContextPanelConnected } from '../context-panel/ContextPanelConnected'
+import { GitDiffPanelConnected } from '../context-panel/GitDiffPanelConnected'
 import { useAppShellControllerContext } from './AppShellControllerContext'
 import { buildAppShellContextPanelState } from './connectedSelectors'
+import { RightContextRail } from './RightContextRail'
 
 interface AppShellContextPanelProps {
   prefersReducedMotion: boolean
@@ -21,6 +23,7 @@ export function AppShellContextPanel({
   const { contextPanelRef, handleBrowseSessions, startContextPanelResize } =
     useAppShellControllerContext()
   const isContextPanelHidden = useValue(uiStore.state$.isContextPanelHidden)
+  const contextPanelMode = useValue(uiStore.state$.contextPanelMode)
   const contextPanelState = useMemo(
     () =>
       buildAppShellContextPanelState({
@@ -31,37 +34,58 @@ export function AppShellContextPanel({
     [isContextPanelHidden, prefersReducedMotion, shouldAnimate],
   )
   const panel = useMemo(
+    () =>
+      contextPanelMode === 'git-diff' ? (
+        <GitDiffPanelConnected panelRef={contextPanelRef} onResizeStart={startContextPanelResize} />
+      ) : (
+        <ContextPanelConnected
+          panelRef={contextPanelRef}
+          onBrowseSessions={handleBrowseSessions}
+          onResizeStart={startContextPanelResize}
+        />
+      ),
+    [contextPanelMode, contextPanelRef, handleBrowseSessions, startContextPanelResize],
+  )
+  const rail = useMemo(
     () => (
-      <ContextPanelConnected
-        panelRef={contextPanelRef}
-        onBrowseSessions={handleBrowseSessions}
-        onResizeStart={startContextPanelResize}
+      <RightContextRail
+        activeMode={contextPanelMode}
+        isPanelHidden={isContextPanelHidden}
+        onTogglePanel={uiStore.toggleContextPanelMode}
       />
     ),
-    [contextPanelRef, handleBrowseSessions, startContextPanelResize],
+    [contextPanelMode, isContextPanelHidden, uiStore.toggleContextPanelMode],
   )
 
   if (!shouldAnimate) {
-    return contextPanelState.isHidden ? null : (
-      <div className="h-full min-h-0 min-w-0 overflow-hidden">{panel}</div>
+    return (
+      <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
+        {contextPanelState.isHidden ? null : (
+          <div className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">{panel}</div>
+        )}
+        {rail}
+      </div>
     )
   }
 
   return (
-    <AnimatePresence initial={false} mode="popLayout">
-      {!contextPanelState.isHidden ? (
-        <motion.div
-          key="context-panel"
-          layout
-          animate="animate"
-          className="h-full min-h-0 min-w-0 overflow-hidden"
-          exit="exit"
-          initial="initial"
-          variants={createPanelVariants(contextPanelState.prefersReducedMotion, 'right')}
-        >
-          {panel}
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
+    <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
+      <AnimatePresence initial={false} mode="popLayout">
+        {!contextPanelState.isHidden ? (
+          <motion.div
+            key={`context-panel-${contextPanelMode}`}
+            layout
+            animate="animate"
+            className="h-full min-h-0 min-w-0 flex-1 overflow-hidden"
+            exit="exit"
+            initial="initial"
+            variants={createPanelVariants(contextPanelState.prefersReducedMotion, 'right')}
+          >
+            {panel}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      {rail}
+    </div>
   )
 }

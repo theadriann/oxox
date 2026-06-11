@@ -53,6 +53,10 @@ export const IPC_CHANNELS = {
   workspaceFilesList: 'workspace-files:list',
   workspaceFilesSearch: 'workspace-files:search',
   workspaceFilesGetContent: 'workspace-files:get-content',
+  gitGetDiff: 'git:get-diff',
+  gitCommit: 'git:commit',
+  gitPush: 'git:push',
+  gitCreatePullRequest: 'git:create-pull-request',
   factoryApiListMachineTemplates: 'factory-api:list-machine-templates',
   factoryApiGetMachineTemplate: 'factory-api:get-machine-template',
   factoryApiListComputers: 'factory-api:list-computers',
@@ -162,6 +166,7 @@ export interface SessionRecord {
   title: string
   status: string
   transport: string | null
+  transportLocation?: 'local' | 'remote' | null
   createdAt: string
   lastActivityAt: string | null
   updatedAt: string
@@ -211,6 +216,99 @@ export interface WorkspaceFileContentResponse {
   encoding: WorkspaceFileContentEncoding
   mimeType: string | null
   isBinary: boolean
+}
+
+export interface GitDiffRequest {
+  sessionId: string
+  baseBranch?: string
+  statsOnly?: boolean
+}
+
+export interface GitDiffFile {
+  path: string
+  additions: number
+  deletions: number
+  status: string
+}
+
+export interface GitDiffCommit {
+  hash: string
+  message: string
+}
+
+export type GitDiffUnavailableReason =
+  | 'missing_session_cwd'
+  | 'not_git_repository'
+  | 'git_not_available'
+  | 'unknown'
+
+export interface GitDiffData {
+  diff: string
+  branch: string
+  baseBranch: string
+  files: GitDiffFile[]
+  totalAdditions: number
+  totalDeletions: number
+  remoteUrl: string | null
+  commits: GitDiffCommit[]
+  committedDiff: string
+  committedFiles: GitDiffFile[]
+  committedTotalAdditions: number
+  committedTotalDeletions: number
+  unstagedDiff: string
+  unstagedFiles: GitDiffFile[]
+  unstagedTotalAdditions: number
+  unstagedTotalDeletions: number
+  canCommit?: boolean
+  canPush?: boolean
+  canCreatePullRequest?: boolean
+  commitUnavailableMessage?: string | null
+  pushUnavailableMessage?: string | null
+  createPullRequestUnavailableMessage?: string | null
+}
+
+export type GitDiffResponse =
+  | {
+      success: true
+      data: GitDiffData
+    }
+  | {
+      success: false
+      unavailableReason: GitDiffUnavailableReason
+      unavailableMessage: string
+    }
+
+export interface GitCommitRequest {
+  sessionId: string
+  message: string
+}
+
+export interface GitActionResponse {
+  success: boolean
+}
+
+export interface GitPushRequest {
+  sessionId: string
+}
+
+export interface CreatePullRequestRequest {
+  sessionId: string
+  title: string
+  body?: string
+  baseBranch: string
+  draft?: boolean
+  linkedTicketIds?: string[]
+  linkedTicketUrls?: string[]
+  jiraIssueKeys?: string[]
+  linearIssueIds?: string[]
+}
+
+export interface CreatePullRequestResponse {
+  number: number
+  title: string
+  url: string
+  state: string
+  draft: boolean
 }
 
 type FactoryApiOptionsWithoutCredentials<TOptions extends { apiKey: string; baseUrl?: string }> =
@@ -923,7 +1021,7 @@ export interface LiveSessionSnapshot {
   sessionId: string
   title: string
   status: string
-  transport: 'stream-jsonrpc'
+  transport: 'stream-jsonrpc' | 'daemon'
   processId: number | null
   viewerCount: number
   projectWorkspacePath: string | null
@@ -993,6 +1091,12 @@ export interface OxoxBridge {
     list: (request: WorkspaceFilesListRequest) => Promise<WorkspaceFilesListResponse>
     search: (request: WorkspaceFilesSearchRequest) => Promise<WorkspaceFilesSearchResponse>
     getContent: (request: WorkspaceFileContentRequest) => Promise<WorkspaceFileContentResponse>
+  }
+  git: {
+    getDiff: (request: GitDiffRequest) => Promise<GitDiffResponse>
+    commit: (request: GitCommitRequest) => Promise<GitActionResponse>
+    push: (request: GitPushRequest) => Promise<GitActionResponse>
+    createPullRequest: (request: CreatePullRequestRequest) => Promise<CreatePullRequestResponse>
   }
   factoryApi: {
     listMachineTemplates: (

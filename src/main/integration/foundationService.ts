@@ -2,9 +2,16 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import type {
+  CreatePullRequestRequest,
+  CreatePullRequestResponse,
   DatabaseDiagnostics,
   FoundationBootstrap,
   FoundationChangedPayload,
+  GitActionResponse,
+  GitCommitRequest,
+  GitDiffRequest,
+  GitDiffResponse,
+  GitPushRequest,
   LiveSessionAddUserMessageRequest,
   LiveSessionAskUserAnswerRecord,
   LiveSessionBugReportRequest,
@@ -63,6 +70,12 @@ import { createFoundationChangeBroadcaster } from './foundation/changeBroadcaste
 import { createFoundationLiveSessionRuntime } from './foundation/liveSessionRuntime'
 import { createFoundationQueries } from './foundation/queries'
 import { createFoundationSessionCatalog } from './foundation/sessionCatalog'
+import {
+  commitLocalGitChanges,
+  createLocalGitPullRequest,
+  getLocalGitDiff,
+  pushLocalGitBranch,
+} from './git/localGitActions'
 import {
   createLocalPluginCapabilityProvider,
   createOxoxCapabilityGatewayServer,
@@ -162,6 +175,10 @@ export interface FoundationService {
   getWorkspaceFileContent: (
     request: WorkspaceFileContentRequest,
   ) => Promise<WorkspaceFileContentResponse>
+  getGitDiff: (request: GitDiffRequest) => Promise<GitDiffResponse>
+  commitGitChanges: (request: GitCommitRequest) => Promise<GitActionResponse>
+  pushGitBranch: (request: GitPushRequest) => Promise<GitActionResponse>
+  createGitPullRequest: (request: CreatePullRequestRequest) => Promise<CreatePullRequestResponse>
   getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
   searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
   getSearchIndexingProgress: () => SessionSearchIndexingProgress
@@ -394,6 +411,54 @@ export function createFoundationService(
       isBinary: result.isBinary ?? false,
     }
   }
+  const resolveGitActionTargetForSession = (sessionId: string) => {
+    const catalogSessions = sessionCatalog.listSessions()
+    return resolveWorkspaceFileAccessTarget({
+      sessionId,
+      catalogSessions,
+      liveSessions: liveSessionRuntime.listLiveSessionSnapshots(),
+      isDaemonBackedSession: catalogSessions.some(
+        (session) => session.id === sessionId && session.transport === 'daemon',
+      ),
+    })
+  }
+  const getGitDiff = async (request: GitDiffRequest): Promise<GitDiffResponse> => {
+    const target = resolveGitActionTargetForSession(request.sessionId)
+    if (target.kind === 'local') {
+      return getLocalGitDiff({ ...request, workspacePath: target.workspacePath })
+    }
+
+    return daemonTransport.getGitDiff(request)
+  }
+  const commitGitChanges = async (request: GitCommitRequest): Promise<GitActionResponse> => {
+    const target = resolveGitActionTargetForSession(request.sessionId)
+    const result =
+      target.kind === 'local'
+        ? await commitLocalGitChanges({ ...request, workspacePath: target.workspacePath })
+        : await daemonTransport.gitCommit(request)
+    emitFoundationChanged()
+    return result
+  }
+  const pushGitBranch = async (request: GitPushRequest): Promise<GitActionResponse> => {
+    const target = resolveGitActionTargetForSession(request.sessionId)
+    const result =
+      target.kind === 'local'
+        ? await pushLocalGitBranch({ ...request, workspacePath: target.workspacePath })
+        : await daemonTransport.gitPush(request)
+    emitFoundationChanged()
+    return result
+  }
+  const createGitPullRequest = async (
+    request: CreatePullRequestRequest,
+  ): Promise<CreatePullRequestResponse> => {
+    const target = resolveGitActionTargetForSession(request.sessionId)
+    const result =
+      target.kind === 'local'
+        ? await createLocalGitPullRequest({ ...request, workspacePath: target.workspacePath })
+        : await daemonTransport.createPullRequest(request)
+    emitFoundationChanged()
+    return result
+  }
   foundationChangeBroadcaster.prime()
   const unsubscribeSearchLiveSnapshots = liveSessionRuntime.subscribeToSnapshots((sessionId) => {
     liveSearchIndexScheduler.schedule(sessionId)
@@ -476,6 +541,10 @@ export function createFoundationService(
     listWorkspaceFiles,
     searchWorkspaceFiles,
     getWorkspaceFileContent,
+    getGitDiff,
+    commitGitChanges,
+    pushGitBranch,
+    createGitPullRequest,
     getSessionTranscript: queries.getSessionTranscript,
     searchSessions: searchService.searchSessions,
     getSearchIndexingProgress: searchService.getIndexingProgress,

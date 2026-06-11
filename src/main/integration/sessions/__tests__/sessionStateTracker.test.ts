@@ -83,6 +83,33 @@ describe('SessionStateTracker', () => {
     )
   })
 
+  it('preserves daemon transport ownership when persisting daemon-backed live sessions', () => {
+    const db = createMockDatabase()
+    const tracker = createSessionStateTracker({
+      database: db as never,
+      now: () => '2026-04-09T00:00:00.000Z',
+    })
+    const session = createManagedSession({
+      processId: 0,
+      transport: { transportKind: 'daemon' } as never,
+    })
+
+    tracker.persist(session)
+
+    expect(db.upsertSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        transport: 'daemon',
+      }),
+    )
+    expect(db.upsertSessionRuntime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        transport: 'daemon',
+      }),
+    )
+  })
+
   it('generates unique request IDs with a prefix', () => {
     const db = createMockDatabase()
     const tracker = createSessionStateTracker({

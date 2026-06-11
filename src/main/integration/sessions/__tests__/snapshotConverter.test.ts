@@ -68,6 +68,21 @@ describe('snapshotConverter', () => {
     expect(originalMessage.content).toBe('hello')
   })
 
+  it('preserves daemon transport ownership in live session snapshots', () => {
+    const snapshot = toSnapshot(
+      createManagedSession({
+        processId: 0,
+        transport: { transportKind: 'daemon' } as never,
+      }),
+    )
+
+    expect(snapshot).toMatchObject({
+      sessionId: 'session-1',
+      transport: 'daemon',
+      processId: 0,
+    })
+  })
+
   it('normalizes settings and models with sensible fallbacks', () => {
     expect(
       normalizeSessionSettings({ interactionMode: 'plan' }, [{ id: 'gpt-5.4' }] as never),

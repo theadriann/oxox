@@ -148,6 +148,8 @@ class ObservedDroidClientTransport implements DroidClientTransport {
 }
 
 export class DroidSdkSessionTransport implements StreamJsonRpcProcessTransportLike {
+  readonly transportKind = 'stream-jsonrpc'
+
   private readonly client: DroidClient
   private readonly observedTransport: ObservedDroidClientTransport
   private readonly sinks = new Set<SessionEventSink>()

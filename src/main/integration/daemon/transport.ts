@@ -72,6 +72,26 @@ type DaemonGetWorkspaceFileContentParams = ReturnType<
 type DaemonGetWorkspaceFileContentResult = ReturnType<
   (typeof protocol.daemon.DaemonGetWorkspaceFileContentResultSchema)['parse']
 >
+type DaemonGetGitDiffParams = ReturnType<
+  (typeof protocol.daemon.DaemonGetGitDiffRequestParamsSchema)['parse']
+>
+type DaemonGetGitDiffResult = ReturnType<
+  (typeof protocol.daemon.DaemonGetGitDiffResultSchema)['parse']
+>
+type DaemonGitCommitParams = ReturnType<
+  (typeof protocol.daemon.DaemonGitCommitRequestParamsSchema)['parse']
+>
+type DaemonGitCommitResult = ReturnType<
+  (typeof protocol.daemon.DaemonGitCommitResultSchema)['parse']
+>
+type DaemonGitPushParams = ReturnType<
+  (typeof protocol.daemon.DaemonGitPushRequestParamsSchema)['parse']
+>
+type DaemonGitPushResult = ReturnType<(typeof protocol.daemon.DaemonGitPushResultSchema)['parse']>
+type DaemonCreatePRParams = ReturnType<
+  (typeof protocol.daemon.DaemonCreatePRRequestParamsSchema)['parse']
+>
+type DaemonCreatePRResult = ReturnType<(typeof protocol.daemon.DaemonCreatePRResultSchema)['parse']>
 type DaemonGetDefaultSettingsResult = ReturnType<
   (typeof protocol.daemon.DaemonGetDefaultSettingsResultSchema)['parse']
 >
@@ -216,6 +236,10 @@ export interface DaemonTransport {
   getWorkspaceFileContent: (
     params: DaemonGetWorkspaceFileContentParams,
   ) => Promise<DaemonGetWorkspaceFileContentResult>
+  getGitDiff: (params: DaemonGetGitDiffParams) => Promise<DaemonGetGitDiffResult>
+  gitCommit: (params: DaemonGitCommitParams) => Promise<DaemonGitCommitResult>
+  gitPush: (params: DaemonGitPushParams) => Promise<DaemonGitPushResult>
+  createPullRequest: (params: DaemonCreatePRParams) => Promise<DaemonCreatePRResult>
   getDefaultSettings: () => Promise<DaemonGetDefaultSettingsResult>
   getMcpConfig: () => Promise<DaemonGetMcpConfigResult>
   updateMcpConfig: (params: DaemonUpdateMcpConfigParams) => Promise<DaemonUpdateMcpConfigResult>
@@ -295,8 +319,10 @@ function mapDaemonLineageType(session: { callingSessionId?: string }): string | 
 function normalizeDaemonSessions(
   openedSessions: DaemonOpenedSession[],
   availableSessions: DaemonAvailableSession[],
+  target: DaemonConnectionTargetSnapshot,
 ): SessionRecord[] {
   const sessionsById = new Map<string, SessionRecord>()
+  const transportLocation = target.type === 'local' ? 'local' : 'remote'
 
   for (const session of availableSessions) {
     const timestamp = coerceIsoTimestamp(session.updatedAt)
@@ -312,6 +338,7 @@ function normalizeDaemonSessions(
       title: session.title ?? 'Daemon session',
       status: mapAvailableStateToStatus(session),
       transport: 'daemon',
+      transportLocation,
       createdAt: timestamp,
       lastActivityAt: timestamp,
       updatedAt: timestamp,
@@ -334,6 +361,7 @@ function normalizeDaemonSessions(
       title: session.title ?? existing?.title ?? 'Daemon session',
       status: mapWorkingStateToStatus(session.workingState),
       transport: 'daemon',
+      transportLocation,
       createdAt: existing?.createdAt ?? timestamp,
       lastActivityAt: timestamp,
       updatedAt: timestamp,
@@ -678,6 +706,42 @@ class ManagedDaemonTransport implements DaemonTransport {
     )
   }
 
+  async getGitDiff(params: DaemonGetGitDiffParams): Promise<DaemonGetGitDiffResult> {
+    return this.requestSupportedDaemonMethod(
+      DAEMON_METHOD.GET_GIT_DIFF,
+      protocol.daemon.DaemonGetGitDiffRequestParamsSchema,
+      protocol.daemon.DaemonGetGitDiffResultSchema,
+      params,
+    )
+  }
+
+  async gitCommit(params: DaemonGitCommitParams): Promise<DaemonGitCommitResult> {
+    return this.requestSupportedDaemonMethod(
+      DAEMON_METHOD.GIT_COMMIT,
+      protocol.daemon.DaemonGitCommitRequestParamsSchema,
+      protocol.daemon.DaemonGitCommitResultSchema,
+      params,
+    )
+  }
+
+  async gitPush(params: DaemonGitPushParams): Promise<DaemonGitPushResult> {
+    return this.requestSupportedDaemonMethod(
+      DAEMON_METHOD.GIT_PUSH,
+      protocol.daemon.DaemonGitPushRequestParamsSchema,
+      protocol.daemon.DaemonGitPushResultSchema,
+      params,
+    )
+  }
+
+  async createPullRequest(params: DaemonCreatePRParams): Promise<DaemonCreatePRResult> {
+    return this.requestSupportedDaemonMethod(
+      DAEMON_METHOD.CREATE_PR,
+      protocol.daemon.DaemonCreatePRRequestParamsSchema,
+      protocol.daemon.DaemonCreatePRResultSchema,
+      params,
+    )
+  }
+
   async getDefaultSettings(): Promise<DaemonGetDefaultSettingsResult> {
     return this.requestSupportedDaemonMethod(
       DAEMON_SETTINGS_METHOD.GET_DEFAULT_SETTINGS,
@@ -723,7 +787,11 @@ class ManagedDaemonTransport implements DaemonTransport {
       this.listAvailableSessions(connection),
     ])
 
-    const nextSessions = normalizeDaemonSessions(openedResult.sessions ?? [], availableSessions)
+    const nextSessions = normalizeDaemonSessions(
+      openedResult.sessions ?? [],
+      availableSessions,
+      this.getTargetSnapshot(this.connectedPort ?? undefined),
+    )
     const sessionsChanged = !areDaemonSessionsEqual(this.sessions, nextSessions)
 
     this.supportedMethods = openedResult.supportedMethods
@@ -829,7 +897,11 @@ class ManagedDaemonTransport implements DaemonTransport {
       this.supportedMethods = openedResult.supportedMethods
         ? new Set(openedResult.supportedMethods)
         : null
-      this.sessions = normalizeDaemonSessions(openedResult.sessions ?? [], availableSessions)
+      this.sessions = normalizeDaemonSessions(
+        openedResult.sessions ?? [],
+        availableSessions,
+        target,
+      )
       this.emitStateChange()
       this.scheduleRefresh()
     } catch (error) {
@@ -875,7 +947,10 @@ class ManagedDaemonTransport implements DaemonTransport {
       this.supportedMethods = openedResult.supportedMethods
         ? new Set(openedResult.supportedMethods)
         : null
-      this.sessions = normalizeDaemonSessions(openedResult.sessions ?? [], availableSessions)
+      this.sessions = normalizeDaemonSessions(openedResult.sessions ?? [], availableSessions, {
+        type: 'local',
+        label: `Local daemon:${port}`,
+      })
       this.emitStateChange()
       this.scheduleRefresh()
     } catch (error) {

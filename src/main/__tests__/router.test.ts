@@ -50,6 +50,36 @@ describe('registerAppIpcHandlers', () => {
         mimeType: 'text/typescript',
         isBinary: false,
       }),
+      getGitDiff: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          diff: 'diff --git a/src/App.tsx b/src/App.tsx\n',
+          branch: 'feature/oxo-22',
+          baseBranch: 'main',
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+          remoteUrl: null,
+          commits: [],
+          committedDiff: '',
+          committedFiles: [],
+          committedTotalAdditions: 0,
+          committedTotalDeletions: 0,
+          unstagedDiff: '',
+          unstagedFiles: [],
+          unstagedTotalAdditions: 0,
+          unstagedTotalDeletions: 0,
+        },
+      }),
+      commitGitChanges: vi.fn().mockResolvedValue({ success: true }),
+      pushGitBranch: vi.fn().mockResolvedValue({ success: true }),
+      createGitPullRequest: vi.fn().mockResolvedValue({
+        number: 22,
+        title: 'Add OXO-22 support',
+        url: 'https://github.com/theadriann/oxox/pull/22',
+        state: 'open',
+        draft: false,
+      }),
       searchSessions: vi.fn().mockReturnValue({
         query: 'sdk',
         matches: [{ sessionId: 'session-1', score: 10, reasons: [] }],
@@ -341,6 +371,55 @@ describe('registerAppIpcHandlers', () => {
       sessionId: 'session-daemon',
       filePath: 'src/App.tsx',
       encoding: 'utf8',
+    })
+    await expect(
+      ipcMain.handlers.get(IPC_CHANNELS.gitGetDiff)?.(undefined, {
+        sessionId: 'session-daemon',
+        baseBranch: 'main',
+      }),
+    ).resolves.toEqual({
+      success: true,
+      data: expect.objectContaining({ branch: 'feature/oxo-22' }),
+    })
+    await expect(
+      ipcMain.handlers.get(IPC_CHANNELS.gitCommit)?.(undefined, {
+        sessionId: 'session-daemon',
+        message: 'Add OXO-22 support',
+      }),
+    ).resolves.toEqual({ success: true })
+    await expect(
+      ipcMain.handlers.get(IPC_CHANNELS.gitPush)?.(undefined, {
+        sessionId: 'session-daemon',
+      }),
+    ).resolves.toEqual({ success: true })
+    await expect(
+      ipcMain.handlers.get(IPC_CHANNELS.gitCreatePullRequest)?.(undefined, {
+        sessionId: 'session-daemon',
+        title: 'Add OXO-22 support',
+        baseBranch: 'main',
+      }),
+    ).resolves.toEqual({
+      number: 22,
+      title: 'Add OXO-22 support',
+      url: 'https://github.com/theadriann/oxox/pull/22',
+      state: 'open',
+      draft: false,
+    })
+    expect(service.getGitDiff).toHaveBeenCalledWith({
+      sessionId: 'session-daemon',
+      baseBranch: 'main',
+    })
+    expect(service.commitGitChanges).toHaveBeenCalledWith({
+      sessionId: 'session-daemon',
+      message: 'Add OXO-22 support',
+    })
+    expect(service.pushGitBranch).toHaveBeenCalledWith({
+      sessionId: 'session-daemon',
+    })
+    expect(service.createGitPullRequest).toHaveBeenCalledWith({
+      sessionId: 'session-daemon',
+      title: 'Add OXO-22 support',
+      baseBranch: 'main',
     })
     expect(await ipcMain.handlers.get(IPC_CHANNELS.sessionSearchIndexingProgress)?.()).toEqual({
       indexedSessions: 4,

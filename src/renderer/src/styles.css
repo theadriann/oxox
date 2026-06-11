@@ -378,7 +378,11 @@ body.oxox-context-panel-resizing .oxox-context-panel-resize-handle::before {
   }
 
   .oxox-content-area--with-context {
-    grid-template-columns: minmax(0, 1fr) minmax(180px, var(--oxox-context-panel-width));
+    grid-template-columns: minmax(0, 1fr) minmax(220px, calc(var(--oxox-context-panel-width) + 40px));
+  }
+
+  .oxox-content-area--with-context-rail {
+    grid-template-columns: minmax(0, 1fr) 40px;
   }
 
   .oxox-content-area--without-context {

@@ -359,6 +359,8 @@ class ObservedDaemonRpcConnection implements DaemonRpcClient {
 }
 
 export class DroidSdkDaemonSessionTransport implements StreamJsonRpcProcessTransportLike {
+  readonly transportKind = 'daemon'
+
   private readonly observedTransport: ObservedDaemonWebSocketTransport
   private readonly daemonRpc: ObservedDaemonRpcConnection
   private readonly client: Promise<DaemonClientLike>

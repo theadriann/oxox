@@ -183,6 +183,12 @@ function mergeSessionRecord(
     title: chooseTitleValue(current.title, currentSource, next.title, nextSource),
     status: chooseValue(current.status, currentSource, next.status, nextSource),
     transport: chooseValue(current.transport, currentSource, next.transport, nextSource),
+    transportLocation: chooseValue(
+      current.transportLocation,
+      currentSource,
+      next.transportLocation,
+      nextSource,
+    ),
     createdAt: chooseDurableValue(current.createdAt, currentSource, next.createdAt, nextSource),
     lastActivityAt: chooseValue(
       current.lastActivityAt,

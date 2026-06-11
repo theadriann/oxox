@@ -1,6 +1,7 @@
 import type {
   AppUpdateState,
   AppUpdateStateChangedPayload,
+  CreatePullRequestResponse,
   FactoryApiCreateComputerResponse,
   FactoryApiGetComputerByNameResponse,
   FactoryApiGetComputerMetricsResponse,
@@ -14,6 +15,8 @@ import type {
   FactoryApiUpdateComputerResponse,
   FoundationBootstrap,
   FoundationChangedPayload,
+  GitActionResponse,
+  GitDiffResponse,
   LiveSessionCompactResult,
   LiveSessionContextStatsInfo,
   LiveSessionEventBatchPayload,
@@ -167,6 +170,13 @@ export function createOxoxBridge(
           IPC_CHANNELS.workspaceFilesGetContent,
           request,
         ),
+    },
+    git: {
+      getDiff: (request) => invokeTyped<GitDiffResponse>(invoke, IPC_CHANNELS.gitGetDiff, request),
+      commit: (request) => invokeTyped<GitActionResponse>(invoke, IPC_CHANNELS.gitCommit, request),
+      push: (request) => invokeTyped<GitActionResponse>(invoke, IPC_CHANNELS.gitPush, request),
+      createPullRequest: (request) =>
+        invokeTyped<CreatePullRequestResponse>(invoke, IPC_CHANNELS.gitCreatePullRequest, request),
     },
     factoryApi: {
       listMachineTemplates: (request = {}) =>
