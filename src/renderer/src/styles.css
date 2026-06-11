@@ -196,6 +196,11 @@
     color: var(--fd-text-primary);
   }
 
+  ::highlight(oxox-transcript-search) {
+    background: rgba(224, 107, 31, 0.35);
+    color: var(--fd-text-primary);
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -374,6 +379,10 @@ body.oxox-context-panel-resizing .oxox-context-panel-resize-handle::before {
   }
 
   .oxox-app-layout--sidebar-hidden {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .oxox-app-layout--search {
     grid-template-columns: minmax(0, 1fr);
   }
 

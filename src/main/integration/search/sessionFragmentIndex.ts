@@ -42,6 +42,10 @@ interface ExtractTranscriptSearchFragmentsOptions {
 
 export type SessionSettingsSearchSource = Record<string, unknown>
 
+const MAX_FRAGMENT_INPUT_CHARS = 4_000
+const MAX_FRAGMENT_MESSAGE_CHARS = 4_000
+const MAX_FRAGMENT_RESULT_CHARS = 8_000
+
 export interface SessionFileSnapshotSearchSource {
   capturedAt?: number | string | null
   changeKind?: string | null
@@ -74,7 +78,8 @@ export function extractTranscriptSearchFragments({
     ),
     ...entries.flatMap((entry) => {
       if (entry.kind === 'message') {
-        const body = normalizeSearchText(entry.markdown)
+        const markdown = capRawSearchText(entry.markdown, MAX_FRAGMENT_MESSAGE_CHARS)
+        const body = normalizeSearchText(markdown)
 
         if (!body) {
           return []
@@ -90,10 +95,10 @@ export function extractTranscriptSearchFragments({
             title: `${capitalize(entry.role)} message`,
             subtitle: entry.sourceMessageId ?? entry.id,
             body,
-            preview: createPreview(entry.markdown),
+            preview: createPreview(markdown),
             role: entry.role,
             toolName: null,
-            filePath: extractFilePath(entry.markdown),
+            filePath: extractFilePath(markdown),
             timestamp: entry.occurredAt,
             status: null,
             rankBoost: entry.role === 'user' ? 1.35 : 1,
@@ -103,8 +108,8 @@ export function extractTranscriptSearchFragments({
         ]
       }
 
-      const input = entry.inputMarkdown.trim()
-      const result = entry.resultMarkdown?.trim() ?? ''
+      const input = capRawSearchText(entry.inputMarkdown.trim(), MAX_FRAGMENT_INPUT_CHARS)
+      const result = capRawSearchText(entry.resultMarkdown?.trim() ?? '', MAX_FRAGMENT_RESULT_CHARS)
       const body = normalizeSearchText(buildToolSearchBody(entry.toolName, input, result))
 
       if (!body) {
@@ -396,11 +401,21 @@ function createSnapshotFragment({
 }
 
 function createPreview(value: string): string {
-  const normalizedWhitespace = value.replace(/\s+/gu, ' ').trim()
+  const normalizedWhitespace = capRawSearchText(value, MAX_FRAGMENT_RESULT_CHARS)
+    .replace(/\s+/gu, ' ')
+    .trim()
 
   return normalizedWhitespace.length > 240
     ? `${normalizedWhitespace.slice(0, 237).trimEnd()}...`
     : normalizedWhitespace
+}
+
+function capRawSearchText(value: string, maxChars: number): string {
+  if (maxChars <= 0 || value.length <= maxChars) {
+    return value
+  }
+
+  return value.slice(0, maxChars)
 }
 
 function buildToolSearchBody(toolName: string, input: string, result: string): string {

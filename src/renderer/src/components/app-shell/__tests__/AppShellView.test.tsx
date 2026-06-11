@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { UIStore } from '../../../state/ui/ui.model'
+
+const testState = vi.hoisted(() => ({
+  uiStore: null as UIStore | null,
+}))
 
 vi.mock('../../../state/root/store-provider', async () => {
   const { createMemoryPersistencePort } = await vi.importActual<
@@ -11,8 +17,16 @@ vi.mock('../../../state/root/store-provider', async () => {
     '../../../state/ui/ui.model',
   )
 
+  testState.uiStore = new UIStore(createMemoryPersistencePort())
+
   return {
-    useUIStore: () => new UIStore(createMemoryPersistencePort()),
+    useUIStore: () => {
+      if (!testState.uiStore) {
+        throw new Error('UI store test double was not initialized')
+      }
+
+      return testState.uiStore
+    },
   }
 })
 
@@ -39,6 +53,10 @@ vi.mock('../StatusBarConnected', () => ({
 import { AppShellView } from '../AppShellView'
 
 describe('AppShellView', () => {
+  beforeEach(() => {
+    testState.uiStore?.closeSearch()
+  })
+
   it('renders shell chrome through connected regions instead of prop-drilled view bags', () => {
     render(<AppShellView prefersReducedMotion={false} />)
 
@@ -53,5 +71,17 @@ describe('AppShellView', () => {
     const { container } = render(<AppShellView prefersReducedMotion />)
 
     expect(container.firstChild?.getAttribute('data-motion-mode')).toBe('reduced')
+  })
+
+  it('lets full-page search take over the app canvas without rendering the session sidebar', () => {
+    testState.uiStore?.openSearch()
+
+    const { container } = render(<AppShellView prefersReducedMotion={false} />)
+
+    expect(screen.queryByTestId('sidebar-region')).toBeNull()
+    expect(container.querySelector('.oxox-app-layout')?.className).toContain(
+      'oxox-app-layout--search',
+    )
+    expect(screen.getByTestId('main-content')).toBeTruthy()
   })
 })

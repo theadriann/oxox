@@ -28,6 +28,7 @@ const TRANSCRIPT_EXTENSION = '.jsonl'
 const SETTINGS_SUFFIX = '.settings.json'
 const UNREADABLE_SESSION_TITLE = 'Unreadable session'
 const DEFAULT_SDK_METADATA_LIMIT = 100
+const DEFAULT_MAX_LINEAGE_BACKFILL_READS_PER_SYNC = 100
 
 type ArtifactFile = {
   bucketName: string | null
@@ -47,6 +48,7 @@ type SessionSettings = {
 export interface ArtifactScannerReport {
   deletedCount: number
   durationMs: number
+  lineageBackfillScannedCount?: number
   lineageBackfilledCount?: number
   processedCount: number
   skippedCount: number
@@ -60,6 +62,7 @@ export interface ArtifactScanner {
 
 export interface CreateArtifactScannerOptions {
   database: DatabaseService
+  maxLineageBackfillReadsPerSync?: number
   sdkListSessions?: SdkListSessions
   sdkMetadataLimit?: number
   sessionsRoot: string
@@ -604,12 +607,29 @@ function createSdkMetadataOverlayUpsert(
 function backfillSessionLineage(
   options: CreateArtifactScannerOptions,
   files: ArtifactFile[],
-): number {
+  checkedLineageBySourcePath: Map<string, number>,
+): { backfilledCount: number; scannedCount: number } {
   const existingLineageIds = new Set(options.database.listSessionLineageIds())
-  const filesToBackfill = files.filter((file) => !existingLineageIds.has(file.sessionId))
+  const maxReads = Math.max(
+    0,
+    Math.floor(
+      options.maxLineageBackfillReadsPerSync ?? DEFAULT_MAX_LINEAGE_BACKFILL_READS_PER_SYNC,
+    ),
+  )
+  const filesToBackfill = files
+    .filter(
+      (file) =>
+        !existingLineageIds.has(file.sessionId) &&
+        checkedLineageBySourcePath.get(file.sourcePath) !== file.lastMtimeMs,
+    )
+    .slice(0, maxReads)
   let backfilledCount = 0
+  let scannedCount = 0
 
   for (const file of filesToBackfill) {
+    checkedLineageBySourcePath.set(file.sourcePath, file.lastMtimeMs)
+    scannedCount += 1
+
     try {
       const firstLine = readFirstLine(file.sourcePath)
 
@@ -638,7 +658,7 @@ function backfillSessionLineage(
     }
   }
 
-  return backfilledCount
+  return { backfilledCount, scannedCount }
 }
 
 function readFirstLine(filePath: string): string | null {
@@ -671,6 +691,7 @@ function isUserMessageRecord(payload: Record<string, unknown>): boolean {
 
 export function createArtifactScanner(options: CreateArtifactScannerOptions): ArtifactScanner {
   const loggedUnreadableSettingsPaths = new Set<string>()
+  const checkedLineageBySourcePath = new Map<string, number>()
 
   return {
     sync: async () => {
@@ -838,7 +859,8 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
         processedCount += 1
       }
 
-      const lineageBackfilledCount = backfillSessionLineage(options, currentFiles)
+      const { backfilledCount: lineageBackfilledCount, scannedCount: lineageBackfillScannedCount } =
+        backfillSessionLineage(options, currentFiles, checkedLineageBySourcePath)
 
       const { missingSessionDeletes, staleMetadataDeletes } = partitionArtifactMetadataDeletes({
         trackedMetadata: options.database.listSyncMetadata(),
@@ -856,6 +878,7 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
       return {
         deletedCount: missingSessionDeletes.length,
         durationMs: Date.now() - startedAt,
+        lineageBackfillScannedCount,
         lineageBackfilledCount,
         processedCount,
         skippedCount,

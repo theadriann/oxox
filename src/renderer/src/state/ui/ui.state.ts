@@ -6,7 +6,7 @@ export const DEFAULT_CONTEXT_PANEL_WIDTH = 320
 export const MIN_SIDEBAR_WIDTH = 200
 export const MIN_CONTEXT_PANEL_WIDTH = 200
 
-export type AppView = 'sessions' | 'settings'
+export type AppView = 'sessions' | 'settings' | 'search'
 export type SettingsSection = 'general' | 'archive'
 export type ContentLayout = 'fluid' | 'fixed'
 export type ComposerContextUsageDisplayMode = 'percentage' | 'tokens'

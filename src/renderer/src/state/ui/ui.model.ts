@@ -143,6 +143,18 @@ export class UIStore {
     })
   }
 
+  openSearch = (): void => {
+    this.state$.activeView.set('search')
+  }
+
+  closeSearch = (): void => {
+    this.state$.activeView.set('sessions')
+  }
+
+  isSearchOpen = (): boolean => {
+    return this.state$.activeView.get() === 'search'
+  }
+
   closeSettings = (): void => {
     this.state$.assign({
       activeView: 'sessions',

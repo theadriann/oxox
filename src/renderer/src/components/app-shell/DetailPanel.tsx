@@ -225,6 +225,7 @@ export function DetailPanel({
         sessionId={selectedLiveSession.sessionId}
         items={selectedLiveTimeline}
         transcriptPrimaryActionRef={transcriptPrimaryActionRef}
+        transcriptSearchTarget={transcriptSearchTarget}
         transcriptScrollSignal={transcriptScrollSignal}
         pendingPermissionRequestIds={pendingPermissionRequestIds}
         pendingAskUserRequestIds={pendingAskUserRequestIds}
@@ -305,6 +306,7 @@ function LiveSessionTranscriptView({
   sessionId,
   items,
   transcriptPrimaryActionRef,
+  transcriptSearchTarget,
   transcriptScrollSignal,
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
@@ -314,6 +316,7 @@ function LiveSessionTranscriptView({
   sessionId: string
   items: TimelineItem[]
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
+  transcriptSearchTarget: SessionSearchTarget | null
   transcriptScrollSignal: number
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
@@ -329,6 +332,7 @@ function LiveSessionTranscriptView({
       items={items}
       isLive
       isLoading={false}
+      searchTarget={transcriptSearchTarget}
       scrollToBottomSignal={transcriptScrollSignal}
       primaryActionRef={transcriptPrimaryActionRef}
       pendingPermissionRequestIds={pendingPermissionRequestIds}

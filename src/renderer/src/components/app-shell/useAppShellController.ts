@@ -74,7 +74,10 @@ export function useAppShellController({
 
       sessionStore.selectSession(sessionId)
       setTranscriptSearchTarget(target ?? null)
-      setTranscriptScrollSignal((current) => current + 1)
+
+      if (!target) {
+        setTranscriptScrollSignal((current) => current + 1)
+      }
     },
     [newSessionForm, sessionStore],
   )
@@ -154,6 +157,9 @@ export function useAppShellController({
         },
         onOpenSettings: () => {
           uiStore.openSettings()
+        },
+        onOpenSearch: () => {
+          uiStore.openSearch()
         },
       }),
     [

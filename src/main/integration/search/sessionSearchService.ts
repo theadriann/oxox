@@ -1,3 +1,4 @@
+import { existsSync, unlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
 
 import type {
@@ -29,6 +30,7 @@ import {
 } from './sessionFragmentIndex'
 
 const SEARCH_SOURCE_SCHEMA_VERSION = 1
+const SEARCH_DATABASE_SCHEMA_VERSION = 1
 
 type SearchSessionTranscript = SessionTranscript & {
   settings?: SessionSettingsSearchSource | null
@@ -74,23 +76,33 @@ interface CreateSessionSearchServiceOptions {
     sessionId: string,
     transcriptSourcePath: string,
   ) => Promise<SearchSessionTranscript>
+  backgroundHydrationBatchDelayMs?: number
+  backgroundHydrationBatchSize?: number
   backgroundHydrationDelayMs?: number
   backgroundHydrationLimit?: number
   createSearchStore?: () => SessionSearchStore
   hydrationYieldMs?: number
   liveUpdateDebounceMs?: number
   maxIndexedContentChars?: number
+  maxIndexedFragmentsPerSession?: number
+  maxIndexedSourceRecordsPerSession?: number
   maxIndexedToolChars?: number
+  persistFoundationMetadata?: boolean
   searchDatabasePath?: string
 }
 
 interface SessionSearchService {
   searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
   getIndexingProgress: () => SessionSearchIndexingProgress
-  replaceFoundation: (bootstrap: FoundationBootstrap) => void
+  replaceFoundation: (bootstrap: FoundationBootstrap, options?: ReplaceFoundationOptions) => void
   scheduleLiveSnapshotUpdate: (snapshot: LiveSessionSnapshot) => void
   waitForHydration: () => Promise<void>
   dispose: () => void
+}
+
+interface ReplaceFoundationOptions {
+  persistMetadata?: boolean
+  scheduleHydration?: boolean
 }
 
 const DEFAULT_LIMIT = 100
@@ -99,9 +111,13 @@ const DEFAULT_HYDRATION_YIELD_MS = 25
 const DEFAULT_LIVE_UPDATE_DEBOUNCE_MS = 100
 const DEFAULT_MAX_INDEXED_CONTENT_CHARS = 80_000
 const DEFAULT_MAX_INDEXED_TOOL_CHARS = 40_000
+const MAX_ENTITY_SCAN_CHARS = 4_000
+const MAX_ENTITIES_PER_FRAGMENT = 64
 const require = createRequire(import.meta.url)
 
 export function createSessionSearchService({
+  backgroundHydrationBatchDelayMs = 0,
+  backgroundHydrationBatchSize,
   backgroundHydrationDelayMs = DEFAULT_BACKGROUND_HYDRATION_DELAY_MS,
   backgroundHydrationLimit,
   bootstrap,
@@ -110,12 +126,16 @@ export function createSessionSearchService({
   loadSessionTranscript,
   liveUpdateDebounceMs = DEFAULT_LIVE_UPDATE_DEBOUNCE_MS,
   maxIndexedContentChars = DEFAULT_MAX_INDEXED_CONTENT_CHARS,
+  maxIndexedFragmentsPerSession,
+  maxIndexedSourceRecordsPerSession,
   maxIndexedToolChars = DEFAULT_MAX_INDEXED_TOOL_CHARS,
+  persistFoundationMetadata = true,
   searchDatabasePath = ':memory:',
 }: CreateSessionSearchServiceOptions): SessionSearchService {
   let documents = new Map<string, SearchDocument>()
   const searchStore = createSearchStore?.() ?? createSqliteSessionSearchStore(searchDatabasePath)
   let hydratedDocumentIds = new Set(searchStore.listHydratedDocumentIds())
+  let failedHydrationDocumentIds = new Set<string>()
   let disposed = false
   let hydrationInFlight = false
   let hydrationPromise: Promise<void> = Promise.resolve()
@@ -138,18 +158,19 @@ export function createSessionSearchService({
     const hydratableSessions = [...documents.values()]
       .filter((document) => document.transcriptSourcePath)
       .sort((left, right) => right.lastActivityAt - left.lastActivityAt)
-      .slice(
-        0,
-        typeof backgroundHydrationLimit === 'number'
-          ? Math.max(0, backgroundHydrationLimit)
-          : undefined,
-      )
+    const processedDocumentIds = new Set([...hydratedDocumentIds, ...failedHydrationDocumentIds])
     const totalSessions = hydratableSessions.length
     const indexedSessions = hydratableSessions.filter((document) =>
-      hydratedDocumentIds.has(document.id),
+      processedDocumentIds.has(document.id),
     ).length
-    const sessionsToHydrate = hydratableSessions.filter(
-      (document) => !hydratedDocumentIds.has(document.id),
+    const pendingSessions = hydratableSessions.filter(
+      (document) => !processedDocumentIds.has(document.id),
+    )
+    const sessionsToHydrate = pendingSessions.slice(
+      0,
+      typeof backgroundHydrationLimit === 'number'
+        ? Math.max(0, backgroundHydrationLimit)
+        : undefined,
     )
 
     return {
@@ -172,8 +193,14 @@ export function createSessionSearchService({
 
   const runHydrationWorker = async () => {
     hydrationInFlight = true
+    const batchSize =
+      typeof backgroundHydrationBatchSize === 'number'
+        ? Math.max(1, Math.floor(backgroundHydrationBatchSize))
+        : Number.POSITIVE_INFINITY
 
     try {
+      let didApplyInitialDelay = false
+
       do {
         hydrationRerunRequested = false
         const sessionsToHydrate = updateIndexingProgressFromPlan()
@@ -182,9 +209,12 @@ export function createSessionSearchService({
           continue
         }
 
-        await delay(backgroundHydrationDelayMs)
+        if (!didApplyInitialDelay) {
+          didApplyInitialDelay = true
+          await delay(backgroundHydrationDelayMs)
+        }
 
-        for (const document of sessionsToHydrate) {
+        for (const [index, document] of sessionsToHydrate.entries()) {
           if (disposed) {
             return
           }
@@ -213,30 +243,42 @@ export function createSessionSearchService({
                 maxIndexedToolChars,
               ),
             }
-            upsertIndexedDocument(
-              nextDocument,
+            const indexedSourceRecords = limitIndexedRows(
+              transcript.sourceRecords ?? [],
+              maxIndexedSourceRecordsPerSession,
+            )
+            const indexedFragments = limitIndexedRows(
               extractTranscriptSearchFragments({
                 entries: transcript.entries,
                 projectId: nextDocument.project || null,
                 sessionId: currentDocument.id,
                 settings: transcript.settings,
                 snapshots: transcript.snapshots,
-                sourceRecords: transcript.sourceRecords,
+                sourceRecords: indexedSourceRecords,
               }),
-              transcript.sourceRecords,
+              maxIndexedFragmentsPerSession,
             )
+            upsertIndexedDocument(nextDocument, indexedFragments, indexedSourceRecords)
           } catch {
             // Search should remain available even if a transcript artifact is missing
             // or malformed. Metadata matches are still useful and are indexed synchronously.
+            failedHydrationDocumentIds.add(currentDocument.id)
           } finally {
             if (!disposed) {
               updateIndexingProgressFromPlan()
             }
           }
 
-          await delay(hydrationYieldMs)
+          const isLastDocument = index === sessionsToHydrate.length - 1
+          const shouldPauseForBatch =
+            !isLastDocument && backgroundHydrationBatchDelayMs > 0 && (index + 1) % batchSize === 0
+
+          await delay(shouldPauseForBatch ? backgroundHydrationBatchDelayMs : hydrationYieldMs)
         }
-      } while (hydrationRerunRequested && !disposed)
+      } while (
+        !disposed &&
+        (hydrationRerunRequested || updateIndexingProgressFromPlan().length > 0)
+      )
     } finally {
       hydrationInFlight = false
 
@@ -256,7 +298,13 @@ export function createSessionSearchService({
     hydrationPromise = runHydrationWorker()
   }
 
-  const replaceFoundation = (nextBootstrap: FoundationBootstrap) => {
+  const replaceFoundation = (
+    nextBootstrap: FoundationBootstrap,
+    {
+      persistMetadata = true,
+      scheduleHydration: shouldScheduleHydration = true,
+    }: ReplaceFoundationOptions = {},
+  ) => {
     const metadataBySessionId = new Map(
       nextBootstrap.syncMetadata.map((metadata) => [metadata.sessionId, metadata]),
     )
@@ -266,13 +314,22 @@ export function createSessionSearchService({
         createDocumentFromSession(session, metadataBySessionId.get(session.id) ?? null),
       ]),
     )
-    searchStore.replaceMetadataDocuments([...documents.values()])
-    hydratedDocumentIds = new Set(searchStore.listHydratedDocumentIds())
+    if (persistMetadata && persistFoundationMetadata) {
+      searchStore.replaceMetadataDocuments([...documents.values()])
+      hydratedDocumentIds = new Set(searchStore.listHydratedDocumentIds())
+    }
     const currentDocumentIds = new Set(documents.keys())
     hydratedDocumentIds = new Set(
       [...hydratedDocumentIds].filter((documentId) => currentDocumentIds.has(documentId)),
     )
-    scheduleHydration()
+    failedHydrationDocumentIds = new Set(
+      [...failedHydrationDocumentIds].filter((documentId) => currentDocumentIds.has(documentId)),
+    )
+    if (shouldScheduleHydration) {
+      scheduleHydration()
+    } else {
+      updateIndexingProgressFromPlan()
+    }
   }
 
   const searchSessions = (request: SessionSearchRequest): SessionSearchResponse => {
@@ -427,8 +484,47 @@ type SearchFragmentDocumentRow = {
   toolCallId: string | null
 }
 
+function shouldResetSearchDatabase(database: SqliteDatabase, databasePath: string): boolean {
+  if (databasePath === ':memory:' || !hasSearchSchemaTables(database)) {
+    return false
+  }
+
+  return readSearchDatabaseUserVersion(database) !== SEARCH_DATABASE_SCHEMA_VERSION
+}
+
+function hasSearchSchemaTables(database: SqliteDatabase): boolean {
+  const row = database
+    .prepare<{ count: number }>(
+      "SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'session_search_documents'",
+    )
+    .get()
+
+  return Number(row?.count ?? 0) > 0
+}
+
+function readSearchDatabaseUserVersion(database: SqliteDatabase): number {
+  const row = database.prepare<Record<string, unknown>>('PRAGMA user_version').get()
+  const value = row ? Object.values(row)[0] : 0
+
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function deleteSearchDatabaseFiles(databasePath: string): void {
+  for (const path of [databasePath, `${databasePath}-wal`, `${databasePath}-shm`]) {
+    if (existsSync(path)) {
+      unlinkSync(path)
+    }
+  }
+}
+
 function createSqliteSessionSearchStore(databasePath: string): SessionSearchStore {
-  const database = createSqliteDatabase(databasePath)
+  let database = createSqliteDatabase(databasePath)
+
+  if (shouldResetSearchDatabase(database, databasePath)) {
+    database.close()
+    deleteSearchDatabaseFiles(databasePath)
+    database = createSqliteDatabase(databasePath)
+  }
 
   database.pragma('journal_mode = WAL')
   database.pragma('busy_timeout = 5000')
@@ -602,6 +698,7 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       content_rowid='id',
       tokenize='trigram'
     );
+    PRAGMA user_version = ${SEARCH_DATABASE_SCHEMA_VERSION};
   `)
   ensureTableColumn(
     database,
@@ -707,7 +804,15 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       ON artifact_sources.source_path = session_search_documents.transcript_source_path
       AND artifact_sources.session_id = session_search_documents.session_id
     WHERE
-      (length(session_search_documents.content) > 0 OR length(session_search_documents.tool) > 0)
+      (
+        length(session_search_documents.content) > 0
+        OR length(session_search_documents.tool) > 0
+        OR EXISTS (
+          SELECT 1
+          FROM search_documents
+          WHERE search_documents.session_id = session_search_documents.id
+        )
+      )
       AND (
         session_search_documents.transcript_source_path IS NULL
         OR (
@@ -1422,12 +1527,16 @@ function extractSearchEntities(fragment: SearchFragmentDocument): Array<{
   value: string
   weight: number
 }> {
-  const haystack = [fragment.title, fragment.subtitle, fragment.body, fragment.filePath ?? ''].join(
-    '\n',
-  )
+  const haystack = [fragment.title, fragment.subtitle, fragment.body, fragment.filePath ?? '']
+    .join('\n')
+    .slice(0, MAX_ENTITY_SCAN_CHARS)
   const entities: Array<{ kind: string; value: string; weight: number }> = []
   const addMatches = (kind: string, pattern: RegExp, weight: number) => {
     for (const match of haystack.matchAll(pattern)) {
+      if (entities.length >= MAX_ENTITIES_PER_FRAGMENT) {
+        return
+      }
+
       const value = normalizeSearchText(match[0])
       if (value) {
         entities.push({ kind, value, weight })
@@ -1435,7 +1544,7 @@ function extractSearchEntities(fragment: SearchFragmentDocument): Array<{
     }
   }
 
-  addMatches('file_path', /(?:\/?[\w@.-]+)+(?:\/[\w@.-]+)*\.[A-Za-z0-9]{1,12}/gu, 1.5)
+  addMatches('file_path', /[\w@./-]+\.[A-Za-z0-9]{1,12}/gu, 1.5)
   addMatches('issue_key', /\b[a-z][a-z0-9]+-\d+\b/giu, 1.4)
   addMatches('url', /https?:\/\/[^\s)]+/gu, 1.2)
   addMatches('commit', /\b[a-f0-9]{7,40}\b/giu, 1)
@@ -1749,21 +1858,25 @@ function extractTranscriptSearchFields(
   maxIndexedContentChars = DEFAULT_MAX_INDEXED_CONTENT_CHARS,
   maxIndexedToolChars = DEFAULT_MAX_INDEXED_TOOL_CHARS,
 ): Pick<SearchDocument, 'content' | 'tool'> {
-  const content: string[] = []
-  const tool: string[] = []
+  let content = ''
+  let tool = ''
 
   for (const entry of entries) {
     if (entry.kind === 'message') {
-      content.push(entry.markdown)
+      content = appendCappedSearchText(content, entry.markdown, maxIndexedContentChars)
       continue
     }
 
-    tool.push(entry.toolName, entry.inputMarkdown, entry.resultMarkdown ?? '')
+    tool = appendCappedSearchText(
+      tool,
+      [entry.toolName, entry.inputMarkdown, entry.resultMarkdown ?? ''].join('\n'),
+      maxIndexedToolChars,
+    )
   }
 
   return {
-    content: capSearchField(normalizeSearchText(content.join('\n')), maxIndexedContentChars),
-    tool: capSearchField(normalizeSearchText(tool.join('\n')), maxIndexedToolChars),
+    content: capSearchField(normalizeSearchText(content), maxIndexedContentChars),
+    tool: capSearchField(normalizeSearchText(tool), maxIndexedToolChars),
   }
 }
 
@@ -1791,6 +1904,21 @@ function capSearchField(value: string, maxChars: number): string {
   }
 
   return value.slice(0, maxChars)
+}
+
+function appendCappedSearchText(current: string, next: string, maxChars: number): string {
+  if (maxChars <= 0 || current.length >= maxChars) {
+    return current
+  }
+
+  const separator = current.length > 0 ? '\n' : ''
+  const remaining = Math.max(0, maxChars - current.length - separator.length)
+
+  if (remaining <= 0) {
+    return current
+  }
+
+  return `${current}${separator}${next.slice(0, remaining)}`
 }
 
 function serializeLiveMessage(message: LiveSessionMessage): string {
@@ -2386,6 +2514,14 @@ function serializeUnknown(value: unknown): string {
   }
 
   return JSON.stringify(value)
+}
+
+function limitIndexedRows<T>(rows: T[], limit: number | undefined): T[] {
+  if (typeof limit !== 'number' || !Number.isFinite(limit)) {
+    return rows
+  }
+
+  return rows.slice(0, Math.max(0, Math.floor(limit)))
 }
 
 function createIndexingProgress(

@@ -1,4 +1,4 @@
-import { Info, PanelLeft } from 'lucide-react'
+import { Info, PanelLeft, Search } from 'lucide-react'
 import type { CSSProperties } from 'react'
 
 import { Button } from '../ui/button'
@@ -16,8 +16,10 @@ export interface AppTopBarProps {
   sessionProjectLabel?: string
   isSidebarHidden?: boolean
   isContextPanelHidden?: boolean
+  isSearchOpen?: boolean
   onToggleSidebar?: () => void
   onToggleContextPanel?: () => void
+  onOpenSearch?: () => void
 }
 
 export function AppTopBar({
@@ -25,8 +27,10 @@ export function AppTopBar({
   sessionProjectLabel,
   isSidebarHidden,
   isContextPanelHidden,
+  isSearchOpen,
   onToggleSidebar,
   onToggleContextPanel,
+  onOpenSearch,
 }: AppTopBarProps) {
   return (
     <header className="flex h-[50px] items-center gap-2 px-3" style={DRAG_STYLE}>
@@ -85,8 +89,34 @@ export function AppTopBar({
         <span className="text-sm font-medium text-fd-secondary">OXOX</span>
       )}
 
-      {onToggleContextPanel ? (
-        <div className="ml-auto" style={NO_DRAG_STYLE}>
+      <div className="ml-auto flex items-center gap-1.5" style={NO_DRAG_STYLE}>
+        {onOpenSearch ? (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Open full-page search"
+                  aria-pressed={isSearchOpen}
+                  className={`h-7 gap-1.5 px-2 ${isSearchOpen ? 'bg-white/[0.06] text-fd-primary' : 'text-fd-tertiary hover:text-fd-secondary'}`}
+                  onClick={onOpenSearch}
+                >
+                  <Search className="size-3.5" />
+                  <span className="hidden text-xs sm:inline">Search</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-[11px]">
+                Open full-page search
+                <kbd className="ml-1.5 rounded bg-white/10 px-1 py-0.5 font-mono text-[9px] text-fd-tertiary">
+                  Cmd+Shift+F
+                </kbd>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
+
+        {onToggleContextPanel ? (
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -111,8 +141,8 @@ export function AppTopBar({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </header>
   )
 }

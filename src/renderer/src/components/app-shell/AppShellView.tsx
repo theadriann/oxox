@@ -13,6 +13,12 @@ interface AppShellViewProps {
 export function AppShellView({ prefersReducedMotion }: AppShellViewProps) {
   const uiStore = useUIStore()
   const isSidebarHidden = useValue(uiStore.state$.isSidebarHidden)
+  const isSearchOpen = useValue(() => uiStore.isSearchOpen())
+  const layoutModeClass = isSearchOpen
+    ? 'oxox-app-layout--search'
+    : isSidebarHidden
+      ? 'oxox-app-layout--sidebar-hidden'
+      : 'oxox-app-layout--sidebar-visible'
 
   return (
     <div
@@ -25,10 +31,10 @@ export function AppShellView({ prefersReducedMotion }: AppShellViewProps) {
         <AppShellTopBarConnected />
       </div>
 
-      <div
-        className={`oxox-app-layout h-full ${isSidebarHidden ? 'oxox-app-layout--sidebar-hidden' : 'oxox-app-layout--sidebar-visible'}`}
-      >
-        <AppShellSidebarRegion prefersReducedMotion={prefersReducedMotion} />
+      <div className={`oxox-app-layout h-full ${layoutModeClass}`}>
+        {isSearchOpen ? null : (
+          <AppShellSidebarRegion prefersReducedMotion={prefersReducedMotion} />
+        )}
         <div className="flex min-h-0 min-w-0 flex-col pt-12.5">
           <AppShellMainContent prefersReducedMotion={prefersReducedMotion} />
           <StatusBarConnected />

@@ -1148,6 +1148,80 @@ describe('artifact scanner', () => {
     })
   })
 
+  it('bounds lineage backfill reads for unchanged artifacts without parents', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'oxox-artifacts-'))
+    const sessionsRoot = join(root, 'sessions')
+    const userDataPath = join(root, 'user-data')
+    cleanup.push(() => rmSync(root, { recursive: true, force: true }))
+
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createNodeSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    for (const sessionId of [
+      '11111111-2222-4333-8444-555555555551',
+      '11111111-2222-4333-8444-555555555552',
+      '11111111-2222-4333-8444-555555555553',
+    ]) {
+      const artifact = writeSessionArtifact({
+        sessionsRoot,
+        bucket: '-no-parent',
+        sessionId,
+        transcriptLines: [
+          JSON.stringify({
+            type: 'session_start',
+            id: sessionId,
+            title: 'No parent session',
+            cwd: '/tmp/no-parent',
+          }),
+        ],
+      })
+      const stat = statSync(artifact.transcriptPath)
+      database.upsertArtifactSession({
+        sessionId,
+        sourcePath: artifact.transcriptPath,
+        projectWorkspacePath: '/tmp/no-parent',
+        title: 'No parent session',
+        status: 'idle',
+        transport: 'artifacts',
+        createdAt: '2026-04-03T01:00:00.000Z',
+        lastActivityAt: '2026-04-03T01:00:00.000Z',
+        updatedAt: '2026-04-03T01:00:00.000Z',
+        lastByteOffset: stat.size,
+        lastMtimeMs: stat.mtimeMs,
+        checksum: `${stat.size}:${Math.floor(stat.mtimeMs)}`,
+      })
+    }
+
+    const scanner = createArtifactScanner({
+      database,
+      maxLineageBackfillReadsPerSync: 2,
+      sessionsRoot,
+    })
+
+    const firstReport = await scanner.sync()
+    const secondReport = await scanner.sync()
+    const thirdReport = await scanner.sync()
+
+    expect(firstReport).toMatchObject({
+      skippedCount: 3,
+      lineageBackfilledCount: 0,
+      lineageBackfillScannedCount: 2,
+    })
+    expect(secondReport).toMatchObject({
+      skippedCount: 3,
+      lineageBackfilledCount: 0,
+      lineageBackfillScannedCount: 1,
+    })
+    expect(thirdReport).toMatchObject({
+      skippedCount: 3,
+      lineageBackfilledCount: 0,
+      lineageBackfillScannedCount: 0,
+    })
+  })
+
   it('removes deleted sessions from SQLite on the next poll cycle', async () => {
     const root = mkdtempSync(join(tmpdir(), 'oxox-artifacts-'))
     const sessionsRoot = join(root, 'sessions')

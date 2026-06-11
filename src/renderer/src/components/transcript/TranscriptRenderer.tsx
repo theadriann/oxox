@@ -36,6 +36,12 @@ import { ToolCallCard } from './ToolCallCard'
 import { ToolCallGroup } from './ToolCallGroup'
 import type { TimelineItem, ToolTimelineItem } from './timelineTypes'
 import { groupConsecutiveToolItems } from './toolCallGrouping'
+import {
+  getTimelineItemSearchText,
+  TranscriptInlineSearchBar,
+  useTranscriptInlineSearch,
+  useTranscriptInlineSearchHighlights,
+} from './transcriptInlineSearch'
 
 const TRANSCRIPT_LOADING_ROW_IDS = [
   'transcript-loading-a',
@@ -85,6 +91,7 @@ export function TranscriptRenderer({
         items={renderItems}
         scrollContextKey={scrollContextKey ?? 'live-transcript'}
         scrollToBottomSignal={scrollToBottomSignal}
+        searchTarget={searchTarget}
         primaryActionRef={primaryActionRef}
         pendingPermissionRequestIds={pendingPermissionRequestIds}
         pendingAskUserRequestIds={pendingAskUserRequestIds}
@@ -191,6 +198,14 @@ function isMcpStatusEvent(item: TimelineItem): item is Extract<TimelineItem, { k
   return item.kind === 'event' && item.typeLabel === 'mcp.statusChanged'
 }
 
+function getRenderItemSearchText(item: RenderItem): string {
+  if (item.kind === 'tool-group' || item.kind === 'mcp-status-group') {
+    return item.items.map(getTimelineItemSearchText).join('\n')
+  }
+
+  return getTimelineItemSearchText(item.item)
+}
+
 function renderItemMatchesSearchTarget(item: RenderItem, target: SessionSearchTarget): boolean {
   if (target.messageId && getRenderItemMessageId(item) === target.messageId) {
     return true
@@ -241,6 +256,7 @@ function LiveTranscriptView({
   items,
   scrollContextKey,
   scrollToBottomSignal,
+  searchTarget,
   primaryActionRef,
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
@@ -250,6 +266,7 @@ function LiveTranscriptView({
   items: RenderItem[]
   scrollContextKey: string
   scrollToBottomSignal: number
+  searchTarget?: SessionSearchTarget | null
   primaryActionRef?: MutableRefObject<HTMLElement | null>
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
@@ -288,6 +305,20 @@ function LiveTranscriptView({
     initialRect: { height: 640, width: 960 },
     estimateSize: (index) => estimateRenderItemSize(items[index]),
     overscan: 10,
+  })
+  const inlineSearchTexts = useMemo(() => items.map(getRenderItemSearchText), [items])
+  const inlineSearch = useTranscriptInlineSearch({
+    searchTexts: inlineSearchTexts,
+    onNavigateToRow: (rowIndex) => {
+      autoScrollRef.current = false
+      isAtBottomRef.current = false
+      virtualizer.scrollToIndex(rowIndex, { align: 'center' })
+    },
+  })
+  useTranscriptInlineSearchHighlights({
+    containerRef: scrollAreaRef,
+    isOpen: inlineSearch.isOpen,
+    query: inlineSearch.query,
   })
   const virtualItems = virtualizer.getVirtualItems()
   const estimatedTotalHeight =
@@ -357,8 +388,11 @@ function LiveTranscriptView({
     isAtBottomRef.current = isScrolledToBottom(el)
   }, [estimatedTotalHeight, items.length, latestTimelineMarker, virtualizer])
 
+  const lastConsumedScrollSignalRef = useRef(scrollToBottomSignal)
+
   useLayoutEffect(() => {
-    if (scrollToBottomSignal === 0) return
+    if (scrollToBottomSignal === lastConsumedScrollSignalRef.current) return
+    lastConsumedScrollSignalRef.current = scrollToBottomSignal
 
     const el = scrollAreaRef.current
     if (!el) return
@@ -371,8 +405,35 @@ function LiveTranscriptView({
     setShowJumpButton(false)
   }, [estimatedTotalHeight, items.length, scrollToBottomSignal, virtualizer])
 
+  const appliedSearchTargetRef = useRef<SessionSearchTarget | null>(null)
+
+  useLayoutEffect(() => {
+    if (!searchTarget || items.length === 0) return
+    if (appliedSearchTargetRef.current === searchTarget) return
+
+    const targetIndex = items.findIndex((item) => renderItemMatchesSearchTarget(item, searchTarget))
+
+    if (targetIndex < 0) {
+      return
+    }
+
+    appliedSearchTargetRef.current = searchTarget
+    autoScrollRef.current = false
+    isAtBottomRef.current = false
+    setShowJumpButton(true)
+    virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+
+    // Re-align once after dynamic row measurement settles.
+    const frame = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [items, searchTarget, virtualizer])
+
   return (
     <section className="relative flex min-h-0 h-full flex-col">
+      <TranscriptInlineSearchBar search={inlineSearch} />
       <div
         aria-label="Live transcript events"
         className="flex-1 overflow-y-auto"
@@ -500,6 +561,20 @@ function HistoricalTranscriptView({
     estimateSize: (index) => estimateRenderItemSize(items[index]),
     overscan: 8,
   })
+  const inlineSearchTexts = useMemo(() => items.map(getRenderItemSearchText), [items])
+  const inlineSearch = useTranscriptInlineSearch({
+    searchTexts: inlineSearchTexts,
+    onNavigateToRow: (rowIndex) => {
+      autoScrollRef.current = false
+      isAtBottomRef.current = false
+      virtualizer.scrollToIndex(rowIndex, { align: 'center' })
+    },
+  })
+  useTranscriptInlineSearchHighlights({
+    containerRef: scrollAreaRef,
+    isOpen: inlineSearch.isOpen,
+    query: inlineSearch.query,
+  })
 
   const virtualItems = virtualizer.getVirtualItems()
   const estimatedTotalHeight =
@@ -577,16 +652,22 @@ function HistoricalTranscriptView({
     }
   }, [estimatedTotalHeight, hasTranscript, items.length, rowsToRender, virtualizer])
 
+  const lastConsumedScrollSignalRef = useRef(scrollToBottomSignal)
+
   useLayoutEffect(() => {
-    if (scrollToBottomSignal === 0) return
+    if (scrollToBottomSignal === lastConsumedScrollSignalRef.current) return
+    lastConsumedScrollSignalRef.current = scrollToBottomSignal
     scrollToBottom()
     isAtBottomRef.current = true
     autoScrollRef.current = true
     setShowJumpButton(false)
   }, [scrollToBottom, scrollToBottomSignal])
 
+  const appliedSearchTargetRef = useRef<SessionSearchTarget | null>(null)
+
   useLayoutEffect(() => {
     if (!searchTarget || items.length === 0) return
+    if (appliedSearchTargetRef.current === searchTarget) return
 
     const targetIndex = items.findIndex((item) => renderItemMatchesSearchTarget(item, searchTarget))
 
@@ -594,14 +675,24 @@ function HistoricalTranscriptView({
       return
     }
 
+    appliedSearchTargetRef.current = searchTarget
     autoScrollRef.current = false
     isAtBottomRef.current = false
+    initialScrollDoneRef.current = true
     setShowJumpButton(true)
     virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+
+    // Re-align once after dynamic row measurement settles.
+    const frame = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+    })
+
+    return () => cancelAnimationFrame(frame)
   }, [items, searchTarget, virtualizer])
 
   return (
     <section className="relative flex min-h-0 h-full flex-col">
+      <TranscriptInlineSearchBar search={inlineSearch} />
       {isLoading && hasTranscript ? (
         <div className="flex items-center gap-1.5 py-1 text-xs text-fd-tertiary">
           <Loader2 className="size-3 animate-spin" />

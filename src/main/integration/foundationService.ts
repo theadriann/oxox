@@ -82,6 +82,7 @@ import {
 } from './mcp/oxoxCapabilityGateway'
 import type { LocalPluginHostManager } from './plugins/localPluginHost'
 import { createLiveSessionSearchIndexScheduler } from './search/liveSessionSearchIndexScheduler'
+import { createBackgroundSessionSearchHydrator } from './search/sessionSearchHydrationWorker'
 import { createSessionSearchService } from './search/sessionSearchService'
 import { createSessionProcessManager } from './sessions/processManager'
 import type { StreamJsonRpcProcessTransportLike } from './sessions/types'
@@ -260,16 +261,20 @@ export function createFoundationService(
   const database = createDatabaseService(options)
   const factoryApi = createFactoryApiService()
   const droidCliStatus = resolveDroidCliStatus()
+  const disableArtifactScanner = process.env.OXOX_DISABLE_ARTIFACT_SCANNER === '1'
+  const disableSearchService = process.env.OXOX_DISABLE_SEARCH_SERVICE === '1'
   let readDaemonDefaultSettings = async (): Promise<unknown> => null
   const foundationBootstrapState = createFoundationBootstrapState({
     droidPath: droidCliStatus.path ?? undefined,
     onChange: emitFoundationChanged,
     readDaemonDefaultSettings: () => readDaemonDefaultSettings(),
   })
-  const scanner = createBackgroundArtifactScanner({
-    userDataPath: options.userDataPath,
-    sessionsRoot: join(homedir(), '.factory', 'sessions'),
-  })
+  const scanner = disableArtifactScanner
+    ? createNoopArtifactScanner()
+    : createBackgroundArtifactScanner({
+        userDataPath: options.userDataPath,
+        sessionsRoot: join(homedir(), '.factory', 'sessions'),
+      })
   const sessionsRoot = join(homedir(), '.factory', 'sessions')
   const daemonAuthProvider = createEnvironmentDaemonAuthProvider()
   const daemonTransport = createDaemonTransport({
@@ -327,11 +332,38 @@ export function createFoundationService(
     droidCliStatus,
     getFactorySettingsBootstrap: foundationBootstrapState.getSnapshot,
   })
-  const searchService = createSessionSearchService({
+  const searchDatabasePath = join(options.userDataPath, 'session-search.db')
+  const searchHydrationOptions = {
+    backgroundHydrationBatchDelayMs: 2_000,
+    backgroundHydrationBatchSize: 1,
+    backgroundHydrationLimit: 50,
     bootstrap: queries.getBootstrap(),
-    loadSessionTranscript: loadSessionTranscriptFromFile,
-    searchDatabasePath: join(options.userDataPath, 'session-search.db'),
-  })
+    hydrationYieldMs: 250,
+    maxIndexedContentChars: 20_000,
+    maxIndexedFragmentsPerSession: 300,
+    maxIndexedSourceRecordsPerSession: 500,
+    maxIndexedToolChars: 10_000,
+    persistFoundationMetadata: false,
+    searchDatabasePath,
+  }
+  const searchService = disableSearchService
+    ? createNoopSessionSearchService()
+    : createSessionSearchService({
+        bootstrap: searchHydrationOptions.bootstrap,
+        loadSessionTranscript: loadSessionTranscriptFromFile,
+        backgroundHydrationBatchDelayMs: searchHydrationOptions.backgroundHydrationBatchDelayMs,
+        backgroundHydrationBatchSize: searchHydrationOptions.backgroundHydrationBatchSize,
+        backgroundHydrationLimit: 0,
+        hydrationYieldMs: searchHydrationOptions.hydrationYieldMs,
+        maxIndexedContentChars: searchHydrationOptions.maxIndexedContentChars,
+        maxIndexedFragmentsPerSession: searchHydrationOptions.maxIndexedFragmentsPerSession,
+        maxIndexedSourceRecordsPerSession: searchHydrationOptions.maxIndexedSourceRecordsPerSession,
+        maxIndexedToolChars: searchHydrationOptions.maxIndexedToolChars,
+        searchDatabasePath,
+      })
+  const searchHydrator = disableSearchService
+    ? createNoopSessionSearchHydrator()
+    : createBackgroundSessionSearchHydrator(searchHydrationOptions)
   const liveSearchIndexScheduler = createLiveSessionSearchIndexScheduler({
     getSessionSnapshot: liveSessionRuntime.getSessionSnapshot,
     scheduleLiveSnapshotUpdate: searchService.scheduleLiveSnapshotUpdate,
@@ -339,7 +371,12 @@ export function createFoundationService(
   foundationChangeBroadcaster = createFoundationChangeBroadcaster({
     getSnapshot: queries.getBootstrap,
     emit: (payload) => {
-      searchService.replaceFoundation(queries.getBootstrap())
+      const bootstrap = queries.getBootstrap()
+      searchService.replaceFoundation(bootstrap, {
+        persistMetadata: false,
+        scheduleHydration: false,
+      })
+      searchHydrator.replaceFoundation(bootstrap)
       emitPayload(payload)
     },
   })
@@ -472,6 +509,7 @@ export function createFoundationService(
       sessionCatalog.close()
       unsubscribeSearchLiveSnapshots()
       liveSearchIndexScheduler.dispose()
+      void searchHydrator.close()
       searchService.dispose()
       void daemonTransport.stop()
       void liveSessionRuntime.dispose()
@@ -547,7 +585,7 @@ export function createFoundationService(
     createGitPullRequest,
     getSessionTranscript: queries.getSessionTranscript,
     searchSessions: searchService.searchSessions,
-    getSearchIndexingProgress: searchService.getIndexingProgress,
+    getSearchIndexingProgress: searchHydrator.getIndexingProgress,
     subscribeToFoundationUpdates: (listener) => {
       foundationUpdateListeners.add(listener)
 
@@ -557,6 +595,53 @@ export function createFoundationService(
     },
     subscribeToLiveSessionSnapshots: liveSessionRuntime.subscribeToSnapshots,
     subscribeToLiveSessionEvents: liveSessionRuntime.subscribeToEvents,
+  }
+}
+
+function createNoopArtifactScanner(): ReturnType<typeof createBackgroundArtifactScanner> {
+  return {
+    sync: async () => ({
+      deletedCount: 0,
+      durationMs: 0,
+      processedCount: 0,
+      skippedCount: 0,
+      unreadableCount: 0,
+    }),
+    close: async () => {},
+  }
+}
+
+function createNoopSessionSearchService(): ReturnType<typeof createSessionSearchService> {
+  return {
+    searchSessions: (request) => ({
+      query: request.query,
+      matches: [],
+    }),
+    getIndexingProgress: () => ({
+      indexedSessions: 0,
+      totalSessions: 0,
+      isIndexing: false,
+      updatedAt: new Date().toISOString(),
+    }),
+    replaceFoundation: () => {},
+    scheduleLiveSnapshotUpdate: () => {},
+    waitForHydration: async () => {},
+    dispose: () => {},
+  }
+}
+
+function createNoopSessionSearchHydrator(): ReturnType<
+  typeof createBackgroundSessionSearchHydrator
+> {
+  return {
+    getIndexingProgress: () => ({
+      indexedSessions: 0,
+      totalSessions: 0,
+      isIndexing: false,
+      updatedAt: new Date().toISOString(),
+    }),
+    replaceFoundation: () => {},
+    close: async () => {},
   }
 }
 

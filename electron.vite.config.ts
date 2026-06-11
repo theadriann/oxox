@@ -16,6 +16,10 @@ export default defineConfig({
             currentDirectory,
             'src/main/integration/artifacts/worker.ts',
           ),
+          'session-search-hydration-worker': resolve(
+            currentDirectory,
+            'src/main/integration/search/sessionSearchHydrationWorkerMain.ts',
+          ),
         },
       },
     },

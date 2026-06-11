@@ -1772,6 +1772,69 @@ describe('TranscriptRenderer (historical)', () => {
     expect(scrollToMock).toHaveBeenCalledWith(expect.objectContaining({ top: expect.any(Number) }))
   })
 
+  it('suspends bottom-pinning and shows the jump button when opening at a search target', async () => {
+    render(
+      <TranscriptRenderer
+        items={buildHistoricalTimeline(createTranscript(200).entries)}
+        isLive={false}
+        isLoading={false}
+        scrollContextKey="session-history-target"
+        searchTarget={{
+          sessionId: 'session-1',
+          sourceKind: 'block',
+          sourceId: 'message-50',
+          messageId: 'message-50',
+        }}
+      />,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // The target path suspends bottom-pinning immediately, so the
+    // jump-to-latest affordance is visible without any user scroll.
+    expect(screen.getByRole('button', { name: 'Scroll to latest' })).toBeTruthy()
+  })
+
+  it('matches search targets against tool call ids inside grouped tool rows', async () => {
+    const entries = Array.from({ length: 60 }, (_, index) => ({
+      kind: 'tool_call' as const,
+      id: `tool-${index}`,
+      toolName: 'Execute',
+      toolUseId: `tool-use-${index}`,
+      occurredAt: '2026-03-25T01:01:00.000Z',
+      status: 'completed' as const,
+      inputMarkdown: null,
+      resultMarkdown: `tool output ${index}`,
+      resultIsError: false,
+    }))
+
+    render(
+      <TranscriptRenderer
+        items={buildHistoricalTimeline(entries)}
+        isLive={false}
+        isLoading={false}
+        scrollContextKey="session-history-tool-target"
+        searchTarget={{
+          sessionId: 'session-1',
+          sourceKind: 'tool_call',
+          sourceId: 'tool-use-10',
+          toolCallId: 'tool-use-10',
+        }}
+      />,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const renderedRows = screen.getAllByTestId('transcript-row')
+    expect(renderedRows.some((row) => row.dataset.searchToolCallId?.includes('tool-use-10'))).toBe(
+      true,
+    )
+  })
+
   it('renders user image attachments inline and keeps bubbles overflow-hidden', () => {
     const imageEntry = Object.assign(
       {

@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -351,7 +352,30 @@ describe('createSessionSearchService', () => {
     ])
   })
 
-  it('defers and limits background transcript hydration so startup remains responsive', async () => {
+  it('can refresh in-memory foundation metadata without writing the search database', () => {
+    const { replaceMetadataDocuments, store } = createRecordingSearchStore()
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'session-alpha', title: 'Alpha' })]),
+      createSearchStore: () => store,
+      loadSessionTranscript: vi.fn(),
+      backgroundHydrationLimit: 0,
+    })
+
+    expect(replaceMetadataDocuments).toHaveBeenCalledTimes(1)
+
+    service.replaceFoundation(
+      createBootstrap([createSession({ id: 'session-alpha', title: 'Alpha renamed' })]),
+      {
+        persistMetadata: false,
+        scheduleHydration: false,
+      },
+    )
+
+    expect(replaceMetadataDocuments).toHaveBeenCalledTimes(1)
+    expect(service.searchSessions({ query: 'alpha' }).matches[0]?.sessionId).toBe('session-alpha')
+  })
+
+  it('uses background hydration limits as continuing work windows and reports total progress', async () => {
     vi.useFakeTimers()
     const loadSessionTranscript = vi.fn(async (sessionId: string) =>
       createTranscript(sessionId, [
@@ -385,6 +409,14 @@ describe('createSessionSearchService', () => {
       hydrationYieldMs: 5,
     })
 
+    expect(service.getIndexingProgress()).toEqual(
+      expect.objectContaining({
+        indexedSessions: 0,
+        totalSessions: 3,
+        isIndexing: true,
+      }),
+    )
+
     expect(loadSessionTranscript).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(24)
@@ -396,7 +428,135 @@ describe('createSessionSearchService', () => {
     expect(loadSessionTranscript.mock.calls.map(([sessionId]) => sessionId)).toEqual([
       'new-session',
       'middle-session',
+      'old-session',
     ])
+    expect(service.getIndexingProgress()).toEqual(
+      expect.objectContaining({
+        indexedSessions: 3,
+        totalSessions: 3,
+        isIndexing: false,
+      }),
+    )
+  })
+
+  it('pauses between background indexing batches when a batch throttle is configured', async () => {
+    vi.useFakeTimers()
+    const loadSessionTranscript = vi.fn(async (sessionId: string) =>
+      createTranscript(sessionId, [
+        {
+          kind: 'message',
+          id: `message-${sessionId}`,
+          occurredAt: null,
+          role: 'assistant',
+          markdown: `Hydrated content for ${sessionId}`,
+        },
+      ]),
+    )
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([
+        createSession({ id: 'session-1' }),
+        createSession({ id: 'session-2' }),
+        createSession({ id: 'session-3' }),
+      ]),
+      loadSessionTranscript,
+      backgroundHydrationBatchDelayMs: 100,
+      backgroundHydrationBatchSize: 1,
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(loadSessionTranscript).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(99)
+    expect(loadSessionTranscript).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(loadSessionTranscript).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(100)
+    await service.waitForHydration()
+
+    expect(loadSessionTranscript).toHaveBeenCalledTimes(3)
+  })
+
+  it('caps fragment rows per hydrated session when configured', async () => {
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'capped-session' })]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [
+          {
+            kind: 'message',
+            id: 'message-1',
+            occurredAt: null,
+            role: 'assistant',
+            markdown: 'first indexed fragment',
+          },
+          {
+            kind: 'message',
+            id: 'message-2',
+            occurredAt: null,
+            role: 'assistant',
+            markdown: 'second indexed fragment',
+          },
+          {
+            kind: 'message',
+            id: 'message-3',
+            occurredAt: null,
+            role: 'assistant',
+            markdown: 'third skipped fragment',
+          },
+        ]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      maxIndexedContentChars: 1,
+      maxIndexedFragmentsPerSession: 2,
+    })
+
+    await service.waitForHydration()
+
+    expect(service.searchSessions({ query: 'content:first' }).matches[0]?.sessionId).toBe(
+      'capped-session',
+    )
+    expect(service.searchSessions({ query: 'content:second' }).matches[0]?.sessionId).toBe(
+      'capped-session',
+    )
+    expect(service.searchSessions({ query: 'content:third' }).matches).toEqual([])
+  })
+
+  it('caps hydrated tool text before storing searchable document fields', async () => {
+    const { store, upsertDocument } = createRecordingSearchStore()
+    const hugeToolResult = `${'diagnostic '.repeat(10_000)} uncapped-tail`
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'huge-tool-session' })]),
+      createSearchStore: () => store,
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [
+          {
+            kind: 'tool_call',
+            toolUseId: 'tool-1',
+            toolName: 'Execute',
+            inputMarkdown: 'pnpm test',
+            resultMarkdown: hugeToolResult,
+            resultIsError: false,
+            status: 'completed',
+            occurredAt: null,
+          },
+        ]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      maxIndexedToolChars: 32,
+    })
+
+    await service.waitForHydration()
+
+    const indexedDocument = upsertDocument.mock.calls.at(-1)?.[0]
+    const match = service.searchSessions({ query: 'tool:diagnostic' }).matches[0]
+    expect(match?.sessionId).toBe('huge-tool-session')
+    expect(indexedDocument?.tool.length).toBeLessThanOrEqual(32)
+    expect(service.searchSessions({ query: 'tool:uncapped-tail' }).matches).toEqual([])
   })
 
   it('hydrates every transcript by default instead of permanently skipping older sessions', async () => {
@@ -666,6 +826,100 @@ describe('createSessionSearchService', () => {
       reasons: expect.arrayContaining([expect.objectContaining({ sourceId: 'message-new' })]),
     })
     restartedService.dispose()
+  })
+
+  it('drops a stale derived search cache and rebuilds it from transcript artifacts', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-search-stale-cache-'))
+    const searchDatabasePath = join(userDataPath, 'session-search.db')
+    const database = new DatabaseSync(searchDatabasePath)
+    database.exec(`
+      CREATE TABLE session_search_documents (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        project TEXT NOT NULL,
+        path TEXT NOT NULL,
+        status TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        tool TEXT NOT NULL DEFAULT '',
+        last_activity_at INTEGER NOT NULL DEFAULT 0,
+        transcript_source_path TEXT,
+        source_last_byte_offset INTEGER NOT NULL DEFAULT -1,
+        source_last_mtime_ms INTEGER NOT NULL DEFAULT 0,
+        source_checksum TEXT
+      );
+      INSERT INTO session_search_documents (
+        id,
+        title,
+        project,
+        path,
+        status,
+        session_id,
+        content,
+        tool,
+        last_activity_at,
+        transcript_source_path,
+        source_last_byte_offset,
+        source_last_mtime_ms,
+        source_checksum
+      )
+      VALUES (
+        'stale-cache-session',
+        'Stale cache',
+        'project-stale-cache-session',
+        '/tmp/stale-cache-session',
+        'completed',
+        'stale-cache-session',
+        'stale-only content',
+        '',
+        1,
+        '/tmp/stale-cache-session.jsonl',
+        120,
+        1000,
+        'stale-checksum'
+      );
+    `)
+    database.close()
+
+    const bootstrap = createBootstrap([createSession({ id: 'stale-cache-session' })])
+    bootstrap.syncMetadata = [
+      {
+        sourcePath: '/tmp/stale-cache-session.jsonl',
+        sessionId: 'stale-cache-session',
+        lastByteOffset: 240,
+        lastMtimeMs: 2_000,
+        lastSyncedAt: '2026-03-24T20:06:00.000Z',
+        checksum: 'rebuilt-checksum',
+      },
+    ]
+    const loadSessionTranscript = vi.fn(async (sessionId: string) =>
+      createTranscript(sessionId, [
+        {
+          kind: 'message',
+          id: 'message-rebuilt',
+          sourceMessageId: 'message-rebuilt',
+          occurredAt: null,
+          role: 'assistant',
+          markdown: 'rebuilt source content',
+        },
+      ]),
+    )
+    const service = createSessionSearchService({
+      bootstrap,
+      loadSessionTranscript,
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    await service.waitForHydration()
+
+    expect(loadSessionTranscript).toHaveBeenCalledTimes(1)
+    expect(service.searchSessions({ query: 'content:stale-only' }).matches).toEqual([])
+    expect(service.searchSessions({ query: 'content:rebuilt' }).matches[0]).toMatchObject({
+      sessionId: 'stale-cache-session',
+    })
+    service.dispose()
   })
 
   it('persists OXO-58 entity fragments for exact file, command, issue, error, todo, compaction, and settings queries', async () => {

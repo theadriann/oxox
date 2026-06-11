@@ -282,6 +282,21 @@ describe('useAppShellController', () => {
       expect(selectSession).toHaveBeenCalledWith('session-2')
       expect(resultRef.current.transcriptScrollSignal).toBe(1)
 
+      // Selecting with a search target keeps the scroll signal untouched so
+      // the transcript can scroll to the matched row instead of the bottom.
+      await act(async () => {
+        resultRef.current?.handleSelectSession('session-3', {
+          sessionId: 'session-3',
+          sourceKind: 'block',
+          sourceId: 'message-9:0',
+          messageId: 'message-9',
+        })
+      })
+
+      expect(selectSession).toHaveBeenCalledWith('session-3')
+      expect(resultRef.current.transcriptScrollSignal).toBe(1)
+      expect(resultRef.current.transcriptSearchTarget).toMatchObject({ messageId: 'message-9' })
+
       await act(async () => {
         await resultRef.current?.handleAttachSelectedSession()
       })

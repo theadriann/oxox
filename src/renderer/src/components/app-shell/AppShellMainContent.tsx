@@ -8,6 +8,7 @@ import {
   useSessionStore,
   useUIStore,
 } from '../../state/root/store-provider'
+import { FullPageSearchConnected } from '../search/FullPageSearchConnected'
 import { SettingsPanel } from '../settings/SettingsPanel'
 import { SessionComposerConnected } from '../transcript/SessionComposerConnected'
 import { AppShellContextPanel } from './AppShellContextPanel'
@@ -38,6 +39,7 @@ export function AppShellMainContent({ prefersReducedMotion }: AppShellMainConten
       sessionStore,
     })
   const isSettingsOpen = useValue(() => uiStore.isSettingsOpen())
+  const isSearchOpen = useValue(() => uiStore.isSearchOpen())
   const settingsSection = useValue(uiStore.state$.settingsSection)
   const isContextPanelHidden = useValue(uiStore.state$.isContextPanelHidden)
   const contentLayout = useValue(uiStore.state$.contentLayout)
@@ -49,6 +51,14 @@ export function AppShellMainContent({ prefersReducedMotion }: AppShellMainConten
     return (
       <div className="flex-1 overflow-y-auto">
         <SettingsPanel section={settingsSection} />
+      </div>
+    )
+  }
+
+  if (isSearchOpen) {
+    return (
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <FullPageSearchConnected />
       </div>
     )
   }

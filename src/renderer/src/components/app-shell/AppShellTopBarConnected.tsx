@@ -9,6 +9,7 @@ export function AppShellTopBarConnected() {
   const uiStore = useUIStore()
   const { newSessionForm } = useAppShellControllerContext()
   const isSettingsOpen = useValue(() => uiStore.isSettingsOpen())
+  const isSearchOpen = useValue(() => uiStore.isSearchOpen())
   const isSidebarHidden = useValue(uiStore.state$.isSidebarHidden)
   const isContextPanelHidden = useValue(uiStore.state$.isContextPanelHidden)
   const sessionTitle = useValue(() =>
@@ -29,7 +30,22 @@ export function AppShellTopBarConnected() {
         sessionTitle="Settings"
         sessionProjectLabel={undefined}
         isSidebarHidden={isSidebarHidden}
+        isSearchOpen={isSearchOpen}
         onToggleSidebar={uiStore.toggleSidebar}
+        onOpenSearch={uiStore.openSearch}
+      />
+    )
+  }
+
+  if (isSearchOpen) {
+    return (
+      <AppTopBar
+        sessionTitle="Search"
+        sessionProjectLabel="All sessions"
+        isSidebarHidden
+        isSearchOpen={isSearchOpen}
+        onToggleSidebar={uiStore.toggleSidebar}
+        onOpenSearch={uiStore.openSearch}
       />
     )
   }
@@ -38,10 +54,12 @@ export function AppShellTopBarConnected() {
     <AppTopBar
       sessionTitle={sessionTitle}
       sessionProjectLabel={sessionProjectLabel}
-      isSidebarHidden={isSidebarHidden}
+      isSidebarHidden={isSearchOpen || isSidebarHidden}
       isContextPanelHidden={isContextPanelHidden}
+      isSearchOpen={isSearchOpen}
       onToggleSidebar={uiStore.toggleSidebar}
       onToggleContextPanel={uiStore.toggleContextPanel}
+      onOpenSearch={uiStore.openSearch}
     />
   )
 }
