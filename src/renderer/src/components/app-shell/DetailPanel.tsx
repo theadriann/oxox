@@ -5,6 +5,7 @@ import type {
   FoundationBootstrap,
   LiveSessionAskUserAnswerRecord,
   LiveSessionSnapshot,
+  SessionSearchTarget,
   SessionTranscript,
 } from '../../../../shared/ipc/contracts'
 import type { SessionPreview } from '../../state/sessions/session.model'
@@ -38,6 +39,7 @@ export interface DetailPanelProps {
   newSessionPath: string
   newSessionError: string | null
   transcriptScrollSignal: number
+  transcriptSearchTarget: SessionSearchTarget | null
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
@@ -70,6 +72,7 @@ export function DetailPanel({
   newSessionPath,
   newSessionError,
   transcriptScrollSignal,
+  transcriptSearchTarget,
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
   transcriptPrimaryActionRef,
@@ -289,6 +292,7 @@ export function DetailPanel({
       transcript={selectedTranscript}
       sessionId={selectedSession.id}
       transcriptPrimaryActionRef={transcriptPrimaryActionRef}
+      transcriptSearchTarget={transcriptSearchTarget}
       transcriptScrollSignal={transcriptScrollSignal}
       isRefreshing={isRefreshingTranscript}
       refreshError={selectedTranscriptRefreshError}
@@ -339,6 +343,7 @@ function HistoricalTranscriptView({
   transcript,
   sessionId,
   transcriptPrimaryActionRef,
+  transcriptSearchTarget,
   transcriptScrollSignal,
   isRefreshing,
   refreshError,
@@ -347,6 +352,7 @@ function HistoricalTranscriptView({
   transcript: SessionTranscript | null
   sessionId: string
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
+  transcriptSearchTarget: SessionSearchTarget | null
   transcriptScrollSignal: number
   isRefreshing: boolean
   refreshError: string | null
@@ -361,6 +367,7 @@ function HistoricalTranscriptView({
       isLive={false}
       isLoading={isRefreshing}
       loadingError={refreshError}
+      searchTarget={transcriptSearchTarget}
       scrollToBottomSignal={transcriptScrollSignal}
       primaryActionRef={transcriptPrimaryActionRef}
       onRetry={onRetry}

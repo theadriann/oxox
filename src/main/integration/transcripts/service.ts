@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
+
 import type {
   SessionTranscript,
   TranscriptEntry,
@@ -7,6 +10,10 @@ import type {
   TranscriptToolCallEntry,
 } from '../../../shared/ipc/contracts'
 import { parseTranscriptFileFromPath, type TranscriptRecord } from '../artifacts/jsonlParser'
+import type {
+  SessionFileSnapshotSearchSource,
+  SessionSettingsSearchSource,
+} from '../search/sessionFragmentIndex'
 
 type TranscriptEnvelope = {
   id?: unknown
@@ -30,12 +37,17 @@ export async function loadSessionTranscriptFromFile(
   rewindBoundaryMessageIdsByMessageId?: ReadonlyMap<string, string>,
 ): Promise<SessionTranscript> {
   const parsed = await parseTranscriptFileFromPath(sourcePath)
-  return buildSessionTranscript(
-    sessionId,
-    sourcePath,
-    parsed.records,
-    rewindBoundaryMessageIdsByMessageId,
-  )
+  const sidecars = readTranscriptSidecars(sourcePath)
+  return {
+    ...buildSessionTranscript(
+      sessionId,
+      sourcePath,
+      parsed.records,
+      rewindBoundaryMessageIdsByMessageId,
+    ),
+    ...sidecars,
+    sourceRecords: parsed.records,
+  }
 }
 
 export function parseSessionTranscript(
@@ -106,6 +118,106 @@ function buildSessionTranscript(
     sourcePath,
     loadedAt: new Date().toISOString(),
     entries,
+  }
+}
+
+function readTranscriptSidecars(sourcePath: string): {
+  settings?: SessionSettingsSearchSource
+  snapshots?: SessionFileSnapshotSearchSource[]
+} {
+  const sessionArtifactBasePath = join(dirname(sourcePath), basename(sourcePath, '.jsonl'))
+  const settings = readSettingsSidecar(`${sessionArtifactBasePath}.settings.json`)
+  const snapshots = readSnapshotsSidecar(`${sessionArtifactBasePath}.snapshots.json`)
+
+  return {
+    ...(settings ? { settings } : {}),
+    ...(snapshots.length > 0 ? { snapshots } : {}),
+  }
+}
+
+function readSettingsSidecar(filePath: string): SessionSettingsSearchSource | null {
+  const parsed = readJsonSidecar(filePath)
+
+  if (!isRecord(parsed)) {
+    return null
+  }
+
+  const nestedSettings = isRecord(parsed.settings) ? parsed.settings : {}
+  const safeNestedSettings = pickDefined({
+    autonomyMode: toOptionalString(nestedSettings.autonomyMode),
+    compactionTokenLimit: toOptionalNumber(nestedSettings.compactionTokenLimit),
+    modelId: toOptionalString(nestedSettings.modelId ?? nestedSettings.model),
+    reasoningEffort: toOptionalString(nestedSettings.reasoningEffort),
+  })
+
+  return pickDefined({
+    activeTimeMs: toOptionalNumber(parsed.activeTimeMs),
+    autonomyMode: toOptionalString(parsed.autonomyMode),
+    compactionTokenLimit: toOptionalNumber(parsed.compactionTokenLimit),
+    disabledToolIds: toOptionalStringArray(parsed.disabledToolIds),
+    enabledToolIds: toOptionalStringArray(parsed.enabledToolIds),
+    modelId: toOptionalString(parsed.modelId ?? parsed.model),
+    providerLock: toOptionalString(parsed.providerLock),
+    reasoningEffort: toOptionalString(parsed.reasoningEffort),
+    ...(Object.keys(safeNestedSettings).length > 0 ? { settings: safeNestedSettings } : {}),
+  })
+}
+
+function readSnapshotsSidecar(filePath: string): SessionFileSnapshotSearchSource[] {
+  const parsed = readJsonSidecar(filePath)
+  const snapshots = Array.isArray(parsed)
+    ? parsed
+    : isRecord(parsed) && Array.isArray(parsed.snapshots)
+      ? parsed.snapshots
+      : []
+
+  return snapshots.flatMap((snapshot): SessionFileSnapshotSearchSource[] => {
+    if (!isRecord(snapshot)) {
+      return []
+    }
+
+    const filePath = toOptionalString(snapshot.filePath ?? snapshot.file_path ?? snapshot.path)
+
+    if (!filePath) {
+      return []
+    }
+
+    return [
+      {
+        capturedAt: toOptionalNumber(snapshot.capturedAt ?? snapshot.captured_at) ?? null,
+        changeKind: toOptionalString(snapshot.changeKind ?? snapshot.change_kind),
+        contentHash: toOptionalString(snapshot.contentHash ?? snapshot.content_hash),
+        extension: toOptionalString(snapshot.extension),
+        fileName: toOptionalString(snapshot.fileName ?? snapshot.file_name),
+        filePath,
+        messageId: toOptionalString(snapshot.messageId ?? snapshot.message_id),
+        messageIndex: toOptionalNumber(snapshot.messageIndex ?? snapshot.message_index) ?? null,
+        sizeBytes: toOptionalNumber(snapshot.sizeBytes ?? snapshot.size_bytes) ?? null,
+        timestamp: toOptionalNumber(snapshot.timestamp) ?? toOptionalString(snapshot.timestamp),
+        toolCallId: toOptionalString(snapshot.toolCallId ?? snapshot.tool_call_id),
+      },
+    ]
+  })
+}
+
+function readJsonSidecar(filePath: string): unknown {
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8')) as unknown
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === 'ENOENT'
+    ) {
+      return null
+    }
+
+    if (error instanceof SyntaxError) {
+      return null
+    }
+
+    throw error
   }
 }
 
@@ -263,6 +375,26 @@ function toMessageRole(value: unknown): TranscriptMessageRole {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function toOptionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function toOptionalStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+    ? [...value]
+    : undefined
+}
+
+function pickDefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => typeof entryValue !== 'undefined'),
+  ) as Partial<T>
 }
 
 function toImageContentBlock(block: TranscriptContentBlock): TranscriptMessageContentBlock | null {

@@ -20,6 +20,21 @@ import {
   type SessionSearchModifier,
   tokenizeSearchText,
 } from '../../../shared/search/sessionSearchQuery'
+import type { TranscriptRecord } from '../artifacts/jsonlParser'
+import {
+  extractTranscriptSearchFragments,
+  type SearchFragmentDocument,
+  type SessionFileSnapshotSearchSource,
+  type SessionSettingsSearchSource,
+} from './sessionFragmentIndex'
+
+const SEARCH_SOURCE_SCHEMA_VERSION = 1
+
+type SearchSessionTranscript = SessionTranscript & {
+  settings?: SessionSettingsSearchSource | null
+  snapshots?: SessionFileSnapshotSearchSource[]
+  sourceRecords?: TranscriptRecord[]
+}
 
 export interface SearchDocument {
   id: string
@@ -28,17 +43,28 @@ export interface SearchDocument {
   path: string
   status: string
   sessionId: string
+  transport: string
+  modelId: string
+  favorite: string
   content: string
   tool: string
   lastActivityAt: number
   transcriptSourcePath: string | null
+  sourceChecksum: string | null
+  sourceLastByteOffset: number
+  sourceLastMtimeMs: number
 }
 
 export interface SessionSearchStore {
   listHydratedDocumentIds: () => string[]
   replaceMetadataDocuments: (documents: SearchDocument[]) => void
-  upsertDocument: (document: SearchDocument) => void
+  upsertDocument: (
+    document: SearchDocument,
+    fragments?: SearchFragmentDocument[],
+    sourceRecords?: TranscriptRecord[],
+  ) => void
   searchDocuments: (parsed: ParsedSessionSearchQuery) => SearchDocument[]
+  searchFragments?: (parsed: ParsedSessionSearchQuery) => SearchFragmentDocument[]
   dispose?: () => void
 }
 
@@ -47,7 +73,7 @@ interface CreateSessionSearchServiceOptions {
   loadSessionTranscript: (
     sessionId: string,
     transcriptSourcePath: string,
-  ) => Promise<SessionTranscript>
+  ) => Promise<SearchSessionTranscript>
   backgroundHydrationDelayMs?: number
   backgroundHydrationLimit?: number
   createSearchStore?: () => SessionSearchStore
@@ -98,10 +124,14 @@ export function createSessionSearchService({
   const pendingLiveSnapshots = new Map<string, LiveSessionSnapshot>()
   const liveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
-  const upsertIndexedDocument = (document: SearchDocument) => {
+  const upsertIndexedDocument = (
+    document: SearchDocument,
+    fragments?: SearchFragmentDocument[],
+    sourceRecords?: TranscriptRecord[],
+  ) => {
     documents.set(document.id, stripHydratedFields(document))
     hydratedDocumentIds.add(document.id)
-    searchStore.upsertDocument(document)
+    searchStore.upsertDocument(document, fragments, sourceRecords)
   }
 
   const getHydrationPlan = () => {
@@ -183,7 +213,18 @@ export function createSessionSearchService({
                 maxIndexedToolChars,
               ),
             }
-            upsertIndexedDocument(nextDocument)
+            upsertIndexedDocument(
+              nextDocument,
+              extractTranscriptSearchFragments({
+                entries: transcript.entries,
+                projectId: nextDocument.project || null,
+                sessionId: currentDocument.id,
+                settings: transcript.settings,
+                snapshots: transcript.snapshots,
+                sourceRecords: transcript.sourceRecords,
+              }),
+              transcript.sourceRecords,
+            )
           } catch {
             // Search should remain available even if a transcript artifact is missing
             // or malformed. Metadata matches are still useful and are indexed synchronously.
@@ -217,7 +258,7 @@ export function createSessionSearchService({
 
   const replaceFoundation = (nextBootstrap: FoundationBootstrap) => {
     const metadataBySessionId = new Map(
-      nextBootstrap.syncMetadata.map((metadata) => [metadata.sessionId, metadata.sourcePath]),
+      nextBootstrap.syncMetadata.map((metadata) => [metadata.sessionId, metadata]),
     )
     documents = new Map(
       nextBootstrap.sessions.map((session) => [
@@ -242,7 +283,7 @@ export function createSessionSearchService({
       return { query: request.query, matches: [] }
     }
 
-    const matches = searchStore
+    const documentMatches = searchStore
       .searchDocuments(parsed)
       .filter((document) => documentMatchesQuery(document, parsed))
       .map((document) => ({
@@ -250,6 +291,26 @@ export function createSessionSearchService({
         score: rankDocument(document, parsed),
         reasons: buildReasons(document, parsed),
       }))
+
+    const searchableFragments = searchStore.searchFragments?.(parsed) ?? []
+    const fragmentsBySessionId = groupFragmentsBySession(searchableFragments)
+    const fragmentMatches = searchableFragments
+      .filter((fragment) => fragmentMatchesQuery(fragment, parsed))
+      .map((fragment) => ({
+        sessionId: fragment.sessionId,
+        score: rankFragment(fragment, parsed),
+        reasons: buildFragmentReasons(fragment, parsed),
+      }))
+
+    const matches = mergeSearchMatches([...documentMatches, ...fragmentMatches])
+      .filter((match) =>
+        sessionMatchesQuery(
+          match.sessionId,
+          parsed,
+          documents.get(match.sessionId),
+          fragmentsBySessionId.get(match.sessionId) ?? [],
+        ),
+      )
       .sort(
         (left, right) =>
           right.score - left.score ||
@@ -315,6 +376,7 @@ export function createSessionSearchService({
 
 type SqliteStatement<TResult = unknown> = {
   all: (...params: unknown[]) => TResult[]
+  get: (...params: unknown[]) => TResult | undefined
   run: (...params: unknown[]) => unknown
 }
 
@@ -333,10 +395,36 @@ type SearchDocumentRow = {
   path: string
   status: string
   sessionId: string
+  transport: string
+  modelId: string
+  favorite: string
   content: string
   tool: string
   lastActivityAt: number
   transcriptSourcePath: string | null
+  sourceChecksum: string | null
+  sourceLastByteOffset: number
+  sourceLastMtimeMs: number
+}
+
+type SearchFragmentDocumentRow = {
+  documentKey: string
+  sessionId: string
+  projectId: string | null
+  sourceKind: SearchFragmentDocument['sourceKind']
+  sourceId: string
+  title: string
+  subtitle: string
+  body: string
+  preview: string
+  role: string | null
+  toolName: string | null
+  filePath: string | null
+  timestamp: string | null
+  status: string | null
+  rankBoost: number
+  messageId: string | null
+  toolCallId: string | null
 }
 
 function createSqliteSessionSearchStore(databasePath: string): SessionSearchStore {
@@ -352,14 +440,190 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       path TEXT NOT NULL,
       status TEXT NOT NULL,
       session_id TEXT NOT NULL,
+      transport TEXT NOT NULL DEFAULT '',
+      model_id TEXT NOT NULL DEFAULT '',
+      favorite TEXT NOT NULL DEFAULT 'false',
       content TEXT NOT NULL DEFAULT '',
       tool TEXT NOT NULL DEFAULT '',
       last_activity_at INTEGER NOT NULL DEFAULT 0,
-      transcript_source_path TEXT
+      transcript_source_path TEXT,
+      source_last_byte_offset INTEGER NOT NULL DEFAULT -1,
+      source_last_mtime_ms INTEGER NOT NULL DEFAULT 0,
+      source_checksum TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_session_search_last_activity_at
       ON session_search_documents(last_activity_at);
+    CREATE TABLE IF NOT EXISTS artifact_sources (
+      source_path TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      source_kind TEXT NOT NULL DEFAULT 'transcript',
+      last_indexed_byte_offset INTEGER NOT NULL DEFAULT -1,
+      last_indexed_line_no INTEGER NOT NULL DEFAULT 0,
+      last_mtime_ms INTEGER NOT NULL DEFAULT 0,
+      checksum TEXT,
+      record_count INTEGER NOT NULL DEFAULT 0,
+      parse_status TEXT NOT NULL DEFAULT 'ok',
+      schema_version INTEGER NOT NULL DEFAULT ${SEARCH_SOURCE_SCHEMA_VERSION},
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_artifact_sources_session_id
+      ON artifact_sources(session_id);
+    CREATE TABLE IF NOT EXISTS session_records (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      source_path TEXT NOT NULL,
+      line_no INTEGER NOT NULL,
+      byte_offset INTEGER NOT NULL,
+      byte_length INTEGER NOT NULL,
+      record_id TEXT,
+      record_type TEXT NOT NULL,
+      timestamp TEXT,
+      parent_id TEXT,
+      compaction_summary_id TEXT,
+      raw_hash TEXT NOT NULL,
+      UNIQUE(source_path, line_no)
+    );
+    CREATE TABLE IF NOT EXISTS session_blocks (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      message_id TEXT,
+      role TEXT,
+      visibility TEXT,
+      block_type TEXT NOT NULL,
+      timestamp TEXT,
+      tool_call_id TEXT,
+      tool_name TEXT,
+      is_error INTEGER DEFAULT 0,
+      file_path TEXT,
+      title TEXT,
+      body TEXT NOT NULL,
+      preview TEXT,
+      text_hash TEXT,
+      UNIQUE(session_id, source_id, block_type)
+    );
+    CREATE TABLE IF NOT EXISTS session_tool_calls (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      tool_call_id TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      input_text TEXT,
+      result_text TEXT,
+      result_preview TEXT,
+      is_error INTEGER DEFAULT 0,
+      file_path TEXT,
+      command TEXT,
+      timestamp TEXT,
+      UNIQUE(session_id, tool_call_id)
+    );
+    CREATE TABLE IF NOT EXISTS session_compactions (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      summary_id TEXT NOT NULL,
+      timestamp TEXT,
+      summary_kind TEXT,
+      summary_tokens INTEGER,
+      removed_count INTEGER,
+      summary_text TEXT,
+      system_info_json TEXT
+    );
+    CREATE TABLE IF NOT EXISTS session_todos (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      timestamp TEXT,
+      status TEXT,
+      body TEXT NOT NULL,
+      UNIQUE(session_id, source_id)
+    );
+    CREATE TABLE IF NOT EXISTS session_file_snapshots (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      message_id TEXT,
+      message_index INTEGER,
+      tool_call_id TEXT,
+      timestamp INTEGER,
+      file_path TEXT NOT NULL,
+      file_name TEXT,
+      extension TEXT,
+      content_hash TEXT,
+      size_bytes INTEGER,
+      captured_at INTEGER,
+      change_kind TEXT DEFAULT 'snapshot'
+    );
+    CREATE TABLE IF NOT EXISTS session_entities (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      source_kind TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      entity_kind TEXT NOT NULL,
+      value TEXT NOT NULL,
+      weight REAL DEFAULT 1.0,
+      UNIQUE(session_id, source_id, entity_kind, value)
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_entities_value
+      ON session_entities(value);
+    CREATE TABLE IF NOT EXISTS search_documents (
+      id INTEGER PRIMARY KEY,
+      document_key TEXT NOT NULL UNIQUE,
+      session_id TEXT NOT NULL,
+      project_id TEXT,
+      source_kind TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      title TEXT,
+      subtitle TEXT,
+      body TEXT NOT NULL,
+      preview TEXT,
+      role TEXT,
+      tool_name TEXT,
+      file_path TEXT,
+      timestamp TEXT,
+      status TEXT,
+      rank_boost REAL DEFAULT 1.0,
+      message_id TEXT,
+      tool_call_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_search_documents_session_id
+      ON search_documents(session_id);
+    CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
+      title,
+      subtitle,
+      body,
+      preview,
+      content='search_documents',
+      content_rowid='id',
+      tokenize='unicode61 remove_diacritics 2'
+    );
+    CREATE VIRTUAL TABLE IF NOT EXISTS search_path_fts USING fts5(
+      file_path,
+      title,
+      subtitle,
+      content='search_documents',
+      content_rowid='id',
+      tokenize='trigram'
+    );
   `)
+  ensureTableColumn(
+    database,
+    'session_search_documents',
+    'source_last_byte_offset',
+    'INTEGER NOT NULL DEFAULT -1',
+  )
+  ensureTableColumn(
+    database,
+    'session_search_documents',
+    'source_last_mtime_ms',
+    'INTEGER NOT NULL DEFAULT 0',
+  )
+  ensureTableColumn(database, 'session_search_documents', 'source_checksum', 'TEXT')
+  ensureTableColumn(database, 'session_search_documents', 'transport', "TEXT NOT NULL DEFAULT ''")
+  ensureTableColumn(database, 'session_search_documents', 'model_id', "TEXT NOT NULL DEFAULT ''")
+  ensureTableColumn(
+    database,
+    'session_search_documents',
+    'favorite',
+    "TEXT NOT NULL DEFAULT 'false'",
+  )
 
   const upsertMetadataStatement = database.prepare(`
     INSERT INTO session_search_documents (
@@ -369,20 +633,32 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       path,
       status,
       session_id,
+      transport,
+      model_id,
+      favorite,
       content,
       tool,
       last_activity_at,
-      transcript_source_path
+      transcript_source_path,
+      source_last_byte_offset,
+      source_last_mtime_ms,
+      source_checksum
     )
-    VALUES (?, ?, ?, ?, ?, ?, '', '', ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
       project = excluded.project,
       path = excluded.path,
       status = excluded.status,
       session_id = excluded.session_id,
+      transport = excluded.transport,
+      model_id = excluded.model_id,
+      favorite = excluded.favorite,
       last_activity_at = excluded.last_activity_at,
-      transcript_source_path = excluded.transcript_source_path
+      transcript_source_path = excluded.transcript_source_path,
+      source_last_byte_offset = excluded.source_last_byte_offset,
+      source_last_mtime_ms = excluded.source_last_mtime_ms,
+      source_checksum = excluded.source_checksum
   `)
   const upsertDocumentStatement = database.prepare(`
     INSERT INTO session_search_documents (
@@ -392,34 +668,255 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       path,
       status,
       session_id,
+      transport,
+      model_id,
+      favorite,
       content,
       tool,
       last_activity_at,
-      transcript_source_path
+      transcript_source_path,
+      source_last_byte_offset,
+      source_last_mtime_ms,
+      source_checksum
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
       project = excluded.project,
       path = excluded.path,
       status = excluded.status,
       session_id = excluded.session_id,
+      transport = excluded.transport,
+      model_id = excluded.model_id,
+      favorite = excluded.favorite,
       content = excluded.content,
       tool = excluded.tool,
       last_activity_at = excluded.last_activity_at,
-      transcript_source_path = excluded.transcript_source_path
+      transcript_source_path = excluded.transcript_source_path,
+      source_last_byte_offset = excluded.source_last_byte_offset,
+      source_last_mtime_ms = excluded.source_last_mtime_ms,
+      source_checksum = excluded.source_checksum
   `)
   const allIdsStatement = database.prepare<{ id: string }>(
     'SELECT id FROM session_search_documents',
   )
   const hydratedIdsStatement = database.prepare<{ id: string }>(`
-    SELECT id
+    SELECT session_search_documents.id
     FROM session_search_documents
-    WHERE length(content) > 0 OR length(tool) > 0
+    LEFT JOIN artifact_sources
+      ON artifact_sources.source_path = session_search_documents.transcript_source_path
+      AND artifact_sources.session_id = session_search_documents.session_id
+    WHERE
+      (length(session_search_documents.content) > 0 OR length(session_search_documents.tool) > 0)
+      AND (
+        session_search_documents.transcript_source_path IS NULL
+        OR (
+          artifact_sources.parse_status = 'ok'
+          AND artifact_sources.schema_version = ${SEARCH_SOURCE_SCHEMA_VERSION}
+          AND artifact_sources.last_indexed_byte_offset = session_search_documents.source_last_byte_offset
+          AND artifact_sources.last_mtime_ms = session_search_documents.source_last_mtime_ms
+          AND coalesce(artifact_sources.checksum, '') = coalesce(session_search_documents.source_checksum, '')
+        )
+      )
   `)
   const deleteDocumentStatement = database.prepare(
     'DELETE FROM session_search_documents WHERE id = ?',
   )
+  const selectSearchDocumentIdsBySessionStatement = database.prepare<{ id: number }>(
+    'SELECT id FROM search_documents WHERE session_id = ?',
+  )
+  const deleteSearchDocumentStatement = database.prepare(
+    'DELETE FROM search_documents WHERE session_id = ?',
+  )
+  const deleteSearchFtsStatement = database.prepare('DELETE FROM search_fts WHERE rowid = ?')
+  const deleteSearchPathFtsStatement = database.prepare(
+    'DELETE FROM search_path_fts WHERE rowid = ?',
+  )
+  const deleteSessionBlockStatement = database.prepare(
+    'DELETE FROM session_blocks WHERE session_id = ?',
+  )
+  const deleteSessionToolCallStatement = database.prepare(
+    'DELETE FROM session_tool_calls WHERE session_id = ?',
+  )
+  const deleteSessionCompactionStatement = database.prepare(
+    'DELETE FROM session_compactions WHERE session_id = ?',
+  )
+  const deleteSessionTodoStatement = database.prepare(
+    'DELETE FROM session_todos WHERE session_id = ?',
+  )
+  const deleteSessionFileSnapshotStatement = database.prepare(
+    'DELETE FROM session_file_snapshots WHERE session_id = ?',
+  )
+  const deleteSessionEntityStatement = database.prepare(
+    'DELETE FROM session_entities WHERE session_id = ?',
+  )
+  const insertSessionBlockStatement = database.prepare(`
+    INSERT INTO session_blocks (
+      session_id,
+      source_id,
+      message_id,
+      role,
+      visibility,
+      block_type,
+      timestamp,
+      tool_call_id,
+      tool_name,
+      is_error,
+      file_path,
+      title,
+      body,
+      preview,
+      text_hash
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const insertSessionToolCallStatement = database.prepare(`
+    INSERT INTO session_tool_calls (
+      session_id,
+      tool_call_id,
+      tool_name,
+      input_text,
+      result_text,
+      result_preview,
+      is_error,
+      file_path,
+      command,
+      timestamp
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const insertSessionCompactionStatement = database.prepare(`
+    INSERT INTO session_compactions (
+      session_id,
+      summary_id,
+      timestamp,
+      summary_kind,
+      summary_tokens,
+      removed_count,
+      summary_text,
+      system_info_json
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const insertSessionTodoStatement = database.prepare(`
+    INSERT INTO session_todos (
+      session_id,
+      source_id,
+      timestamp,
+      status,
+      body
+    )
+    VALUES (?, ?, ?, ?, ?)
+  `)
+  const insertSessionFileSnapshotStatement = database.prepare(`
+    INSERT INTO session_file_snapshots (
+      session_id,
+      message_id,
+      message_index,
+      tool_call_id,
+      timestamp,
+      file_path,
+      file_name,
+      extension,
+      content_hash,
+      size_bytes,
+      captured_at,
+      change_kind
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const insertSessionEntityStatement = database.prepare(`
+    INSERT INTO session_entities (
+      session_id,
+      source_kind,
+      source_id,
+      entity_kind,
+      value,
+      weight
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(session_id, source_id, entity_kind, value) DO UPDATE SET
+      weight = max(weight, excluded.weight)
+  `)
+  const deleteSessionRecordStatement = database.prepare(
+    'DELETE FROM session_records WHERE session_id = ? AND source_path = ?',
+  )
+  const upsertArtifactSourceStatement = database.prepare(`
+    INSERT INTO artifact_sources (
+      source_path,
+      session_id,
+      source_kind,
+      last_indexed_byte_offset,
+      last_indexed_line_no,
+      last_mtime_ms,
+      checksum,
+      record_count,
+      parse_status,
+      schema_version,
+      updated_at
+    )
+    VALUES (?, ?, 'transcript', ?, ?, ?, ?, ?, 'ok', ?, ?)
+    ON CONFLICT(source_path) DO UPDATE SET
+      session_id = excluded.session_id,
+      source_kind = excluded.source_kind,
+      last_indexed_byte_offset = excluded.last_indexed_byte_offset,
+      last_indexed_line_no = excluded.last_indexed_line_no,
+      last_mtime_ms = excluded.last_mtime_ms,
+      checksum = excluded.checksum,
+      record_count = excluded.record_count,
+      parse_status = excluded.parse_status,
+      schema_version = excluded.schema_version,
+      updated_at = excluded.updated_at
+  `)
+  const insertSessionRecordStatement = database.prepare(`
+    INSERT INTO session_records (
+      session_id,
+      source_path,
+      line_no,
+      byte_offset,
+      byte_length,
+      record_id,
+      record_type,
+      timestamp,
+      parent_id,
+      compaction_summary_id,
+      raw_hash
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const insertSearchDocumentStatement = database.prepare(`
+    INSERT INTO search_documents (
+      document_key,
+      session_id,
+      project_id,
+      source_kind,
+      source_id,
+      title,
+      subtitle,
+      body,
+      preview,
+      role,
+      tool_name,
+      file_path,
+      timestamp,
+      status,
+      rank_boost,
+      message_id,
+      tool_call_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const selectSearchDocumentIdByKeyStatement = database.prepare<{ id: number }>(
+    'SELECT id FROM search_documents WHERE document_key = ?',
+  )
+  const insertSearchFtsStatement = database.prepare(`
+    INSERT INTO search_fts (rowid, title, subtitle, body, preview)
+    VALUES (?, ?, ?, ?, ?)
+  `)
+  const insertSearchPathFtsStatement = database.prepare(`
+    INSERT INTO search_path_fts (rowid, file_path, title, subtitle)
+    VALUES (?, ?, ?, ?)
+  `)
 
   const upsertMetadata = (document: SearchDocument) => {
     upsertMetadataStatement.run(
@@ -429,8 +926,14 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       document.path,
       document.status,
       document.sessionId,
+      document.transport,
+      document.modelId,
+      document.favorite,
       document.lastActivityAt,
       document.transcriptSourcePath,
+      document.sourceLastByteOffset,
+      document.sourceLastMtimeMs,
+      document.sourceChecksum,
     )
   }
   const upsertDocument = (document: SearchDocument) => {
@@ -441,10 +944,16 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       document.path,
       document.status,
       document.sessionId,
+      document.transport,
+      document.modelId,
+      document.favorite,
       document.content,
       document.tool,
       document.lastActivityAt,
       document.transcriptSourcePath,
+      document.sourceLastByteOffset,
+      document.sourceLastMtimeMs,
+      document.sourceChecksum,
     )
   }
   const replaceMetadataTransaction = database.transaction((nextDocuments: SearchDocument[]) => {
@@ -460,13 +969,197 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       upsertMetadata(document)
     }
   })
+  const replaceFragmentsTransaction = database.transaction(
+    (
+      document: SearchDocument,
+      fragments: SearchFragmentDocument[],
+      sourceRecords: TranscriptRecord[] = [],
+    ) => {
+      const sessionId = document.id
+      for (const row of selectSearchDocumentIdsBySessionStatement.all(sessionId)) {
+        deleteSearchFtsStatement.run(row.id)
+        deleteSearchPathFtsStatement.run(row.id)
+      }
+
+      deleteSearchDocumentStatement.run(sessionId)
+      deleteSessionBlockStatement.run(sessionId)
+      deleteSessionToolCallStatement.run(sessionId)
+      deleteSessionCompactionStatement.run(sessionId)
+      deleteSessionTodoStatement.run(sessionId)
+      deleteSessionFileSnapshotStatement.run(sessionId)
+      deleteSessionEntityStatement.run(sessionId)
+
+      if (document.transcriptSourcePath) {
+        deleteSessionRecordStatement.run(sessionId, document.transcriptSourcePath)
+        upsertArtifactSourceStatement.run(
+          document.transcriptSourcePath,
+          sessionId,
+          document.sourceLastByteOffset,
+          maxSourceLineNo(sourceRecords),
+          document.sourceLastMtimeMs,
+          document.sourceChecksum,
+          sourceRecords.length,
+          SEARCH_SOURCE_SCHEMA_VERSION,
+          new Date().toISOString(),
+        )
+
+        for (const record of sourceRecords) {
+          insertSessionRecordStatement.run(
+            sessionId,
+            document.transcriptSourcePath,
+            record.lineNo,
+            record.byteOffset,
+            record.byteLength,
+            record.recordId,
+            record.type,
+            record.timestamp,
+            record.parentRecordId,
+            record.compactionSummaryId,
+            record.rawHash,
+          )
+        }
+      }
+
+      for (const fragment of fragments) {
+        insertSessionBlockStatement.run(
+          fragment.sessionId,
+          fragment.sourceId,
+          fragment.messageId,
+          fragment.role,
+          'user_visible',
+          fragment.sourceKind,
+          fragment.timestamp,
+          fragment.toolCallId,
+          fragment.toolName,
+          fragment.status === 'error' ? 1 : 0,
+          fragment.filePath,
+          fragment.title,
+          fragment.body,
+          fragment.preview,
+          String(fragment.body.length),
+        )
+
+        if (fragment.sourceKind === 'tool_call' && fragment.toolCallId && fragment.toolName) {
+          insertSessionToolCallStatement.run(
+            fragment.sessionId,
+            fragment.toolCallId,
+            fragment.toolName,
+            fragment.body,
+            fragment.body,
+            fragment.preview,
+            fragment.status === 'error' ? 1 : 0,
+            fragment.filePath,
+            fragment.title.toLowerCase() === 'execute' ? fragment.body : null,
+            fragment.timestamp,
+          )
+        }
+
+        if (fragment.sourceKind === 'todo') {
+          insertSessionTodoStatement.run(
+            fragment.sessionId,
+            fragment.sourceId,
+            fragment.timestamp,
+            fragment.status,
+            fragment.body,
+          )
+        }
+
+        if (fragment.sourceKind === 'compaction') {
+          insertSessionCompactionStatement.run(
+            fragment.sessionId,
+            fragment.sourceId,
+            fragment.timestamp,
+            fragment.subtitle,
+            null,
+            null,
+            fragment.body,
+            null,
+          )
+        }
+
+        if (fragment.sourceKind === 'file_snapshot' && fragment.filePath) {
+          insertSessionFileSnapshotStatement.run(
+            fragment.sessionId,
+            fragment.messageId,
+            null,
+            fragment.toolCallId,
+            toNullableTimestamp(fragment.timestamp),
+            fragment.filePath,
+            fragment.filePath.split('/').at(-1) ?? fragment.filePath,
+            fragment.filePath.split('.').at(-1) ?? null,
+            extractHashLike(fragment.body),
+            null,
+            toNullableTimestamp(fragment.timestamp),
+            fragment.status ?? 'snapshot',
+          )
+        }
+
+        for (const entity of extractSearchEntities(fragment)) {
+          insertSessionEntityStatement.run(
+            fragment.sessionId,
+            fragment.sourceKind,
+            fragment.sourceId,
+            entity.kind,
+            entity.value,
+            entity.weight,
+          )
+        }
+
+        insertSearchDocumentStatement.run(
+          fragment.id,
+          fragment.sessionId,
+          fragment.projectId,
+          fragment.sourceKind,
+          fragment.sourceId,
+          fragment.title,
+          fragment.subtitle,
+          fragment.body,
+          fragment.preview,
+          fragment.role,
+          fragment.toolName,
+          fragment.filePath,
+          fragment.timestamp,
+          fragment.status,
+          fragment.rankBoost,
+          fragment.messageId,
+          fragment.toolCallId,
+        )
+
+        const row = selectSearchDocumentIdByKeyStatement.get(fragment.id)
+
+        if (!row) {
+          continue
+        }
+
+        insertSearchFtsStatement.run(
+          row.id,
+          fragment.title,
+          fragment.subtitle,
+          fragment.body,
+          fragment.preview,
+        )
+        insertSearchPathFtsStatement.run(
+          row.id,
+          fragment.filePath ?? '',
+          fragment.title,
+          fragment.subtitle,
+        )
+      }
+    },
+  )
 
   return {
     listHydratedDocumentIds: () => hydratedIdsStatement.all().map((row) => row.id),
     replaceMetadataDocuments: (nextDocuments) => {
       replaceMetadataTransaction(nextDocuments)
     },
-    upsertDocument,
+    upsertDocument: (document, fragments, sourceRecords) => {
+      upsertDocument(document)
+
+      if (fragments) {
+        replaceFragmentsTransaction(document, fragments, sourceRecords)
+      }
+    },
     searchDocuments: (parsed) => {
       const { parameters, whereClause } = buildSearchWhereClause(parsed)
 
@@ -483,16 +1176,159 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
             path,
             status,
             session_id AS sessionId,
+            transport,
+            model_id AS modelId,
+            favorite,
             content,
             tool,
             last_activity_at AS lastActivityAt,
-            transcript_source_path AS transcriptSourcePath
+            transcript_source_path AS transcriptSourcePath,
+            source_last_byte_offset AS sourceLastByteOffset,
+            source_last_mtime_ms AS sourceLastMtimeMs,
+            source_checksum AS sourceChecksum
           FROM session_search_documents
           WHERE ${whereClause}
           ORDER BY last_activity_at DESC, id ASC
         `)
         .all(...parameters)
         .map(rowToSearchDocument)
+    },
+    searchFragments: (parsed) => {
+      const ftsQuery = buildFtsQuery(parsed)
+      const fragments = new Map<string, SearchFragmentDocument>()
+
+      if (ftsQuery) {
+        for (const fragment of database
+          .prepare<SearchFragmentDocumentRow>(`
+            SELECT
+              search_documents.document_key AS documentKey,
+              search_documents.session_id AS sessionId,
+              search_documents.project_id AS projectId,
+              search_documents.source_kind AS sourceKind,
+              search_documents.source_id AS sourceId,
+              search_documents.title,
+              search_documents.subtitle,
+              search_documents.body,
+              search_documents.preview,
+              search_documents.role,
+              search_documents.tool_name AS toolName,
+              search_documents.file_path AS filePath,
+              search_documents.timestamp,
+              search_documents.status,
+              search_documents.rank_boost AS rankBoost,
+              search_documents.message_id AS messageId,
+              search_documents.tool_call_id AS toolCallId
+            FROM search_documents
+            JOIN search_fts ON search_fts.rowid = search_documents.id
+            WHERE search_fts MATCH ?
+            ORDER BY bm25(search_fts) ASC, search_documents.timestamp DESC, search_documents.id ASC
+          `)
+          .all(ftsQuery)
+          .map(rowToSearchFragmentDocument)) {
+          fragments.set(fragment.id, fragment)
+        }
+      }
+
+      for (const query of buildPathFacetQueries(parsed)) {
+        for (const fragment of database
+          .prepare<SearchFragmentDocumentRow>(`
+            SELECT
+              search_documents.document_key AS documentKey,
+              search_documents.session_id AS sessionId,
+              search_documents.project_id AS projectId,
+              search_documents.source_kind AS sourceKind,
+              search_documents.source_id AS sourceId,
+              search_documents.title,
+              search_documents.subtitle,
+              search_documents.body,
+              search_documents.preview,
+              search_documents.role,
+              search_documents.tool_name AS toolName,
+              search_documents.file_path AS filePath,
+              search_documents.timestamp,
+              search_documents.status,
+              search_documents.rank_boost AS rankBoost,
+              search_documents.message_id AS messageId,
+              search_documents.tool_call_id AS toolCallId
+            FROM search_documents
+            JOIN search_path_fts ON search_path_fts.rowid = search_documents.id
+            WHERE search_path_fts MATCH ?
+            ORDER BY bm25(search_path_fts) ASC, search_documents.id ASC
+          `)
+          .all(query)
+          .map(rowToSearchFragmentDocument)) {
+          fragments.set(fragment.id, fragment)
+        }
+      }
+
+      for (const { kind, value } of buildEntityFacetQueries(parsed)) {
+        for (const fragment of database
+          .prepare<SearchFragmentDocumentRow>(`
+            SELECT
+              search_documents.document_key AS documentKey,
+              search_documents.session_id AS sessionId,
+              search_documents.project_id AS projectId,
+              search_documents.source_kind AS sourceKind,
+              search_documents.source_id AS sourceId,
+              search_documents.title,
+              search_documents.subtitle,
+              search_documents.body,
+              search_documents.preview,
+              search_documents.role,
+              search_documents.tool_name AS toolName,
+              search_documents.file_path AS filePath,
+              search_documents.timestamp,
+              search_documents.status,
+              search_documents.rank_boost AS rankBoost,
+              search_documents.message_id AS messageId,
+              search_documents.tool_call_id AS toolCallId
+            FROM session_entities
+            JOIN search_documents
+              ON search_documents.session_id = session_entities.session_id
+              AND search_documents.source_kind = session_entities.source_kind
+              AND search_documents.source_id = session_entities.source_id
+            WHERE session_entities.entity_kind = ?
+              AND instr(session_entities.value, ?) > 0
+            ORDER BY session_entities.weight DESC, search_documents.id ASC
+          `)
+          .all(kind, value)
+          .map(rowToSearchFragmentDocument)) {
+          fragments.set(fragment.id, fragment)
+        }
+      }
+
+      for (const { field, value } of buildDirectFragmentFacetQueries(parsed)) {
+        for (const fragment of database
+          .prepare<SearchFragmentDocumentRow>(`
+          SELECT
+            search_documents.document_key AS documentKey,
+            search_documents.session_id AS sessionId,
+            search_documents.project_id AS projectId,
+            search_documents.source_kind AS sourceKind,
+            search_documents.source_id AS sourceId,
+            search_documents.title,
+            search_documents.subtitle,
+            search_documents.body,
+            search_documents.preview,
+            search_documents.role,
+            search_documents.tool_name AS toolName,
+            search_documents.file_path AS filePath,
+            search_documents.timestamp,
+            search_documents.status,
+            search_documents.rank_boost AS rankBoost,
+            search_documents.message_id AS messageId,
+            search_documents.tool_call_id AS toolCallId
+          FROM search_documents
+          WHERE instr(${field}, ?) > 0
+          ORDER BY search_documents.id ASC
+        `)
+          .all(value)
+          .map(rowToSearchFragmentDocument)) {
+          fragments.set(fragment.id, fragment)
+        }
+      }
+
+      return [...fragments.values()]
     },
     dispose: () => {
       database.close()
@@ -513,6 +1349,7 @@ function createSqliteDatabase(databasePath: string): SqliteDatabase {
         exec: (sql: string) => void
         prepare: (sql: string) => {
           all: (...params: unknown[]) => unknown[]
+          get: (...params: unknown[]) => unknown
           run: (...params: unknown[]) => unknown
         }
       }
@@ -548,6 +1385,94 @@ function createSqliteDatabase(databasePath: string): SqliteDatabase {
   }
 }
 
+function ensureTableColumn(
+  database: SqliteDatabase,
+  tableName: string,
+  columnName: string,
+  columnDefinition: string,
+): void {
+  const columns = database.prepare<{ name: string }>(`PRAGMA table_info(${tableName})`).all()
+
+  if (columns.some((column) => column.name === columnName)) {
+    return
+  }
+
+  database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`)
+}
+
+function maxSourceLineNo(sourceRecords: TranscriptRecord[]): number {
+  return sourceRecords.reduce((maxLineNo, record) => Math.max(maxLineNo, record.lineNo), 0)
+}
+
+function toNullableTimestamp(value: string | null): number | null {
+  if (!value) {
+    return null
+  }
+
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function extractHashLike(value: string): string | null {
+  return value.match(/\b[a-f0-9]{7,64}\b/iu)?.[0] ?? null
+}
+
+function extractSearchEntities(fragment: SearchFragmentDocument): Array<{
+  kind: string
+  value: string
+  weight: number
+}> {
+  const haystack = [fragment.title, fragment.subtitle, fragment.body, fragment.filePath ?? ''].join(
+    '\n',
+  )
+  const entities: Array<{ kind: string; value: string; weight: number }> = []
+  const addMatches = (kind: string, pattern: RegExp, weight: number) => {
+    for (const match of haystack.matchAll(pattern)) {
+      const value = normalizeSearchText(match[0])
+      if (value) {
+        entities.push({ kind, value, weight })
+      }
+    }
+  }
+
+  addMatches('file_path', /(?:\/?[\w@.-]+)+(?:\/[\w@.-]+)*\.[A-Za-z0-9]{1,12}/gu, 1.5)
+  addMatches('issue_key', /\b[a-z][a-z0-9]+-\d+\b/giu, 1.4)
+  addMatches('url', /https?:\/\/[^\s)]+/gu, 1.2)
+  addMatches('commit', /\b[a-f0-9]{7,40}\b/giu, 1)
+  addMatches(
+    'error_code',
+    /\b(?:ENOENT|EACCES|EPERM|ETIMEDOUT|ResizeObserver|exit code \d+)\b/giu,
+    1.3,
+  )
+
+  if (fragment.toolName === 'execute') {
+    for (const line of fragment.body.split('\n')) {
+      if (/^(pnpm|npm|yarn|bun|node|python|pytest|vitest|docker|git)\b/u.test(line)) {
+        entities.push({ kind: 'command', value: line, weight: 1.6 })
+      }
+    }
+  }
+
+  return dedupeEntities(entities)
+}
+
+function dedupeEntities(
+  entities: Array<{ kind: string; value: string; weight: number }>,
+): Array<{ kind: string; value: string; weight: number }> {
+  const byKey = new Map<string, { kind: string; value: string; weight: number }>()
+
+  for (const entity of entities) {
+    const key = `${entity.kind}:${entity.value}`
+    const existing = byKey.get(key)
+
+    if (!existing || existing.weight < entity.weight) {
+      byKey.set(key, entity)
+    }
+  }
+
+  return [...byKey.values()]
+}
+
 function buildSearchWhereClause(parsed: ParsedSessionSearchQuery): {
   parameters: string[]
   whereClause: string
@@ -571,8 +1496,14 @@ function buildSearchWhereClause(parsed: ParsedSessionSearchQuery): {
   }
 
   for (const [field, values] of Object.entries(parsed.modifiers)) {
+    const column = sqlColumnForSearchField(field as SessionSearchModifier)
+
+    if (!column) {
+      continue
+    }
+
     for (const value of values ?? []) {
-      clauses.push(`instr(${sqlColumnForSearchField(field as SessionSearchModifier)}, ?) > 0`)
+      clauses.push(`instr(${column}, ?) > 0`)
       parameters.push(value)
     }
   }
@@ -583,7 +1514,7 @@ function buildSearchWhereClause(parsed: ParsedSessionSearchQuery): {
   }
 }
 
-function sqlColumnForSearchField(field: SessionSearchModifier): string {
+function sqlColumnForSearchField(field: SessionSearchModifier): string | null {
   switch (field) {
     case 'title':
       return 'title'
@@ -599,6 +1530,21 @@ function sqlColumnForSearchField(field: SessionSearchModifier): string {
       return 'session_id'
     case 'tool':
       return 'tool'
+    case 'transport':
+      return 'transport'
+    case 'model':
+      return 'model_id'
+    case 'favorite':
+      return 'favorite'
+    case 'source':
+    case 'kind':
+    case 'file':
+    case 'command':
+    case 'issue':
+    case 'error':
+    case 'reasoning':
+    case 'extension':
+      return null
   }
 }
 
@@ -610,16 +1556,120 @@ function rowToSearchDocument(row: SearchDocumentRow): SearchDocument {
     path: row.path,
     status: row.status,
     sessionId: row.sessionId,
+    transport: row.transport,
+    modelId: row.modelId,
+    favorite: row.favorite,
     content: row.content,
     tool: row.tool,
     lastActivityAt: row.lastActivityAt,
     transcriptSourcePath: row.transcriptSourcePath,
+    sourceChecksum: row.sourceChecksum,
+    sourceLastByteOffset: row.sourceLastByteOffset,
+    sourceLastMtimeMs: row.sourceLastMtimeMs,
   }
+}
+
+function rowToSearchFragmentDocument(row: SearchFragmentDocumentRow): SearchFragmentDocument {
+  return {
+    id: row.documentKey,
+    sessionId: row.sessionId,
+    projectId: row.projectId,
+    sourceKind: row.sourceKind,
+    sourceId: row.sourceId,
+    title: row.title,
+    subtitle: row.subtitle,
+    body: row.body,
+    preview: row.preview,
+    role: row.role,
+    toolName: row.toolName,
+    filePath: row.filePath,
+    timestamp: row.timestamp,
+    status: row.status,
+    rankBoost: row.rankBoost,
+    messageId: row.messageId,
+    toolCallId: row.toolCallId,
+  }
+}
+
+function buildFtsQuery(parsed: ParsedSessionSearchQuery): string {
+  return [...parsed.terms, ...Object.values(parsed.modifiers).flatMap((values) => values ?? [])]
+    .filter(Boolean)
+    .map((term) => `"${term.replaceAll('"', '""')}"`)
+    .join(' ')
+}
+
+function buildPathFacetQueries(parsed: ParsedSessionSearchQuery): string[] {
+  return [
+    ...parsed.terms.filter(isPathLikeQuery),
+    ...(parsed.modifiers.path ?? []),
+    ...(parsed.modifiers.file ?? []),
+    ...(parsed.modifiers.extension ?? []),
+  ]
+    .filter((value) => value.length >= 3)
+    .map((value) => `"${value.replaceAll('"', '""')}"`)
+}
+
+function buildEntityFacetQueries(parsed: ParsedSessionSearchQuery): Array<{
+  kind: string
+  value: string
+}> {
+  return [
+    ...(parsed.modifiers.file ?? []).map((value) => ({ kind: 'file_path', value })),
+    ...(parsed.modifiers.command ?? []).map((value) => ({ kind: 'command', value })),
+    ...(parsed.modifiers.issue ?? []).map((value) => ({ kind: 'issue_key', value })),
+    ...(parsed.modifiers.error ?? []).map((value) => ({ kind: 'error_code', value })),
+    ...parsed.terms.filter(isIssueKeyQuery).map((value) => ({ kind: 'issue_key', value })),
+    ...parsed.terms.filter(isPathLikeQuery).map((value) => ({ kind: 'file_path', value })),
+  ]
+}
+
+function buildDirectFragmentFacetQueries(parsed: ParsedSessionSearchQuery): Array<{
+  field:
+    | 'search_documents.source_kind'
+    | 'search_documents.tool_name'
+    | 'search_documents.status'
+    | 'search_documents.body'
+  value: string
+}> {
+  return [
+    ...(parsed.modifiers.source ?? []).map((value) => ({
+      field: 'search_documents.source_kind' as const,
+      value,
+    })),
+    ...(parsed.modifiers.kind ?? []).map((value) => ({
+      field: 'search_documents.source_kind' as const,
+      value,
+    })),
+    ...(parsed.modifiers.tool ?? []).map((value) => ({
+      field: 'search_documents.tool_name' as const,
+      value,
+    })),
+    ...(parsed.modifiers.error ?? []).map(() => ({
+      field: 'search_documents.status' as const,
+      value: 'error',
+    })),
+    ...(parsed.modifiers.model ?? []).map((value) => ({
+      field: 'search_documents.body' as const,
+      value,
+    })),
+    ...(parsed.modifiers.reasoning ?? []).map((value) => ({
+      field: 'search_documents.body' as const,
+      value,
+    })),
+  ]
+}
+
+function isIssueKeyQuery(value: string): boolean {
+  return /^[a-z][a-z0-9]+-\d+$/u.test(value)
+}
+
+function isPathLikeQuery(value: string): boolean {
+  return value.includes('/') || /\.[a-z0-9]{1,12}$/u.test(value)
 }
 
 function createDocumentFromSession(
   session: SessionRecord,
-  transcriptSourcePath: string | null,
+  sourceMetadata: FoundationBootstrap['syncMetadata'][number] | null,
 ): SearchDocument {
   return {
     id: session.id,
@@ -628,10 +1678,16 @@ function createDocumentFromSession(
     path: normalizeSearchText(session.projectWorkspacePath ?? ''),
     status: normalizeSearchText(session.status),
     sessionId: normalizeSearchText(session.id),
+    transport: normalizeSearchText(session.transport ?? ''),
+    modelId: normalizeSearchText(session.modelId ?? ''),
+    favorite: session.isFavorite ? 'true' : 'false',
     content: '',
     tool: '',
     lastActivityAt: toTimestamp(session.lastActivityAt ?? session.updatedAt ?? session.createdAt),
-    transcriptSourcePath,
+    transcriptSourcePath: sourceMetadata?.sourcePath ?? null,
+    sourceChecksum: sourceMetadata?.checksum ?? null,
+    sourceLastByteOffset: sourceMetadata?.lastByteOffset ?? -1,
+    sourceLastMtimeMs: sourceMetadata?.lastMtimeMs ?? 0,
   }
 }
 
@@ -640,6 +1696,9 @@ function stripHydratedFields(document: SearchDocument): SearchDocument {
     ...document,
     content: '',
     tool: '',
+    sourceChecksum: document.sourceChecksum,
+    sourceLastByteOffset: document.sourceLastByteOffset,
+    sourceLastMtimeMs: document.sourceLastMtimeMs,
   }
 }
 
@@ -662,10 +1721,16 @@ function createDocumentFromLiveSnapshot(
     path: normalizeSearchText(snapshot.projectWorkspacePath ?? existing?.path ?? ''),
     status: normalizeSearchText(snapshot.status),
     sessionId: normalizeSearchText(snapshot.sessionId),
+    transport: normalizeSearchText(snapshot.transport),
+    modelId: existing?.modelId ?? '',
+    favorite: existing?.favorite ?? 'false',
     content: extracted.content || existing?.content || '',
     tool: extracted.tool || existing?.tool || '',
     lastActivityAt: Date.now(),
     transcriptSourcePath: existing?.transcriptSourcePath ?? null,
+    sourceChecksum: existing?.sourceChecksum ?? null,
+    sourceLastByteOffset: existing?.sourceLastByteOffset ?? -1,
+    sourceLastMtimeMs: existing?.sourceLastMtimeMs ?? 0,
   }
 }
 
@@ -755,6 +1820,266 @@ function documentMatchesQuery(document: SearchDocument, parsed: ParsedSessionSea
   )
 }
 
+function sessionMatchesQuery(
+  sessionId: string,
+  parsed: ParsedSessionSearchQuery,
+  document: SearchDocument | undefined,
+  fragments: SearchFragmentDocument[],
+): boolean {
+  return Object.entries(parsed.modifiers).every(([field, values]) =>
+    shouldApplySessionLevelModifier(field as SessionSearchModifier)
+      ? (values ?? []).every((value) =>
+          sessionMatchesModifier(
+            sessionId,
+            field as SessionSearchModifier,
+            value,
+            document,
+            fragments,
+          ),
+        )
+      : true,
+  )
+}
+
+function shouldApplySessionLevelModifier(field: SessionSearchModifier): boolean {
+  switch (field) {
+    case 'project':
+    case 'status':
+    case 'path':
+    case 'id':
+    case 'transport':
+    case 'favorite':
+    case 'source':
+    case 'kind':
+    case 'file':
+    case 'command':
+    case 'issue':
+    case 'error':
+    case 'model':
+    case 'reasoning':
+    case 'extension':
+      return true
+    case 'title':
+    case 'content':
+    case 'tool':
+      return false
+  }
+}
+
+function sessionMatchesModifier(
+  sessionId: string,
+  field: SessionSearchModifier,
+  value: string,
+  document: SearchDocument | undefined,
+  fragments: SearchFragmentDocument[],
+): boolean {
+  if (document && getFieldValue(document, field).includes(value)) {
+    return true
+  }
+
+  if (field === 'id') {
+    return sessionId.includes(value)
+  }
+
+  return fragments.some((fragment) => getFragmentFieldValue(fragment, field).includes(value))
+}
+
+function groupFragmentsBySession(
+  fragments: SearchFragmentDocument[],
+): Map<string, SearchFragmentDocument[]> {
+  const bySessionId = new Map<string, SearchFragmentDocument[]>()
+
+  for (const fragment of fragments) {
+    bySessionId.set(fragment.sessionId, [...(bySessionId.get(fragment.sessionId) ?? []), fragment])
+  }
+
+  return bySessionId
+}
+
+function fragmentMatchesQuery(
+  fragment: SearchFragmentDocument,
+  parsed: ParsedSessionSearchQuery,
+): boolean {
+  const facetEntries = Object.entries(parsed.modifiers).filter(([field]) =>
+    isFragmentFacetField(field as SessionSearchModifier),
+  )
+  const directEntries = Object.entries(parsed.modifiers).filter(
+    ([field]) => !isFragmentFacetField(field as SessionSearchModifier),
+  )
+
+  return (
+    parsed.terms.every((term) => termMatchesAnyFragmentField(fragment, term)) &&
+    directEntries.every(([field, values]) =>
+      (values ?? []).every((value) =>
+        getFragmentFieldValue(fragment, field as SessionSearchModifier).includes(value),
+      ),
+    ) &&
+    (facetEntries.length === 0 ||
+      facetEntries.some(([field, values]) =>
+        (values ?? []).some((value) =>
+          getFragmentFacetValue(fragment, field as SessionSearchModifier).includes(value),
+        ),
+      ))
+  )
+}
+
+function termMatchesAnyFragmentField(fragment: SearchFragmentDocument, term: string): boolean {
+  return (
+    fragment.title.toLowerCase().includes(term) ||
+    fragment.subtitle.includes(term) ||
+    fragment.body.includes(term) ||
+    (fragment.filePath?.includes(term) ?? false) ||
+    (fragment.toolName?.includes(term) ?? false) ||
+    fragment.sourceKind.includes(term) ||
+    (fragment.status?.includes(term) ?? false) ||
+    fragment.sessionId.includes(term)
+  )
+}
+
+function isFragmentFacetField(field: SessionSearchModifier): boolean {
+  switch (field) {
+    case 'source':
+    case 'kind':
+    case 'file':
+    case 'command':
+    case 'issue':
+    case 'error':
+    case 'model':
+    case 'reasoning':
+    case 'extension':
+      return true
+    case 'title':
+    case 'content':
+    case 'project':
+    case 'path':
+    case 'status':
+    case 'id':
+    case 'tool':
+    case 'transport':
+    case 'favorite':
+      return false
+  }
+}
+
+function getFragmentFieldValue(
+  fragment: SearchFragmentDocument,
+  field: SessionSearchModifier,
+): string {
+  switch (field) {
+    case 'title':
+      return normalizeSearchText(fragment.title)
+    case 'content':
+      return fragment.body
+    case 'project':
+      return normalizeSearchText(fragment.projectId ?? '')
+    case 'path':
+      return fragment.filePath ?? ''
+    case 'status':
+      return fragment.status ?? ''
+    case 'id':
+      return fragment.sessionId
+    case 'tool':
+      return fragment.toolName ?? ''
+    case 'source':
+    case 'kind':
+      return fragment.sourceKind
+    case 'file':
+      return [fragment.filePath ?? '', fragment.body].join('\n')
+    case 'command':
+      return fragment.toolName === 'execute' ? fragment.body : ''
+    case 'issue':
+      return fragment.sourceKind === 'block' ? '' : fragment.body
+    case 'error':
+      return fragment.status === 'error' ? fragment.body : ''
+    case 'model':
+    case 'reasoning':
+      return fragment.sourceKind === 'settings' ? fragment.body : ''
+    case 'extension':
+      return fragment.filePath?.split('.').at(-1) ?? ''
+    case 'transport':
+    case 'favorite':
+      return ''
+  }
+}
+
+function getFragmentFacetValue(
+  fragment: SearchFragmentDocument,
+  field: SessionSearchModifier,
+): string {
+  return getFragmentFieldValue(fragment, field)
+}
+
+function rankFragment(fragment: SearchFragmentDocument, parsed: ParsedSessionSearchQuery): number {
+  const freeTextScore = parsed.terms.reduce(
+    (total, term) => total + rankTermAcrossFragmentFields(fragment, term),
+    0,
+  )
+  const modifierScore = Object.entries(parsed.modifiers).reduce((total, [field, values]) => {
+    const fieldValue = getFragmentFieldValue(fragment, field as SessionSearchModifier)
+    return (
+      total +
+      (values ?? []).reduce(
+        (fieldTotal, value) =>
+          fieldTotal +
+          rankFieldMatch(fieldValue, value, fragmentFieldWeight(field as SessionSearchModifier)),
+        0,
+      )
+    )
+  }, 0)
+
+  return Math.round((freeTextScore + modifierScore + 1_000) * fragment.rankBoost)
+}
+
+function rankTermAcrossFragmentFields(fragment: SearchFragmentDocument, term: string): number {
+  return Math.max(
+    rankFieldMatch(normalizeSearchText(fragment.title), term, 4_500),
+    rankFieldMatch(fragment.body, term, 4_000),
+    rankFieldMatch(fragment.filePath ?? '', term, 5_000),
+    rankFieldMatch(fragment.toolName ?? '', term, 2_800),
+    rankFieldMatch(fragment.sourceKind, term, 1_500),
+    rankFieldMatch(fragment.status ?? '', term, 1_200),
+  )
+}
+
+function fragmentFieldWeight(field: SessionSearchModifier): number {
+  switch (field) {
+    case 'title':
+      return 4_500
+    case 'content':
+      return 4_000
+    case 'project':
+      return 1_000
+    case 'path':
+      return 5_000
+    case 'tool':
+      return 2_800
+    case 'file':
+      return 16_000
+    case 'command':
+      return 15_000
+    case 'issue':
+      return 14_000
+    case 'error':
+      return 13_000
+    case 'model':
+      return 6_000
+    case 'reasoning':
+      return 5_000
+    case 'source':
+    case 'kind':
+      return 4_000
+    case 'extension':
+      return 4_500
+    case 'status':
+      return 1_200
+    case 'id':
+      return 700
+    case 'transport':
+    case 'favorite':
+      return 0
+  }
+}
+
 function modifierMatches(
   document: SearchDocument,
   modifiers: ParsedSessionSearchQuery['modifiers'],
@@ -774,6 +2099,8 @@ function termMatchesAnySearchableField(document: SearchDocument, term: string): 
     document.path.includes(term) ||
     document.tool.includes(term) ||
     document.status.includes(term) ||
+    document.transport.includes(term) ||
+    document.modelId.includes(term) ||
     document.sessionId.includes(term)
   )
 }
@@ -806,12 +2133,18 @@ function rankTermAcrossFields(document: SearchDocument, term: string): number {
     rankFieldMatch(document.project, term, 3_500),
     rankFieldMatch(document.path, term, 3_000),
     rankFieldMatch(document.tool, term, 2_000),
+    rankFieldMatch(document.transport, term, 1_200),
+    rankFieldMatch(document.modelId, term, 2_400),
     rankFieldMatch(document.status, term, 800),
     rankFieldMatch(document.sessionId, term, 700),
   )
 }
 
 function rankFieldMatch(value: string, term: string, weight: number): number {
+  if (value === term) {
+    return weight * 2 + 5_000
+  }
+
   const index = value.indexOf(term)
 
   if (index < 0) {
@@ -835,6 +2168,21 @@ function fieldWeight(field: SessionSearchModifier): number {
       return 3_000
     case 'tool':
       return 2_000
+    case 'transport':
+      return 1_200
+    case 'model':
+      return 2_400
+    case 'favorite':
+      return 600
+    case 'source':
+    case 'kind':
+    case 'file':
+    case 'command':
+    case 'issue':
+    case 'error':
+    case 'reasoning':
+    case 'extension':
+      return 0
     case 'status':
       return 800
     case 'id':
@@ -858,6 +2206,21 @@ function getFieldValue(document: SearchDocument, field: SessionSearchModifier): 
       return document.sessionId
     case 'tool':
       return document.tool
+    case 'transport':
+      return document.transport
+    case 'model':
+      return document.modelId
+    case 'favorite':
+      return document.favorite
+    case 'source':
+    case 'kind':
+    case 'file':
+    case 'command':
+    case 'issue':
+    case 'error':
+    case 'reasoning':
+    case 'extension':
+      return ''
   }
 }
 
@@ -895,6 +2258,98 @@ function buildReasons(
   }
 
   return reasons
+}
+
+function buildFragmentReasons(
+  fragment: SearchFragmentDocument,
+  parsed: ParsedSessionSearchQuery,
+): SessionSearchMatch['reasons'] {
+  const reasons: SessionSearchMatch['reasons'] = []
+  const fields: SessionSearchModifier[] = [
+    'content',
+    'path',
+    'file',
+    'command',
+    'issue',
+    'error',
+    'model',
+    'reasoning',
+    'source',
+    'kind',
+    'tool',
+    'status',
+    'id',
+    'title',
+  ]
+  const terms = [
+    ...parsed.terms.map((term) => ({ term, preferredField: null as SessionSearchModifier | null })),
+    ...Object.entries(parsed.modifiers).flatMap(([field, values]) =>
+      (values ?? []).map((term) => ({
+        term,
+        preferredField: field as SessionSearchModifier,
+      })),
+    ),
+  ]
+
+  for (const { preferredField, term } of terms) {
+    const matchingField =
+      preferredField && getFragmentFieldValue(fragment, preferredField).includes(term)
+        ? preferredField
+        : fields.find((field) => getFragmentFieldValue(fragment, field).includes(term))
+
+    if (!matchingField) {
+      continue
+    }
+
+    reasons.push({
+      field: matchingField,
+      messageId: fragment.messageId,
+      snippet: createSnippet(getFragmentFieldValue(fragment, matchingField), term),
+      sourceId: fragment.sourceId,
+      sourceKind: fragment.sourceKind,
+      toolCallId: fragment.toolCallId,
+    })
+
+    if (reasons.length >= 3) {
+      break
+    }
+  }
+
+  return reasons
+}
+
+function mergeSearchMatches(matches: SessionSearchMatch[]): SessionSearchMatch[] {
+  const bySessionId = new Map<string, SessionSearchMatch>()
+
+  for (const match of matches) {
+    const existing = bySessionId.get(match.sessionId)
+
+    if (!existing) {
+      bySessionId.set(match.sessionId, {
+        ...match,
+        reasons: match.reasons.slice(0, 3),
+      })
+      continue
+    }
+
+    if (match.score > existing.score) {
+      existing.score = match.score
+      existing.reasons = [...match.reasons, ...existing.reasons].slice(0, 3)
+      continue
+    }
+
+    existing.reasons = prioritizeSourceReasons([...existing.reasons, ...match.reasons]).slice(0, 3)
+  }
+
+  return [...bySessionId.values()]
+}
+
+function prioritizeSourceReasons(
+  reasons: SessionSearchMatch['reasons'],
+): SessionSearchMatch['reasons'] {
+  return [...reasons].sort(
+    (left, right) => Number(Boolean(right.sourceKind)) - Number(Boolean(left.sourceKind)),
+  )
 }
 
 function createSnippet(value: string, term: string): string {

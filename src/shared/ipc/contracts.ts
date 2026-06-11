@@ -534,8 +534,46 @@ export interface SessionSearchRequest {
 }
 
 export interface SessionSearchReason {
-  field: 'title' | 'content' | 'project' | 'path' | 'status' | 'id' | 'tool'
+  field:
+    | 'title'
+    | 'content'
+    | 'project'
+    | 'path'
+    | 'status'
+    | 'id'
+    | 'tool'
+    | 'source'
+    | 'kind'
+    | 'file'
+    | 'command'
+    | 'issue'
+    | 'error'
+    | 'model'
+    | 'reasoning'
+    | 'transport'
+    | 'favorite'
+    | 'extension'
   snippet: string
+  sourceKind?:
+    | 'session'
+    | 'block'
+    | 'tool_call'
+    | 'tool_result'
+    | 'file_snapshot'
+    | 'compaction'
+    | 'settings'
+    | 'todo'
+  sourceId?: string
+  messageId?: string | null
+  toolCallId?: string | null
+}
+
+export interface SessionSearchTarget {
+  sessionId: string
+  sourceKind: NonNullable<SessionSearchReason['sourceKind']>
+  sourceId: string
+  messageId?: string | null
+  toolCallId?: string | null
 }
 
 export interface SessionSearchMatch {

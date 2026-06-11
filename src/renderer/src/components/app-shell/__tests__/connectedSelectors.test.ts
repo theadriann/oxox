@@ -52,6 +52,12 @@ describe('app-shell connected selectors', () => {
         sessions: [{ id: 'session-1' }],
       } as never,
       transcriptPrimaryActionRef: { current: null },
+      transcriptSearchTarget: {
+        sessionId: 'session-1',
+        sourceId: 'message-1:0',
+        sourceKind: 'block',
+        messageId: 'message-1',
+      },
       transcriptScrollSignal: 7,
       transcriptStore: {
         isRefreshingSession: vi.fn().mockReturnValue(true),
@@ -83,6 +89,7 @@ describe('app-shell connected selectors', () => {
     expect(props.isRefreshingTranscript).toBe(true)
     expect(props.selectedTranscriptRefreshError).toBe('load failed')
     expect(props.selectedLiveTimeline).toEqual([])
+    expect(props.transcriptSearchTarget?.messageId).toBe('message-1')
 
     props.onPickDirectory()
     props.onRefreshFoundation()

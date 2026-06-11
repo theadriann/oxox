@@ -9,7 +9,6 @@ import {
   ServerCog,
 } from 'lucide-react'
 import {
-  type LiveSessionAskUserAnswerRecord,
   type MutableRefObject,
   memo,
   type ReactNode,
@@ -19,6 +18,10 @@ import {
   useRef,
   useState,
 } from 'react'
+import type {
+  LiveSessionAskUserAnswerRecord,
+  SessionSearchTarget,
+} from '../../../../shared/ipc/contracts'
 import { logTranscriptPerformanceEvent } from '../../diagnostics/transcriptPerformance'
 import { Button } from '../ui/button'
 import { SkeletonBlock } from '../ui/skeleton'
@@ -46,6 +49,7 @@ export interface TranscriptRendererProps {
   isLoading: boolean
   loadingError?: string | null
   scrollContextKey?: string
+  searchTarget?: SessionSearchTarget | null
   scrollToBottomSignal?: number
   primaryActionRef?: MutableRefObject<HTMLElement | null>
   pendingPermissionRequestIds?: string[]
@@ -64,6 +68,7 @@ export function TranscriptRenderer({
   isLoading,
   loadingError = null,
   scrollContextKey,
+  searchTarget = null,
   scrollToBottomSignal = 0,
   primaryActionRef,
   pendingPermissionRequestIds = [],
@@ -93,6 +98,7 @@ export function TranscriptRenderer({
     <HistoricalTranscriptView
       items={renderItems}
       isLoading={isLoading}
+      searchTarget={searchTarget}
       loadingError={loadingError}
       scrollContextKey={scrollContextKey ?? 'historical-transcript'}
       scrollToBottomSignal={scrollToBottomSignal}
@@ -183,6 +189,34 @@ function estimateTotalHeight(items: RenderItem[]): number {
 
 function isMcpStatusEvent(item: TimelineItem): item is Extract<TimelineItem, { kind: 'event' }> {
   return item.kind === 'event' && item.typeLabel === 'mcp.statusChanged'
+}
+
+function renderItemMatchesSearchTarget(item: RenderItem, target: SessionSearchTarget): boolean {
+  if (target.messageId && getRenderItemMessageId(item) === target.messageId) {
+    return true
+  }
+
+  if (target.toolCallId && getRenderItemToolCallId(item)?.split(' ').includes(target.toolCallId)) {
+    return true
+  }
+
+  return item.id === target.sourceId
+}
+
+function getRenderItemMessageId(item: RenderItem): string | null {
+  if (item.kind !== 'timeline-item') {
+    return null
+  }
+
+  return 'messageId' in item.item ? item.item.messageId : null
+}
+
+function getRenderItemToolCallId(item: RenderItem): string | null {
+  if (item.kind === 'tool-group') {
+    return item.items.map((toolItem) => toolItem.toolUseId).join(' ')
+  }
+
+  return item.kind === 'timeline-item' && item.item.kind === 'tool' ? item.item.toolUseId : null
 }
 
 function createFallbackVirtualRows(
@@ -430,6 +464,7 @@ function HistoricalTranscriptView({
   isLoading,
   loadingError,
   scrollContextKey,
+  searchTarget,
   scrollToBottomSignal,
   primaryActionRef,
   onRetry,
@@ -438,6 +473,7 @@ function HistoricalTranscriptView({
   isLoading: boolean
   loadingError: string | null
   scrollContextKey: string
+  searchTarget: SessionSearchTarget | null
   scrollToBottomSignal: number
   primaryActionRef?: MutableRefObject<HTMLElement | null>
   onRetry?: () => void
@@ -549,6 +585,21 @@ function HistoricalTranscriptView({
     setShowJumpButton(false)
   }, [scrollToBottom, scrollToBottomSignal])
 
+  useLayoutEffect(() => {
+    if (!searchTarget || items.length === 0) return
+
+    const targetIndex = items.findIndex((item) => renderItemMatchesSearchTarget(item, searchTarget))
+
+    if (targetIndex < 0) {
+      return
+    }
+
+    autoScrollRef.current = false
+    isAtBottomRef.current = false
+    setShowJumpButton(true)
+    virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+  }, [items, searchTarget, virtualizer])
+
   return (
     <section className="relative flex min-h-0 h-full flex-col">
       {isLoading && hasTranscript ? (
@@ -634,6 +685,8 @@ function HistoricalTranscriptView({
                   key={virtualRow.key}
                   ref={virtualizer.measureElement}
                   data-index={virtualRow.index}
+                  data-search-message-id={getRenderItemMessageId(entry) ?? undefined}
+                  data-search-tool-call-id={getRenderItemToolCallId(entry) ?? undefined}
                   data-testid="transcript-row"
                   className="absolute left-0 top-0 w-full pb-1.5"
                   style={{ transform: `translateY(${virtualRow.start}px)` }}

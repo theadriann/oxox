@@ -5,6 +5,11 @@ import { Command } from 'cmdk'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Command as CommandIcon, FolderSearch, Hash, Search, Zap } from 'lucide-react'
 import { memo, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import type {
+  SessionSearchMatch,
+  SessionSearchReason,
+  SessionSearchTarget,
+} from '../../../../shared/ipc/contracts'
 import { cn } from '../../lib/utils'
 import type { SessionPreview } from '../../state/sessions/session.model'
 
@@ -54,8 +59,9 @@ export interface CommandPaletteProps {
   sessionIds?: string[]
   sessionsById$?: Observable<Record<string, SessionPreview>>
   onOpenChange: (open: boolean) => void
-  onSelectSession: (sessionId: string) => void
+  onSelectSession: (sessionId: string, target?: SessionSearchTarget) => void
   onSearchChange?: (query: string) => void
+  searchMatches?: readonly SessionSearchMatch[] | null
   forceMountSessionResults?: boolean
 }
 
@@ -68,6 +74,7 @@ export function CommandPalette({
   onOpenChange,
   onSelectSession,
   onSearchChange,
+  searchMatches,
   forceMountSessionResults = false,
 }: CommandPaletteProps) {
   const [search, setSearch] = useState('')
@@ -88,6 +95,10 @@ export function CommandPalette({
         ? (sessionIds ?? sessions.map((session) => session.id)).slice(0, MAX_VISIBLE_SESSIONS)
         : [],
     [hasQuery, sessionIds, sessions],
+  )
+  const searchMatchesBySessionId = useMemo(
+    () => new Map((searchMatches ?? []).map((match) => [match.sessionId, match])),
+    [searchMatches],
   )
 
   const handleValueChange = useCallback(
@@ -178,6 +189,7 @@ export function CommandPalette({
             onOpenChange={onOpenChange}
             onSelectSession={onSelectSession}
             sessionIds={sessionIdsToRender}
+            searchMatchesBySessionId={searchMatchesBySessionId}
             sessions={sessions}
             sessionsById$={sessionsById$}
           />
@@ -243,13 +255,15 @@ const CommandPaletteSessionResults = memo(function CommandPaletteSessionResults(
   forceMountSessionResults,
   onOpenChange,
   onSelectSession,
+  searchMatchesBySessionId,
   sessionIds,
   sessions,
   sessionsById$,
 }: {
   forceMountSessionResults: boolean
   onOpenChange: (open: boolean) => void
-  onSelectSession: (sessionId: string) => void
+  onSelectSession: (sessionId: string, target?: SessionSearchTarget) => void
+  searchMatchesBySessionId: ReadonlyMap<string, SessionSearchMatch>
   sessionIds: string[]
   sessions: SessionPreview[]
   sessionsById$?: Observable<Record<string, SessionPreview>>
@@ -271,6 +285,7 @@ const CommandPaletteSessionResults = memo(function CommandPaletteSessionResults(
             forceMount={forceMountSessionResults}
             onOpenChange={onOpenChange}
             onSelectSession={onSelectSession}
+            searchMatch={searchMatchesBySessionId.get(sessionId)}
             session$={sessionsById$[sessionId]}
           />
         ) : (
@@ -280,6 +295,7 @@ const CommandPaletteSessionResults = memo(function CommandPaletteSessionResults(
             forceMount={forceMountSessionResults}
             onSelectSession={onSelectSession}
             onOpenChange={onOpenChange}
+            searchMatch={searchMatchesBySessionId.get(sessionId)}
           />
         ),
       )}
@@ -354,34 +370,43 @@ const SessionItem = memo(function SessionItem({
   forceMount,
   onOpenChange,
   onSelectSession,
+  searchMatch,
   session,
 }: {
   forceMount: boolean
   onOpenChange: (open: boolean) => void
-  onSelectSession: (sessionId: string) => void
+  onSelectSession: (sessionId: string, target?: SessionSearchTarget) => void
+  searchMatch?: SessionSearchMatch
   session?: SessionPreview
 }) {
   if (!session) {
     return null
   }
+  const fragmentReasons = getFragmentReasons(searchMatch)
+  const searchTarget = getSearchTarget(session.id, searchMatch)
 
   return (
     <PaletteItem
       forceMount={forceMount}
-      value={`${session.id} ${session.title}`}
+      value={`${session.id} ${session.title} ${fragmentReasons.map((reason) => reason.snippet).join(' ')}`}
       keywords={[
         session.title,
         session.projectLabel,
         session.projectWorkspacePath ?? '',
         session.status,
+        ...fragmentReasons.map((reason) => reason.snippet),
       ]}
       onSelect={() => {
-        onSelectSession(session.id)
+        onSelectSession(session.id, searchTarget)
         onOpenChange(false)
       }}
     >
       <SessionDot status={session.status} />
-      <ItemContent label={session.title} hint={`${session.projectLabel} · ${session.status}`} />
+      <SessionSearchItemContent
+        fragmentReasons={fragmentReasons}
+        hint={`${session.projectLabel} · ${session.status}`}
+        label={session.title}
+      />
       <ItemTrail />
     </PaletteItem>
   )
@@ -391,11 +416,13 @@ const ObservableSessionItem = memo(function ObservableSessionItem({
   forceMount,
   onOpenChange,
   onSelectSession,
+  searchMatch,
   session$,
 }: {
   forceMount: boolean
   onOpenChange: (open: boolean) => void
-  onSelectSession: (sessionId: string) => void
+  onSelectSession: (sessionId: string, target?: SessionSearchTarget) => void
+  searchMatch?: SessionSearchMatch
   session$: Observable<SessionPreview>
 }) {
   const id = useValue(session$.id)
@@ -403,23 +430,114 @@ const ObservableSessionItem = memo(function ObservableSessionItem({
   const projectLabel = useValue(session$.projectLabel)
   const projectWorkspacePath = useValue(session$.projectWorkspacePath)
   const status = useValue(session$.status)
+  const fragmentReasons = getFragmentReasons(searchMatch)
+  const searchTarget = getSearchTarget(id, searchMatch)
 
   return (
     <PaletteItem
       forceMount={forceMount}
-      value={`${id} ${title}`}
-      keywords={[title, projectLabel, projectWorkspacePath ?? '', status]}
+      value={`${id} ${title} ${fragmentReasons.map((reason) => reason.snippet).join(' ')}`}
+      keywords={[
+        title,
+        projectLabel,
+        projectWorkspacePath ?? '',
+        status,
+        ...fragmentReasons.map((reason) => reason.snippet),
+      ]}
       onSelect={() => {
-        onSelectSession(id)
+        onSelectSession(id, searchTarget)
         onOpenChange(false)
       }}
     >
       <SessionDot status={status} />
-      <ItemContent label={title} hint={`${projectLabel} · ${status}`} />
+      <SessionSearchItemContent
+        fragmentReasons={fragmentReasons}
+        hint={`${projectLabel} · ${status}`}
+        label={title}
+      />
       <ItemTrail />
     </PaletteItem>
   )
 })
+
+function SessionSearchItemContent({
+  fragmentReasons,
+  hint,
+  label,
+}: {
+  fragmentReasons: SessionSearchReason[]
+  hint: string
+  label: string
+}) {
+  return (
+    <div className="min-w-0 flex-1">
+      <span className="block truncate text-[13px] font-medium leading-tight text-fd-primary">
+        {label}
+      </span>
+      <span className="block truncate text-[11px] leading-tight text-fd-tertiary opacity-70 transition-opacity duration-100 group-data-[selected=true]:text-fd-secondary group-data-[selected=true]:opacity-100">
+        {hint}
+      </span>
+      {fragmentReasons.length > 0 ? (
+        <span className="mt-1 flex flex-col gap-1">
+          {fragmentReasons.map((reason) => (
+            <span
+              className="flex min-w-0 items-center gap-1.5 text-[11px] leading-tight"
+              key={`${reason.sourceKind}:${reason.sourceId}:${reason.snippet}`}
+            >
+              <span className="shrink-0 rounded-md border border-fd-border-subtle bg-fd-panel px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-fd-tertiary">
+                {labelForSearchSource(reason.sourceKind)}
+              </span>
+              <span className="truncate text-fd-secondary">{reason.snippet}</span>
+            </span>
+          ))}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function getFragmentReasons(searchMatch?: SessionSearchMatch): SessionSearchReason[] {
+  return (searchMatch?.reasons ?? []).filter((reason) => reason.sourceKind && reason.sourceId)
+}
+
+function getSearchTarget(
+  sessionId: string,
+  searchMatch?: SessionSearchMatch,
+): SessionSearchTarget | undefined {
+  const reason = getFragmentReasons(searchMatch)[0]
+
+  if (!reason?.sourceKind || !reason.sourceId) {
+    return undefined
+  }
+
+  return {
+    sessionId,
+    sourceKind: reason.sourceKind,
+    sourceId: reason.sourceId,
+    messageId: reason.messageId,
+    toolCallId: reason.toolCallId,
+  }
+}
+
+function labelForSearchSource(sourceKind?: SessionSearchReason['sourceKind']): string {
+  switch (sourceKind) {
+    case 'block':
+      return 'Message'
+    case 'tool_call':
+    case 'tool_result':
+      return 'Tool'
+    case 'file_snapshot':
+      return 'File'
+    case 'compaction':
+      return 'Summary'
+    case 'settings':
+      return 'Settings'
+    case 'todo':
+      return 'Todo'
+    default:
+      return 'Match'
+  }
+}
 
 function SessionDot({ status }: { status: string }) {
   return (

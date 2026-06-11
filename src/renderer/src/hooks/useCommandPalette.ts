@@ -1,6 +1,7 @@
 import { Sparkles } from 'lucide-react'
 import { useCallback, useRef } from 'react'
 
+import type { SessionSearchTarget } from '../../../shared/ipc/contracts'
 import type { CommandPaletteAction } from '../components/command-palette/CommandPalette'
 import type { LiveSessionStore } from '../state/live-sessions/live-session.model'
 import type { PluginCapabilityStore } from '../state/plugins/plugin-capability.model'
@@ -25,13 +26,13 @@ interface UseCommandPaletteOptions {
   onRenameSelectedSession: () => void | Promise<void>
   onRewindSelectedSession: () => void | Promise<void>
   onFocusTranscriptPrimaryAction?: () => void
-  onSelectSession?: (sessionId: string) => void
+  onSelectSession?: (sessionId: string, target?: SessionSearchTarget) => void
 }
 
 interface UseCommandPaletteResult {
   closePalette: () => void
   getCommands: () => CommandPaletteAction[]
-  handleSessionSelection: (sessionId: string) => void
+  handleSessionSelection: (sessionId: string, target?: SessionSearchTarget) => void
   openPalette: () => void
 }
 
@@ -88,11 +89,11 @@ export function useCommandPalette({
   }, [uiStore])
 
   const handleSessionSelection = useCallback(
-    (sessionId: string) => {
+    (sessionId: string, target?: SessionSearchTarget) => {
       paletteFocusTargetRef.current = onFocusTranscriptPrimaryAction ?? null
 
       if (onSelectSession) {
-        onSelectSession(sessionId)
+        onSelectSession(sessionId, target)
         return
       }
 

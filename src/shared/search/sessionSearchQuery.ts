@@ -6,6 +6,17 @@ const SESSION_SEARCH_MODIFIERS = [
   'status',
   'id',
   'tool',
+  'source',
+  'kind',
+  'file',
+  'command',
+  'issue',
+  'error',
+  'model',
+  'reasoning',
+  'transport',
+  'favorite',
+  'extension',
 ] as const
 
 export type SessionSearchModifier = (typeof SESSION_SEARCH_MODIFIERS)[number]
@@ -18,6 +29,27 @@ export type ParsedSessionSearchQuery = {
 }
 
 const MODIFIER_SET = new Set<string>(SESSION_SEARCH_MODIFIERS)
+const SEARCH_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'did',
+  'for',
+  'how',
+  'in',
+  'is',
+  'of',
+  'the',
+  'to',
+  'was',
+  'were',
+  'what',
+  'when',
+  'where',
+  'which',
+  'why',
+  'with',
+])
 
 export function parseSessionSearchQuery(raw: string): ParsedSessionSearchQuery {
   const modifiers: Partial<Record<SessionSearchModifier, string[]>> = {}
@@ -80,7 +112,7 @@ export function tokenizeSearchText(value: string): string[] {
   return normalizeSearchText(value)
     .split(/[^a-z0-9_./:-]+/u)
     .map((token) => token.trim())
-    .filter(Boolean)
+    .filter((token) => token.length > 0 && !SEARCH_STOP_WORDS.has(token))
 }
 
 function readModifierValue(raw: string, cursor: number): { value: string; nextCursor: number } {

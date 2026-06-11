@@ -102,6 +102,8 @@ describe('session transcript service', () => {
   it('loads transcript entries from a JSONL file', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'oxox-transcript-'))
     const filePath = join(directory, 'session-2.jsonl')
+    const settingsPath = join(directory, 'session-2.settings.json')
+    const snapshotsPath = join(directory, 'session-2.snapshots.json')
     writeFileSync(
       filePath,
       [
@@ -122,10 +124,53 @@ describe('session transcript service', () => {
       ].join('\n'),
       'utf8',
     )
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        apiKey: 'do-not-index',
+        modelId: 'claude-opus-4-6',
+        reasoningEffort: 'high',
+        settings: {
+          autonomyMode: 'high',
+          compactionTokenLimit: 300000,
+        },
+      }),
+      'utf8',
+    )
+    writeFileSync(
+      snapshotsPath,
+      JSON.stringify([
+        {
+          contentHash: 'hash-1',
+          filePath: '/repo/src/shared/ipc/contracts.ts',
+          messageId: 'message-1',
+          sizeBytes: 2048,
+          toolCallId: 'tool-1',
+        },
+      ]),
+      'utf8',
+    )
 
     await expect(loadSessionTranscriptFromFile('session-2', filePath)).resolves.toMatchObject({
       sessionId: 'session-2',
       sourcePath: filePath,
+      settings: {
+        modelId: 'claude-opus-4-6',
+        reasoningEffort: 'high',
+        settings: {
+          autonomyMode: 'high',
+          compactionTokenLimit: 300000,
+        },
+      },
+      snapshots: [
+        {
+          contentHash: 'hash-1',
+          filePath: '/repo/src/shared/ipc/contracts.ts',
+          messageId: 'message-1',
+          sizeBytes: 2048,
+          toolCallId: 'tool-1',
+        },
+      ],
       entries: [
         expect.objectContaining({
           kind: 'message',
@@ -134,6 +179,35 @@ describe('session transcript service', () => {
         }),
       ],
     })
+  })
+
+  it('ignores malformed optional sidecars without losing transcript search data', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'oxox-transcript-sidecar-'))
+    const filePath = join(directory, 'session-sidecar.jsonl')
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        type: 'message',
+        id: 'message-1',
+        timestamp: '2026-03-25T01:03:00.000Z',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Transcript survives bad sidecar.' }],
+        },
+      }),
+      'utf8',
+    )
+    writeFileSync(join(directory, 'session-sidecar.settings.json'), '{"apiKey":', 'utf8')
+
+    await expect(loadSessionTranscriptFromFile('session-sidecar', filePath)).resolves.toMatchObject(
+      {
+        entries: [
+          expect.objectContaining({
+            markdown: 'Transcript survives bad sidecar.',
+          }),
+        ],
+      },
+    )
   })
 
   it('hydrates rewind boundary ids onto transcript message entries when provided', () => {

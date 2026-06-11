@@ -38,6 +38,7 @@ vi.mock('../useAppShellController', () => ({
     startContextPanelResize: vi.fn(),
     startSidebarResize: vi.fn(),
     transcriptPrimaryActionRef: { current: null },
+    transcriptSearchTarget: null,
     transcriptScrollSignal: 0,
   }),
 }))

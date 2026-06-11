@@ -3,6 +3,7 @@
 import { observable } from '@legendapp/state'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SessionSearchMatch } from '../../../../../shared/ipc/contracts'
 import type { SessionPreview } from '../../../state/sessions/session.model'
 import { CommandPalette } from '../CommandPalette'
 
@@ -94,5 +95,95 @@ describe('CommandPalette session search', () => {
     })
 
     expect(screen.getByText('Observable title')).toBeTruthy()
+  })
+
+  it('shows fragment snippets and source badges for server search matches', () => {
+    const sessionsById$ = observable<Record<string, SessionPreview>>({
+      'content-match': createSession({ id: 'content-match', title: 'Daemon transport work' }),
+    })
+    const searchMatches: SessionSearchMatch[] = [
+      {
+        sessionId: 'content-match',
+        score: 42,
+        reasons: [
+          {
+            field: 'content',
+            snippet: 'ApplyPatch updated daemon transport routing',
+            sourceKind: 'tool_call',
+            sourceId: 'tool-1',
+            toolCallId: 'tool-1',
+          },
+        ],
+      },
+    ]
+
+    render(
+      <CommandPalette
+        open={true}
+        commands={[]}
+        sessionIds={['content-match']}
+        sessionsById$={sessionsById$}
+        searchMatches={searchMatches}
+        onOpenChange={() => undefined}
+        onSelectSession={() => undefined}
+        forceMountSessionResults={true}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText(/search commands and sessions/i), {
+      target: { value: 'daemon transport' },
+    })
+
+    expect(screen.getByText('Tool')).toBeTruthy()
+    expect(screen.getByText('ApplyPatch updated daemon transport routing')).toBeTruthy()
+  })
+
+  it('passes the best fragment target when selecting a fragment-backed session result', () => {
+    const onSelectSession = vi.fn()
+    const sessionsById$ = observable<Record<string, SessionPreview>>({
+      'content-match': createSession({ id: 'content-match', title: 'Daemon transport work' }),
+    })
+    const searchMatches: SessionSearchMatch[] = [
+      {
+        sessionId: 'content-match',
+        score: 42,
+        reasons: [
+          {
+            field: 'content',
+            snippet: 'Assistant explained daemon transport ownership',
+            sourceKind: 'block',
+            sourceId: 'message-1:0',
+            messageId: 'message-1',
+            toolCallId: null,
+          },
+        ],
+      },
+    ]
+
+    render(
+      <CommandPalette
+        open={true}
+        commands={[]}
+        sessionIds={['content-match']}
+        sessionsById$={sessionsById$}
+        searchMatches={searchMatches}
+        onOpenChange={() => undefined}
+        onSelectSession={onSelectSession}
+        forceMountSessionResults={true}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText(/search commands and sessions/i), {
+      target: { value: 'daemon transport' },
+    })
+    fireEvent.click(screen.getByText('Daemon transport work'))
+
+    expect(onSelectSession).toHaveBeenCalledWith('content-match', {
+      messageId: 'message-1',
+      sessionId: 'content-match',
+      sourceId: 'message-1:0',
+      sourceKind: 'block',
+      toolCallId: null,
+    })
   })
 })

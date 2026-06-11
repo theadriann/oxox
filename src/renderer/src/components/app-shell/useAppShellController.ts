@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 
+import type { SessionSearchTarget } from '../../../../shared/ipc/contracts'
 import { useAppRuntime } from '../../hooks/useAppRuntime'
 import { useCommandPalette } from '../../hooks/useCommandPalette'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -38,6 +39,9 @@ export function useAppShellController({
   updateStore,
 }: UseAppShellControllerOptions) {
   const [transcriptScrollSignal, setTranscriptScrollSignal] = useState(0)
+  const [transcriptSearchTarget, setTranscriptSearchTarget] = useState<SessionSearchTarget | null>(
+    null,
+  )
   const detailPanelRef = useRef<HTMLElement | null>(null)
   const contextPanelRef = useRef<HTMLElement | null>(null)
   const contextPanelToggleButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -63,12 +67,13 @@ export function useAppShellController({
   }, [uiStore])
 
   const handleSelectSession = useCallback(
-    (sessionId: string) => {
+    (sessionId: string, target?: SessionSearchTarget) => {
       if (newSessionForm.showForm) {
         newSessionForm.closeForm()
       }
 
       sessionStore.selectSession(sessionId)
+      setTranscriptSearchTarget(target ?? null)
       setTranscriptScrollSignal((current) => current + 1)
     },
     [newSessionForm, sessionStore],
@@ -179,6 +184,7 @@ export function useAppShellController({
     startContextPanelResize,
     startSidebarResize,
     transcriptPrimaryActionRef,
+    transcriptSearchTarget,
     transcriptScrollSignal,
   }
 }

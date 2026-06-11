@@ -78,12 +78,39 @@ function createBootstrap(sessions: SessionRecord[]): FoundationBootstrap {
 function createTranscript(
   sessionId: string,
   entries: SessionTranscript['entries'],
+  sourceRecords: unknown[] = [],
+  overrides: Record<string, unknown> = {},
 ): SessionTranscript {
   return {
     sessionId,
     sourcePath: `/tmp/${sessionId}.jsonl`,
     loadedAt: '2026-03-24T20:06:00.000Z',
     entries,
+    sourceRecords,
+    ...overrides,
+  } as SessionTranscript
+}
+
+function createSourceRecord(overrides: {
+  lineNo: number
+  byteOffset: number
+  byteLength: number
+  recordId: string
+  recordType?: string
+  rawHash?: string
+  timestamp?: string | null
+}) {
+  return {
+    lineNo: overrides.lineNo,
+    byteOffset: overrides.byteOffset,
+    byteLength: overrides.byteLength,
+    rawHash: overrides.rawHash ?? `${overrides.recordId}-hash`,
+    recordId: overrides.recordId,
+    type: overrides.recordType ?? 'message',
+    recordType: overrides.recordType ?? 'message',
+    timestamp: overrides.timestamp ?? '2026-03-24T20:00:00.000Z',
+    parentRecordId: null,
+    compactionSummaryId: null,
   }
 }
 
@@ -457,6 +484,501 @@ describe('createSessionSearchService', () => {
       'disk-session',
     )
     service.dispose()
+  })
+
+  it('persists fragment search rows and FTS indexes in the disk-backed search database', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-search-schema-'))
+    const searchDatabasePath = join(userDataPath, 'session-search.db')
+    const bootstrap = createBootstrap([createSession({ id: 'schema-session' })])
+    const service = createSessionSearchService({
+      bootstrap,
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [
+          {
+            kind: 'message',
+            id: `message-${sessionId}`,
+            sourceMessageId: `message-${sessionId}`,
+            occurredAt: null,
+            role: 'assistant',
+            markdown: 'fragment table smoke test',
+          },
+        ]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    await service.waitForHydration()
+    service.dispose()
+
+    const restartedService = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'schema-session' })]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [
+          {
+            kind: 'message',
+            id: `message-${sessionId}`,
+            sourceMessageId: `message-${sessionId}`,
+            occurredAt: null,
+            role: 'assistant',
+            markdown: 'fragment table smoke test',
+          },
+        ]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    expect(restartedService.searchSessions({ query: 'content:smoke' }).matches[0]).toMatchObject({
+      sessionId: 'schema-session',
+      reasons: expect.arrayContaining([expect.objectContaining({ sourceKind: 'block' })]),
+    })
+    restartedService.dispose()
+  })
+
+  it('persists transcript source offsets and rehydrates stale artifact sources safely', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-search-source-'))
+    const searchDatabasePath = join(userDataPath, 'session-search.db')
+    const firstBootstrap = createBootstrap([createSession({ id: 'source-session' })])
+    firstBootstrap.syncMetadata = [
+      {
+        sourcePath: '/tmp/source-session.jsonl',
+        sessionId: 'source-session',
+        lastByteOffset: 120,
+        lastMtimeMs: 1_000,
+        lastSyncedAt: '2026-03-24T20:05:00.000Z',
+        checksum: 'checksum-1',
+      },
+    ]
+    const firstService = createSessionSearchService({
+      bootstrap: firstBootstrap,
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(
+          sessionId,
+          [
+            {
+              kind: 'message',
+              id: 'message-old',
+              sourceMessageId: 'message-old',
+              occurredAt: null,
+              role: 'assistant',
+              markdown: 'old indexed source content',
+            },
+          ],
+          [
+            createSourceRecord({
+              lineNo: 1,
+              byteOffset: 0,
+              byteLength: 120,
+              recordId: 'message-old',
+              rawHash: 'old-hash',
+            }),
+          ],
+        ),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    await firstService.waitForHydration()
+    firstService.dispose()
+
+    const freshLoader = vi.fn(async () => createTranscript('source-session', []))
+    const freshRestart = createSessionSearchService({
+      bootstrap: firstBootstrap,
+      loadSessionTranscript: freshLoader,
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    await freshRestart.waitForHydration()
+
+    expect(freshLoader).not.toHaveBeenCalled()
+    freshRestart.dispose()
+
+    const nextBootstrap = createBootstrap([createSession({ id: 'source-session' })])
+    nextBootstrap.syncMetadata = [
+      {
+        sourcePath: '/tmp/source-session.jsonl',
+        sessionId: 'source-session',
+        lastByteOffset: 240,
+        lastMtimeMs: 2_000,
+        lastSyncedAt: '2026-03-24T20:06:00.000Z',
+        checksum: 'checksum-2',
+      },
+    ]
+    const loadUpdatedTranscript = vi.fn(async (sessionId: string) =>
+      createTranscript(
+        sessionId,
+        [
+          {
+            kind: 'message',
+            id: 'message-old',
+            sourceMessageId: 'message-old',
+            occurredAt: null,
+            role: 'assistant',
+            markdown: 'old indexed source content',
+          },
+          {
+            kind: 'message',
+            id: 'message-new',
+            sourceMessageId: 'message-new',
+            occurredAt: null,
+            role: 'assistant',
+            markdown: 'fresh appended source needle',
+          },
+        ],
+        [
+          createSourceRecord({
+            lineNo: 1,
+            byteOffset: 0,
+            byteLength: 120,
+            recordId: 'message-old',
+            rawHash: 'old-hash',
+          }),
+          createSourceRecord({
+            lineNo: 2,
+            byteOffset: 120,
+            byteLength: 120,
+            recordId: 'message-new',
+            rawHash: 'new-hash',
+          }),
+        ],
+      ),
+    )
+    const restartedService = createSessionSearchService({
+      bootstrap: nextBootstrap,
+      loadSessionTranscript: loadUpdatedTranscript,
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    await restartedService.waitForHydration()
+
+    expect(loadUpdatedTranscript).toHaveBeenCalledTimes(1)
+    expect(restartedService.searchSessions({ query: 'content:needle' }).matches[0]).toMatchObject({
+      sessionId: 'source-session',
+      reasons: expect.arrayContaining([expect.objectContaining({ sourceId: 'message-new' })]),
+    })
+    restartedService.dispose()
+  })
+
+  it('persists OXO-58 entity fragments for exact file, command, issue, error, todo, compaction, and settings queries', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-search-entities-'))
+    const searchDatabasePath = join(userDataPath, 'session-search.db')
+    const bootstrap = createBootstrap([createSession({ id: 'entity-session' })])
+    const service = createSessionSearchService({
+      bootstrap,
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(
+          sessionId,
+          [
+            {
+              kind: 'tool_call',
+              id: 'tool-execute',
+              toolUseId: 'tool-execute',
+              occurredAt: '2026-06-11T10:00:00.000Z',
+              toolName: 'Execute',
+              status: 'failed',
+              inputMarkdown: 'pnpm test --filter daemon/transport.ts',
+              resultMarkdown: 'FAIL daemon/transport.ts ResizeObserver is not defined',
+              resultIsError: true,
+            },
+          ],
+          [
+            {
+              ...createSourceRecord({
+                lineNo: 1,
+                byteOffset: 0,
+                byteLength: 100,
+                recordId: 'todo-record',
+                recordType: 'todo_state',
+                rawHash: 'todo-hash',
+              }),
+              payload: {
+                todos: [{ content: 'todo: fix OXO-41 contracts.ts search', status: 'pending' }],
+              },
+              type: 'todo_state',
+            },
+            {
+              ...createSourceRecord({
+                lineNo: 2,
+                byteOffset: 100,
+                byteLength: 200,
+                recordId: 'summary-record',
+                recordType: 'compaction_state',
+                rawHash: 'summary-hash',
+              }),
+              compactionSummaryId: 'summary-1',
+              payload: {
+                summary: {
+                  id: 'summary-1',
+                  text: 'Remember OXO-41 and contracts.ts search ranking.',
+                },
+              },
+              type: 'compaction_state',
+            },
+          ],
+          {
+            settings: {
+              modelId: 'claude-opus-4-6',
+              reasoningEffort: 'high',
+            },
+            snapshots: [
+              {
+                contentHash: 'snapshot-hash',
+                filePath: '/repo/src/shared/ipc/contracts.ts',
+                messageId: 'message-1',
+                sizeBytes: 4096,
+                toolCallId: 'tool-execute',
+              },
+            ],
+          },
+        ),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    await service.waitForHydration()
+
+    expect(service.searchSessions({ query: 'content:ResizeObserver' }).matches[0]).toMatchObject({
+      sessionId: 'entity-session',
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ sourceKind: 'tool_call', sourceId: 'tool-execute' }),
+      ]),
+    })
+    expect(service.searchSessions({ query: 'path:contracts.ts' }).matches[0]).toMatchObject({
+      sessionId: 'entity-session',
+      reasons: expect.arrayContaining([expect.objectContaining({ sourceKind: 'file_snapshot' })]),
+    })
+    expect(service.searchSessions({ query: 'content:OXO-41' }).matches[0]).toMatchObject({
+      sessionId: 'entity-session',
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ sourceKind: 'compaction', sourceId: 'summary-1' }),
+      ]),
+    })
+    expect(service.searchSessions({ query: 'content:todo' }).matches[0]).toMatchObject({
+      sessionId: 'entity-session',
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ sourceKind: 'todo', sourceId: 'todo-record' }),
+      ]),
+    })
+    expect(service.searchSessions({ query: 'content:claude-opus-4-6' }).matches[0]).toMatchObject({
+      sessionId: 'entity-session',
+      reasons: expect.arrayContaining([expect.objectContaining({ sourceKind: 'settings' })]),
+    })
+    service.dispose()
+
+    const restartedService = createSessionSearchService({
+      bootstrap,
+      loadSessionTranscript: vi.fn(),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+    expect(
+      restartedService.searchSessions({ query: 'content:pnpm test' }).matches[0],
+    ).toMatchObject({
+      sessionId: 'entity-session',
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ sourceKind: 'tool_call', sourceId: 'tool-execute' }),
+      ]),
+    })
+    restartedService.dispose()
+  })
+
+  it('ranks exact titles above newer broad title matches', () => {
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([
+        createSession({
+          id: 'older-exact-title',
+          title: 'SDK runtime',
+          lastActivityAt: '2026-03-24T19:00:00.000Z',
+        }),
+        createSession({
+          id: 'newer-title-prefix',
+          title: 'SDK runtime migration',
+          lastActivityAt: '2026-03-24T22:00:00.000Z',
+        }),
+      ]),
+      loadSessionTranscript: vi.fn(),
+    })
+
+    expect(service.searchSessions({ query: 'title:"SDK runtime"' }).matches[0]?.sessionId).toBe(
+      'older-exact-title',
+    )
+  })
+
+  it('blends exact entity facets with metadata filters using AND semantics', async () => {
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([
+        createSession({
+          id: 'exact-entity-session',
+          projectDisplayName: 'Awesome',
+          title: 'Implement durable search',
+        }),
+        createSession({
+          id: 'prose-session',
+          projectDisplayName: 'Awesome',
+          title: 'contracts.ts OXO-41 ResizeObserver pnpm test notes',
+        }),
+        createSession({
+          id: 'wrong-project-session',
+          projectDisplayName: 'Other',
+          title: 'Execute failure',
+        }),
+      ]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) => {
+        if (sessionId === 'exact-entity-session') {
+          return createTranscript(
+            sessionId,
+            [
+              {
+                kind: 'tool_call',
+                id: 'tool-execute',
+                toolUseId: 'tool-execute',
+                occurredAt: '2026-06-11T10:00:00.000Z',
+                toolName: 'Execute',
+                status: 'failed',
+                inputMarkdown: 'pnpm test --filter daemon/transport.ts',
+                resultMarkdown: 'FAIL daemon/transport.ts ResizeObserver is not defined',
+                resultIsError: true,
+              },
+            ],
+            [
+              {
+                ...createSourceRecord({
+                  lineNo: 1,
+                  byteOffset: 0,
+                  byteLength: 120,
+                  recordId: 'summary-record',
+                  recordType: 'compaction_state',
+                }),
+                compactionSummaryId: 'summary-oxo-41',
+                payload: {
+                  summary: { id: 'summary-oxo-41', text: 'OXO-41 search memory' },
+                },
+                type: 'compaction_state',
+              },
+            ],
+            {
+              settings: { modelId: 'claude-opus-4-6', reasoningEffort: 'high' },
+              snapshots: [
+                {
+                  filePath: '/repo/src/shared/ipc/contracts.ts',
+                  messageId: 'message-1',
+                  toolCallId: 'tool-execute',
+                },
+              ],
+            },
+          )
+        }
+
+        return createTranscript(sessionId, [
+          {
+            kind: 'message',
+            id: `message-${sessionId}`,
+            occurredAt: null,
+            role: 'assistant',
+            markdown:
+              sessionId === 'wrong-project-session'
+                ? 'pnpm test contracts.ts OXO-41 ResizeObserver'
+                : 'Broad prose says contracts.ts OXO-41 ResizeObserver pnpm test but has no exact entities.',
+          },
+        ])
+      }),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    await service.waitForHydration()
+
+    expect(service.searchSessions({ query: 'file:contracts.ts' }).matches[0]).toMatchObject({
+      sessionId: 'exact-entity-session',
+      reasons: expect.arrayContaining([expect.objectContaining({ sourceKind: 'file_snapshot' })]),
+    })
+    expect(
+      service.searchSessions({ query: 'command:"pnpm test --filter daemon/transport.ts"' })
+        .matches[0],
+    ).toMatchObject({
+      sessionId: 'exact-entity-session',
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ sourceKind: 'tool_call', sourceId: 'tool-execute' }),
+      ]),
+    })
+    expect(service.searchSessions({ query: 'issue:OXO-41' }).matches[0]).toMatchObject({
+      sessionId: 'exact-entity-session',
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ sourceKind: 'compaction', sourceId: 'summary-oxo-41' }),
+      ]),
+    })
+    expect(service.searchSessions({ query: 'error:ResizeObserver' }).matches[0]).toMatchObject({
+      sessionId: 'exact-entity-session',
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ sourceKind: 'tool_call', sourceId: 'tool-execute' }),
+      ]),
+    })
+    expect(
+      service.searchSessions({
+        query: 'why did daemon/transport.ts fail with ResizeObserver',
+      }).matches[0],
+    ).toMatchObject({
+      sessionId: 'exact-entity-session',
+      reasons: expect.arrayContaining([
+        expect.objectContaining({ sourceKind: 'tool_call', sourceId: 'tool-execute' }),
+      ]),
+    })
+    expect(
+      service
+        .searchSessions({
+          query:
+            'file:contracts.ts issue:OXO-41 error:ResizeObserver model:opus reasoning:high project:awesome',
+        })
+        .matches.map((match) => match.sessionId),
+    ).toEqual(['exact-entity-session'])
+  })
+
+  it('uses fragment rows to find content beyond the capped whole-session document', async () => {
+    const largeMessage = `${'alpha '.repeat(40)}deep unique fragment needle`
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'fragment-session' })]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [
+          {
+            kind: 'message',
+            id: `message-${sessionId}`,
+            sourceMessageId: `message-${sessionId}`,
+            occurredAt: '2026-06-11T10:00:00.000Z',
+            role: 'assistant',
+            markdown: largeMessage,
+          },
+        ]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      maxIndexedContentChars: 20,
+    })
+
+    await service.waitForHydration()
+
+    const match = service.searchSessions({ query: 'content:needle' }).matches[0]
+    expect(match).toMatchObject({
+      sessionId: 'fragment-session',
+      reasons: [
+        expect.objectContaining({
+          field: 'content',
+          sourceKind: 'block',
+          sourceId: 'message-fragment-session',
+        }),
+      ],
+    })
   })
 
   it('does not feed hydrated transcript content back into metadata refreshes', async () => {

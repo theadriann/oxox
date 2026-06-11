@@ -1,5 +1,8 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
-import type { LiveSessionAskUserAnswerRecord } from '../../../../shared/ipc/contracts'
+import type {
+  LiveSessionAskUserAnswerRecord,
+  SessionSearchTarget,
+} from '../../../../shared/ipc/contracts'
 import type { UIStore } from '../../state/ui/ui.model'
 
 import type { SessionSidebarProps } from '../sidebar/SessionSidebar'
@@ -44,6 +47,7 @@ interface BuildDetailPanelConnectedPropsOptions {
     sessions: Array<unknown>
   }
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
+  transcriptSearchTarget: SessionSearchTarget | null
   transcriptScrollSignal: number
   transcriptStore: {
     isRefreshingSession: (sessionId: string) => boolean
@@ -64,6 +68,7 @@ export function buildDetailPanelConnectedProps({
   onBrowseSessions,
   sessionStore,
   transcriptPrimaryActionRef,
+  transcriptSearchTarget,
   transcriptScrollSignal,
   transcriptStore,
   transportStore,
@@ -113,6 +118,7 @@ export function buildDetailPanelConnectedProps({
       : null,
     showNewSessionForm: newSessionForm.showForm,
     transcriptPrimaryActionRef,
+    transcriptSearchTarget,
     transcriptScrollSignal,
     transportProtocol: transportStore.protocol,
   }

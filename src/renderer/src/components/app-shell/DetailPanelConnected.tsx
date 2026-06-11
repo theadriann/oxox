@@ -44,6 +44,7 @@ export function DetailPanelConnected({
     transcriptScrollSignal ?? controller?.transcriptScrollSignal
   const resolvedTranscriptPrimaryActionRef =
     transcriptPrimaryActionRef ?? controller?.transcriptPrimaryActionRef
+  const resolvedTranscriptSearchTarget = controller?.transcriptSearchTarget ?? null
   const resolvedOnBrowseSessions = onBrowseSessions ?? controller?.handleBrowseSessions
 
   if (
@@ -66,6 +67,7 @@ export function DetailPanelConnected({
       onBrowseSessions: resolvedOnBrowseSessions,
       sessionStore,
       transcriptPrimaryActionRef: resolvedTranscriptPrimaryActionRef,
+      transcriptSearchTarget: resolvedTranscriptSearchTarget,
       transcriptScrollSignal: resolvedTranscriptScrollSignal,
       transcriptStore,
       transportStore,

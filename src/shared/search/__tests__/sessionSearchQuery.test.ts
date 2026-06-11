@@ -35,4 +35,23 @@ describe('parseSessionSearchQuery', () => {
     expect(parsed.modifiers.content).toEqual(['auth', 'token'])
     expect(parsed.modifiers.title).toEqual(['sdk'])
   })
+
+  it('extracts OXO-59 exact entity and metadata facets', () => {
+    const parsed = parseSessionSearchQuery(
+      'file:contracts.ts command:"pnpm test" issue:OXO-59 error:ResizeObserver source:file_snapshot model:opus reasoning:high transport:artifacts favorite:true',
+    )
+
+    expect(parsed.freeText).toBe('')
+    expect(parsed.modifiers).toMatchObject({
+      command: ['pnpm test'],
+      error: ['resizeobserver'],
+      favorite: ['true'],
+      file: ['contracts.ts'],
+      issue: ['oxo-59'],
+      model: ['opus'],
+      reasoning: ['high'],
+      source: ['file_snapshot'],
+      transport: ['artifacts'],
+    })
+  })
 })

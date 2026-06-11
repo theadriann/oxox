@@ -3,7 +3,7 @@ import { useRef } from 'react'
 import { useMountEffect } from '../../hooks/useMountEffect'
 import { useRootStore, useSessionStore, useUIStore } from '../../state/root/store-provider'
 import { SessionSearchController } from '../../state/workflows/session-search/session-search.model'
-import type { CommandPaletteAction } from '../command-palette/CommandPalette'
+import type { CommandPaletteAction, CommandPaletteProps } from '../command-palette/CommandPalette'
 import { CommandPalette } from '../command-palette/CommandPalette'
 import { useOptionalAppShellControllerContext } from './AppShellControllerContext'
 
@@ -11,7 +11,7 @@ interface CommandPaletteConnectedProps {
   commandPalette?: {
     closePalette: () => void
     getCommands: () => CommandPaletteAction[]
-    handleSessionSelection: (sessionId: string) => void
+    handleSessionSelection: CommandPaletteProps['onSelectSession']
     openPalette: () => void
   }
 }
@@ -63,6 +63,7 @@ export function CommandPaletteConnected({ commandPalette }: CommandPaletteConnec
       }
       onSelectSession={resolvedCommandPalette.handleSessionSelection}
       onSearchChange={searchController.scheduleSearch}
+      searchMatches={searchController.matches}
       forceMountSessionResults={Boolean(rootStore.api.search.sessions)}
     />
   )
