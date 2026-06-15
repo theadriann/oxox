@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -1463,6 +1463,92 @@ describe('createSessionProcessManager', () => {
       sessionId: 'session-fork-derived',
       parentSessionId: 'session-fork-source',
       status: 'idle',
+    })
+  })
+
+  it('marks renamed transcript titles as manual so fork reloads preserve them', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-session-process-'))
+    const sessionsRoot = mkdtempSync(join(tmpdir(), 'oxox-session-transcripts-'))
+    const transcriptPath = join(sessionsRoot, 'session-rename-source.jsonl')
+    writeFileSync(
+      transcriptPath,
+      `${JSON.stringify({
+        type: 'session_start',
+        id: 'session-rename-source',
+        title: 'Generated title',
+        sessionTitle: 'Generated title',
+        owner: 'brojbean',
+      })}\n`,
+    )
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    database.upsertSession({
+      sessionId: 'session-rename-source',
+      projectWorkspacePath: '/tmp/rename-source',
+      modelId: 'gpt-5.4',
+      hasUserMessage: true,
+      title: 'Generated title',
+      status: 'completed',
+      transport: 'artifacts',
+      createdAt: '2026-04-08T20:00:00.000Z',
+      lastActivityAt: '2026-04-08T20:10:00.000Z',
+      updatedAt: '2026-04-08T20:10:00.000Z',
+    })
+
+    const sourceProcess = new FakeChildProcess(7_151)
+    const spawnProcess = vi.fn().mockReturnValue(sourceProcess)
+    const manager = createSessionProcessManager({
+      database,
+      droidPath: '/opt/factory/bin/droid',
+      droidSdkSessionFactory: createTestDroidSdkSessionFactory(spawnProcess),
+      sessionsRoot,
+      spawnProcess,
+    })
+    cleanup.push(() => manager.dispose())
+
+    const renamePromise = manager.renameSession('session-rename-source', 'my_session')
+
+    await waitFor(() => sourceProcess.writes.length === 1)
+    sourceProcess.emitStdout(
+      createResponse(getRequestId(sourceProcess), {
+        session: {
+          messages: [
+            {
+              id: 'message-1',
+              role: 'user',
+              content: [{ type: 'text', text: 'Rename me' }],
+            },
+          ],
+        },
+        settings: { modelId: 'gpt-5.4', reasoningEffort: 'medium' },
+        cwd: '/tmp/rename-source',
+        isAgentLoopInProgress: false,
+      }),
+    )
+
+    await waitFor(() => sourceProcess.writes.length === 2)
+    const renameRequest = JSON.parse(sourceProcess.writes[1] ?? '{}') as {
+      method?: string
+      params?: Record<string, unknown>
+      id?: string
+    }
+    expect(renameRequest.method).toBe('droid.rename_session')
+    expect(renameRequest.params).toEqual({ title: 'my_session' })
+    sourceProcess.emitStdout(
+      createResponse(renameRequest.id ?? 'session:rename:1', { success: true }),
+    )
+
+    await renamePromise
+
+    const renamedStartRecord = JSON.parse(readFileSync(transcriptPath, 'utf8').split('\n')[0] ?? '')
+    expect(renamedStartRecord).toMatchObject({
+      title: 'Generated title',
+      sessionTitle: 'my_session',
+      isSessionTitleManuallySet: true,
     })
   })
 

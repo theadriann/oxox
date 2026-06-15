@@ -187,6 +187,7 @@ export interface CreateSessionProcessManagerOptions {
   database: DatabaseService
   droidPath?: string
   droidSdkSessionFactory?: DroidSdkSessionFactory
+  sessionsRoot?: string
   sessionTransportFactory?: (
     config: DroidSdkProcessTransportConfig,
   ) => StreamJsonRpcProcessTransportLike

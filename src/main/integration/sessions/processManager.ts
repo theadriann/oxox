@@ -17,6 +17,7 @@ import type {
 } from '../../../shared/ipc/contracts'
 import { DroidSdkSessionTransport } from '../droidSdk/transport'
 import type { SessionEvent } from '../protocol/sessionEvents'
+import { findSessionTranscriptPath, renameSessionTitleInTranscript } from '../transcripts/mutations'
 import { applyEventToSession } from './eventApplier'
 import { extractHistoryEvents, normalizeMessages, resolveSessionTitle } from './messageNormalizer'
 import {
@@ -412,6 +413,14 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
         nextRequestId('session:rename'),
         title,
       )
+      const transcriptPath = options.sessionsRoot
+        ? findSessionTranscriptPath(options.sessionsRoot, sessionId)
+        : null
+
+      if (transcriptPath) {
+        await renameSessionTitleInTranscript(transcriptPath, title)
+      }
+
       session.title = title
       session.updatedAt = now()
       persistManagedSession(session)

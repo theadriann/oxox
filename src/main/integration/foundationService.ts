@@ -263,6 +263,7 @@ export function createFoundationService(
   const droidCliStatus = resolveDroidCliStatus()
   const disableArtifactScanner = process.env.OXOX_DISABLE_ARTIFACT_SCANNER === '1'
   const disableSearchService = process.env.OXOX_DISABLE_SEARCH_SERVICE === '1'
+  const sessionsRoot = join(homedir(), '.factory', 'sessions')
   let readDaemonDefaultSettings = async (): Promise<unknown> => null
   const foundationBootstrapState = createFoundationBootstrapState({
     droidPath: droidCliStatus.path ?? undefined,
@@ -273,9 +274,8 @@ export function createFoundationService(
     ? createNoopArtifactScanner()
     : createBackgroundArtifactScanner({
         userDataPath: options.userDataPath,
-        sessionsRoot: join(homedir(), '.factory', 'sessions'),
+        sessionsRoot,
       })
-  const sessionsRoot = join(homedir(), '.factory', 'sessions')
   const daemonAuthProvider = createEnvironmentDaemonAuthProvider()
   const daemonTransport = createDaemonTransport({
     authProvider: daemonAuthProvider,
@@ -309,6 +309,7 @@ export function createFoundationService(
   const sessionProcessManager = createSessionProcessManager({
     database,
     droidPath: droidCliStatus.path ?? undefined,
+    sessionsRoot,
     sessionTransportFactory: createFoundationSessionTransportFactory({
       authProvider: daemonAuthProvider,
       createMcpServers,
