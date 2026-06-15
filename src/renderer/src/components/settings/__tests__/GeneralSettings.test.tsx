@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createPlatformApiClient } from '../../../platform/apiClient'
@@ -36,11 +36,14 @@ function renderGeneralSettings() {
     },
   }
 
-  return render(
-    <StoreProvider rootStore={rootStore}>
-      <GeneralSettings />
-    </StoreProvider>,
-  )
+  return {
+    rootStore,
+    view: render(
+      <StoreProvider rootStore={rootStore}>
+        <GeneralSettings />
+      </StoreProvider>,
+    ),
+  }
 }
 
 describe('GeneralSettings', () => {
@@ -59,5 +62,16 @@ describe('GeneralSettings', () => {
     expect(screen.queryByText('/Users/test/worktrees')).toBeNull()
     expect(screen.getByText('lightModel: claude-haiku-4-6')).not.toBeNull()
     expect(screen.getByText('workerModel: claude-sonnet-4-6')).not.toBeNull()
+  })
+
+  it('lets users choose how sub-sessions appear in the sidebar', () => {
+    const { rootStore } = renderGeneralSettings()
+
+    expect(screen.getByText('Sub-sessions in sidebar')).not.toBeNull()
+    expect(rootStore.uiStore.state$.childSessionVisibilityMode.get()).toBe('selected-parent')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Never' }))
+
+    expect(rootStore.uiStore.state$.childSessionVisibilityMode.get()).toBe('never')
   })
 })

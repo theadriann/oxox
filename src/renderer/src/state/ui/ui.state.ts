@@ -10,6 +10,7 @@ export type AppView = 'sessions' | 'settings' | 'search'
 export type SettingsSection = 'general' | 'archive'
 export type ContentLayout = 'fluid' | 'fixed'
 export type ComposerContextUsageDisplayMode = 'percentage' | 'tokens'
+export type ChildSessionVisibilityMode = 'always' | 'selected-parent' | 'never'
 export type ContextPanelMode = 'session-details' | 'git-diff'
 
 export interface PersistedSidebarState {
@@ -21,6 +22,7 @@ export interface PersistedSidebarState {
   collapsedProjectKeys?: string[]
   contentLayout?: ContentLayout
   composerContextUsageDisplayMode?: ComposerContextUsageDisplayMode
+  childSessionVisibilityMode?: ChildSessionVisibilityMode
 }
 
 export interface UIState {
@@ -35,6 +37,7 @@ export interface UIState {
   collapsedProjectKeys: string[]
   contentLayout: ContentLayout
   composerContextUsageDisplayMode: ComposerContextUsageDisplayMode
+  childSessionVisibilityMode: ChildSessionVisibilityMode
   activeView: AppView
   settingsSection: SettingsSection
 }
@@ -52,6 +55,7 @@ export function createDefaultUIState(): UIState {
     collapsedProjectKeys: [],
     contentLayout: 'fixed',
     composerContextUsageDisplayMode: 'percentage',
+    childSessionVisibilityMode: 'selected-parent',
     activeView: 'sessions',
     settingsSection: 'general',
   }

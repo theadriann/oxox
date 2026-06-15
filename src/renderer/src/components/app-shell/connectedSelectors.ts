@@ -4,6 +4,7 @@ import type {
   SessionSearchTarget,
 } from '../../../../shared/ipc/contracts'
 import type { UIStore } from '../../state/ui/ui.model'
+import type { ChildSessionVisibilityMode } from '../../state/ui/ui.state'
 
 import type { SessionSidebarProps } from '../sidebar/SessionSidebar'
 import type { StatusBarProps } from '../status-bar/StatusBar'
@@ -166,6 +167,13 @@ export function buildAppShellSidebarProps({
   shouldAnimate,
   uiStore,
 }: BuildAppShellSidebarPropsOptions) {
+  const filteredSidebarSessions = filterChildSessionsForSidebar({
+    groups: sessionStore.projectGroups,
+    mode: uiStore.state$.childSessionVisibilityMode.get(),
+    pinnedSessions: sessionStore.pinnedSessions,
+    selectedSessionId: sessionStore.selectedSessionId,
+  })
+
   return {
     isHidden: uiStore.state$.isSidebarHidden.get(),
     prefersReducedMotion,
@@ -173,7 +181,7 @@ export function buildAppShellSidebarProps({
     sidebar: {
       activeCount: sessionStore.activeCount,
       errorState,
-      groups: sessionStore.projectGroups,
+      groups: filteredSidebarSessions.groups,
       isLoading: foundationStore.isLoading,
       isProjectCollapsed: uiStore.isProjectCollapsed,
       onNewSession,
@@ -190,11 +198,92 @@ export function buildAppShellSidebarProps({
       onTogglePinnedSession: sessionStore.togglePinnedSession,
       onToggleProject: uiStore.toggleProjectCollapsed,
       onHideSidebar: uiStore.toggleSidebar,
-      pinnedSessions: sessionStore.pinnedSessions,
+      pinnedSessions: filteredSidebarSessions.pinnedSessions,
       selectedSessionId: sessionStore.selectedSessionId,
       sessionsById$: sessionStore.sessionsById$,
     } satisfies SessionSidebarProps,
   }
+}
+
+function filterChildSessionsForSidebar({
+  groups,
+  mode,
+  pinnedSessions,
+  selectedSessionId,
+}: {
+  groups: SessionSidebarProps['groups']
+  mode: ChildSessionVisibilityMode
+  pinnedSessions: SessionSidebarProps['pinnedSessions']
+  selectedSessionId: string
+}): {
+  groups: SessionSidebarProps['groups']
+  pinnedSessions: SessionSidebarProps['pinnedSessions']
+} {
+  if (mode === 'always') {
+    return { groups, pinnedSessions }
+  }
+
+  const sessions = [...groups.flatMap((group) => group.sessions), ...pinnedSessions]
+  const sessionsById = new Map(sessions.map((session) => [session.id, session]))
+  const selectedSession = sessionsById.get(selectedSessionId)
+  const visibleParentId =
+    mode === 'selected-parent' && selectedSession
+      ? getVisibleChildSessionParentId(selectedSession, sessions)
+      : null
+
+  const shouldShowSession = (session: (typeof sessions)[number]): boolean => {
+    if (!isChildSession(session)) {
+      return true
+    }
+
+    return mode === 'selected-parent' && session.parentSessionId === visibleParentId
+  }
+
+  return {
+    groups: groups
+      .map((group) => {
+        const visibleSessions = group.sessions.filter(shouldShowSession)
+
+        if (visibleSessions.length === 0) {
+          return null
+        }
+
+        return {
+          ...group,
+          latestActivityAt: Math.max(
+            ...visibleSessions.map((session) => session.lastActivityTimestamp),
+          ),
+          sessions: visibleSessions,
+        }
+      })
+      .filter((group): group is SessionSidebarProps['groups'][number] => Boolean(group)),
+    pinnedSessions: pinnedSessions.filter(shouldShowSession),
+  }
+}
+
+function getVisibleChildSessionParentId(
+  selectedSession: SessionSidebarProps['groups'][number]['sessions'][number],
+  sessions: Array<SessionSidebarProps['groups'][number]['sessions'][number]>,
+): string | null {
+  if (isChildSession(selectedSession)) {
+    return selectedSession.parentSessionId
+  }
+
+  return sessions.some(
+    (session) => isChildSession(session) && session.parentSessionId === selectedSession.id,
+  )
+    ? selectedSession.id
+    : null
+}
+
+function isChildSession(
+  session: SessionSidebarProps['groups'][number]['sessions'][number],
+): session is SessionSidebarProps['groups'][number]['sessions'][number] & {
+  parentSessionId: string
+} {
+  return Boolean(
+    session.parentSessionId && session.derivationType && session.derivationType !== 'fork',
+  )
 }
 
 export function buildAppShellContextPanelState({

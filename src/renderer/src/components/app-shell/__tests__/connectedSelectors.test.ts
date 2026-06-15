@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMemoryPersistencePort } from '../../../platform/persistence'
+import type { ProjectSessionGroup, SessionPreview } from '../../../state/sessions/session.model'
 import { UIStore } from '../../../state/ui/ui.model'
 import {
   buildAppShellContextPanelState,
@@ -123,7 +124,15 @@ describe('app-shell connected selectors', () => {
       sessionStore: {
         activeCount: 2,
         pinnedSessions: [{ id: 'pinned-1' }],
-        projectGroups: [{ projectKey: 'project-1' }],
+        projectGroups: [
+          {
+            key: 'project-1',
+            label: 'Project',
+            workspacePath: null,
+            latestActivityAt: 0,
+            sessions: [],
+          },
+        ],
         selectedSessionId: 'session-1',
         selectSession: vi.fn(),
         setProjectDisplayName: vi.fn(),
@@ -217,7 +226,125 @@ describe('app-shell connected selectors', () => {
       }),
     ).toBeNull()
   })
+
+  it('filters child sessions from sidebar groups based on the UI visibility preference', () => {
+    const uiStore = createUIStore({})
+    const parent = createSessionPreview({ id: 'parent', title: 'Parent' })
+    const child = createSessionPreview({
+      id: 'child',
+      parentSessionId: 'parent',
+      derivationType: 'subagent',
+      title: 'Child',
+    })
+    const unrelatedParent = createSessionPreview({ id: 'other-parent', title: 'Other parent' })
+    const unrelatedChild = createSessionPreview({
+      id: 'other-child',
+      parentSessionId: 'other-parent',
+      derivationType: 'subagent',
+      title: 'Other child',
+    })
+    const fork = createSessionPreview({
+      id: 'fork',
+      parentSessionId: 'parent',
+      derivationType: 'fork',
+      title: 'Fork',
+    })
+    const group: ProjectSessionGroup = {
+      key: 'project-1',
+      label: 'Project',
+      workspacePath: '/tmp/project',
+      latestActivityAt: 5,
+      sessions: [parent, child, unrelatedParent, unrelatedChild, fork],
+    }
+    const baseOptions = {
+      errorState: undefined,
+      foundationStore: { isLoading: false } as never,
+      onCompactSession: vi.fn(),
+      onCopySessionId: vi.fn(),
+      onForkSession: vi.fn(),
+      onNewSession: vi.fn(),
+      onRenameSession: vi.fn(),
+      onResizeStart: vi.fn(),
+      onRewindSession: vi.fn(),
+      prefersReducedMotion: false,
+      sessionStore: {
+        activeCount: 0,
+        pinnedSessions: [child],
+        projectGroups: [group],
+        selectedSessionId: 'parent',
+        selectSession: vi.fn(),
+        setProjectDisplayName: vi.fn(),
+        togglePinnedSession: vi.fn(),
+        sessionsById$: {} as never,
+      },
+      shouldAnimate: true,
+      uiStore,
+    }
+
+    let props = buildAppShellSidebarProps(baseOptions)
+
+    expect(props.sidebar.groups[0]?.sessions.map((session) => session.id)).toEqual([
+      'parent',
+      'child',
+      'other-parent',
+      'fork',
+    ])
+    expect(props.sidebar.pinnedSessions.map((session) => session.id)).toEqual(['child'])
+
+    uiStore.setChildSessionVisibilityMode('never')
+    props = buildAppShellSidebarProps(baseOptions)
+
+    expect(props.sidebar.groups[0]?.sessions.map((session) => session.id)).toEqual([
+      'parent',
+      'other-parent',
+      'fork',
+    ])
+    expect(props.sidebar.pinnedSessions).toEqual([])
+
+    uiStore.setChildSessionVisibilityMode('always')
+    props = buildAppShellSidebarProps(baseOptions)
+
+    expect(props.sidebar.groups[0]?.sessions.map((session) => session.id)).toEqual([
+      'parent',
+      'child',
+      'other-parent',
+      'other-child',
+      'fork',
+    ])
+  })
 })
+
+function createSessionPreview({
+  id,
+  title,
+  parentSessionId = null,
+  derivationType = null,
+}: {
+  id: string
+  title: string
+  parentSessionId?: string | null
+  derivationType?: string | null
+}): SessionPreview {
+  return {
+    id,
+    title,
+    projectKey: 'project-1',
+    projectLabel: 'Project',
+    defaultProjectLabel: 'Project',
+    projectWorkspacePath: '/tmp/project',
+    modelId: null,
+    parentSessionId,
+    derivationType,
+    hasUserMessage: true,
+    status: 'idle',
+    transport: 'artifacts',
+    transportLocation: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
+    lastActivityTimestamp: Number(id.length),
+  }
+}
 
 function createUIStore({
   isSidebarHidden = false,

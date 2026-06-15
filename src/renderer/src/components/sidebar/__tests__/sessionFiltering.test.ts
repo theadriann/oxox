@@ -8,7 +8,13 @@ function createSession(overrides: Partial<SessionPreview>): SessionPreview {
     projectKey: 'project-default',
     projectLabel: 'project-default',
     projectWorkspacePath: '/tmp/project-default',
+    modelId: null,
+    parentSessionId: null,
+    derivationType: null,
+    hasUserMessage: true,
     status: 'active',
+    transport: 'artifacts',
+    transportLocation: null,
     createdAt: '2026-03-24T23:00:00.000Z',
     updatedAt: '2026-03-25T00:00:00.000Z',
     lastActivityAt: '2026-03-25T00:00:00.000Z',
@@ -170,6 +176,72 @@ describe('filterSessionGroups', () => {
     expect(result.groups[0]?.sessions.map((session) => session.id)).toEqual([
       'active-match',
       'active-second',
+    ])
+  })
+
+  it('preserves hierarchy-aware session order when filters do not rank by query relevance', () => {
+    const parent = createSession({
+      id: 'parent',
+      title: 'Security review feedback',
+      lastActivityTimestamp: Date.parse('2026-06-15T10:13:21.916Z'),
+      lastActivityAt: '2026-06-15T10:13:21.916Z',
+    })
+    const child = createSession({
+      id: 'child',
+      title: 'Codebase-analyst: Analyze platform codebases',
+      parentSessionId: 'parent',
+      derivationType: 'subagent',
+      lastActivityTimestamp: Date.parse('2026-06-15T09:32:20.931Z'),
+      lastActivityAt: '2026-06-15T09:32:20.931Z',
+    })
+    const fork = createSession({
+      id: 'fork',
+      title: '[Fork] You are working in the Awesome platform',
+      parentSessionId: 'parent',
+      derivationType: 'fork',
+      lastActivityTimestamp: Date.parse('2026-06-15T10:27:26.473Z'),
+      lastActivityAt: '2026-06-15T10:27:26.473Z',
+    })
+    const groups = [createGroup('project-alpha', [parent, fork, child])]
+
+    const result = filterSessionGroups(groups, [], DEFAULT_SIDEBAR_FILTERS)
+
+    expect(result.groups[0]?.sessions.map((session) => session.id)).toEqual([
+      'parent',
+      'child',
+      'fork',
+    ])
+    expect(result.groups[0]?.latestActivityAt).toBe(fork.lastActivityTimestamp)
+  })
+
+  it('preserves hierarchy-aware session order when empty server matches are present without a query', () => {
+    const parent = createSession({
+      id: 'parent',
+      title: 'Parent session',
+      lastActivityTimestamp: 2,
+    })
+    const fork = createSession({
+      id: 'fork',
+      title: 'Fork session',
+      parentSessionId: 'parent',
+      derivationType: 'fork',
+      lastActivityTimestamp: 3,
+    })
+    const child = createSession({
+      id: 'child',
+      title: 'Child session',
+      parentSessionId: 'parent',
+      derivationType: 'subagent',
+      lastActivityTimestamp: 1,
+    })
+    const groups = [createGroup('project-alpha', [parent, fork, child])]
+
+    const result = filterSessionGroups(groups, [], DEFAULT_SIDEBAR_FILTERS, [])
+
+    expect(result.groups[0]?.sessions.map((session) => session.id)).toEqual([
+      'parent',
+      'child',
+      'fork',
     ])
   })
 })

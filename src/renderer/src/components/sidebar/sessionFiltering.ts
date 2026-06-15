@@ -100,6 +100,7 @@ export function filterSessionGroups(
     ? new Map(searchMatches.map((match, index) => [match.sessionId, { index, score: match.score }]))
     : null
   const useServerSearch = Boolean(normalize(filters.query)) && Boolean(serverSearchOrder)
+  const shouldRankSessions = Boolean(normalizedQuery) || useServerSearch
 
   for (const session of uniqueSessions) {
     if (!matchesAdvancedFilters(session, filters, now)) {
@@ -138,12 +139,17 @@ export function filterSessionGroups(
 
   const groupsWithMatches = groups
     .map((group) => {
-      const matchingSessions = group.sessions
+      let matchingSessions = group.sessions
         .map((session) => rankedSessions.get(session.id))
         .filter((session): session is RankedSession => Boolean(session))
-        .sort((left, right) =>
+
+      if (shouldRankSessions) {
+        matchingSessions.sort((left, right) =>
           compareRankedSessions(left, right, Boolean(normalizedQuery), serverSearchOrder),
         )
+      } else {
+        matchingSessions = orderRankedSessionsByVisibleHierarchy(matchingSessions)
+      }
 
       if (matchingSessions.length === 0) {
         return null
@@ -153,10 +159,9 @@ export function filterSessionGroups(
         key: group.key,
         label: group.label,
         workspacePath: group.workspacePath,
-        latestActivityAt:
-          matchingSessions[0]?.session.lastActivityTimestamp ?? group.latestActivityAt,
+        latestActivityAt: getLatestActivityAt(matchingSessions, group.latestActivityAt),
         sessions: matchingSessions.map((entry) => entry.session),
-        topScore: matchingSessions[0]?.score ?? 0,
+        topScore: getTopScore(matchingSessions),
       }
     })
     .filter(
@@ -194,20 +199,107 @@ export function filterSessionGroups(
   const rankedPinnedSessions = pinnedSessions
     .map((session) => rankedSessions.get(session.id))
     .filter((session): session is RankedSession => Boolean(session))
-    .sort((left, right) =>
+
+  if (shouldRankSessions) {
+    rankedPinnedSessions.sort((left, right) =>
       compareRankedSessions(left, right, Boolean(normalizedQuery), serverSearchOrder),
     )
-    .map((entry) => entry.session)
+  }
+
+  const visiblePinnedSessions = rankedPinnedSessions.map((entry) => entry.session)
 
   return {
     groups: groupsWithMatches,
-    pinnedSessions: rankedPinnedSessions,
+    pinnedSessions: visiblePinnedSessions,
     activeFilterCount: countActiveFilters(filters),
     availableProjects,
     availableTags,
     hasMatches: groupsWithMatches.length > 0 || rankedPinnedSessions.length > 0,
     isFiltering: countActiveFilters(filters) > 0,
   }
+}
+
+function getLatestActivityAt(sessions: RankedSession[], fallback: number): number {
+  if (sessions.length === 0) {
+    return fallback
+  }
+
+  return Math.max(...sessions.map((entry) => entry.session.lastActivityTimestamp))
+}
+
+function getTopScore(sessions: RankedSession[]): number {
+  if (sessions.length === 0) {
+    return 0
+  }
+
+  return Math.max(...sessions.map((entry) => entry.score))
+}
+
+function orderRankedSessionsByVisibleHierarchy(sessions: RankedSession[]): RankedSession[] {
+  const visibleSessionIds = new Set(sessions.map((entry) => entry.session.id))
+  const childrenByParent = new Map<string, RankedSession[]>()
+  const topLevel: RankedSession[] = []
+
+  for (const entry of sessions) {
+    if (isVisibleChildSession(entry.session, visibleSessionIds)) {
+      const siblings = childrenByParent.get(entry.session.parentSessionId)
+      if (siblings) {
+        siblings.push(entry)
+      } else {
+        childrenByParent.set(entry.session.parentSessionId, [entry])
+      }
+      continue
+    }
+
+    topLevel.push(entry)
+  }
+
+  if (childrenByParent.size === 0) {
+    return sessions
+  }
+
+  const ordered: RankedSession[] = []
+  const visited = new Set<string>()
+
+  const appendSession = (entry: RankedSession): void => {
+    if (visited.has(entry.session.id)) {
+      return
+    }
+
+    visited.add(entry.session.id)
+    ordered.push(entry)
+
+    const children = childrenByParent.get(entry.session.id)
+    if (!children) {
+      return
+    }
+
+    for (const child of children) {
+      appendSession(child)
+    }
+  }
+
+  for (const entry of topLevel) {
+    appendSession(entry)
+  }
+
+  for (const entry of sessions) {
+    appendSession(entry)
+  }
+
+  return ordered
+}
+
+function isVisibleChildSession(
+  session: SessionPreview,
+  visibleSessionIds: Set<string>,
+): session is SessionPreview & { parentSessionId: string } {
+  return Boolean(
+    session.parentSessionId &&
+      visibleSessionIds.has(session.parentSessionId) &&
+      session.derivationType &&
+      session.derivationType !== 'fork',
+  )
 }
 
 export function deriveSessionTags(session: SessionPreview): string[] {

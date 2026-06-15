@@ -9,6 +9,7 @@ export function GeneralSettings() {
   const isSidebarHidden = useValue(uiStore.state$.isSidebarHidden)
   const isContextPanelHidden = useValue(uiStore.state$.isContextPanelHidden)
   const composerContextUsageDisplayMode = useValue(uiStore.state$.composerContextUsageDisplayMode)
+  const childSessionVisibilityMode = useValue(uiStore.state$.childSessionVisibilityMode)
   const factoryDefaultSettings = useValue(foundationStore.state$.foundation.factoryDefaultSettings)
   const defaultRows = buildFactoryDefaultRows(factoryDefaultSettings)
 
@@ -74,6 +75,21 @@ export function GeneralSettings() {
               )
             })}
           </div>
+        </SettingsRow>
+
+        <SettingsRow
+          label="Sub-sessions in sidebar"
+          description="Control when child sessions created by subagents appear under their parent."
+        >
+          <SegmentedControl
+            value={childSessionVisibilityMode}
+            options={[
+              { value: 'always', label: 'Always' },
+              { value: 'selected-parent', label: 'Related' },
+              { value: 'never', label: 'Never' },
+            ]}
+            onChange={uiStore.setChildSessionVisibilityMode}
+          />
         </SettingsRow>
       </div>
 
@@ -267,6 +283,39 @@ function formatJoinedValues(values: Array<string | undefined>): string | undefin
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function SegmentedControl<TValue extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: TValue
+  options: Array<{ value: TValue; label: string }>
+  onChange: (value: TValue) => void
+}) {
+  return (
+    <div className="flex items-center gap-1 rounded-md border border-fd-border-default bg-fd-panel p-1">
+      {options.map((option) => {
+        const isActive = value === option.value
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            className={`rounded px-2 py-1 text-[11px] transition-colors ${
+              isActive
+                ? 'bg-fd-ember-400 text-fd-canvas'
+                : 'text-fd-secondary hover:bg-fd-border-subtle'
+            }`}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 function SettingsRow({

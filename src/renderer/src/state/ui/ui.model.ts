@@ -1,6 +1,7 @@
 import { batch, type Observable } from '@legendapp/state'
 import { createLocalStoragePort, type PersistencePort } from '../../platform/persistence'
 import {
+  type ChildSessionVisibilityMode,
   type ComposerContextUsageDisplayMode,
   type ContentLayout,
   type ContextPanelMode,
@@ -17,6 +18,7 @@ import {
 
 export type {
   AppView,
+  ChildSessionVisibilityMode,
   ComposerContextUsageDisplayMode,
   ContentLayout,
   ContextPanelMode,
@@ -185,6 +187,11 @@ export class UIStore {
     this.persist()
   }
 
+  setChildSessionVisibilityMode = (mode: ChildSessionVisibilityMode): void => {
+    this.state$.childSessionVisibilityMode.set(mode)
+    this.persist()
+  }
+
   isProjectCollapsed = (projectKey: string): boolean => {
     return this.state$.collapsedProjectKeys.get().includes(projectKey)
   }
@@ -219,6 +226,9 @@ export class UIStore {
         contentLayout: nextState.contentLayout === 'fluid' ? 'fluid' : 'fixed',
         composerContextUsageDisplayMode:
           nextState.composerContextUsageDisplayMode === 'tokens' ? 'tokens' : 'percentage',
+        childSessionVisibilityMode: parseChildSessionVisibilityMode(
+          nextState.childSessionVisibilityMode,
+        ),
       })
     })
   }
@@ -234,10 +244,17 @@ export class UIStore {
       collapsedProjectKeys: [...current.collapsedProjectKeys],
       contentLayout: current.contentLayout,
       composerContextUsageDisplayMode: current.composerContextUsageDisplayMode,
+      childSessionVisibilityMode: current.childSessionVisibilityMode,
     }
 
     this.persistence.set(getSidebarStateStorageKey(), state)
   }
+}
+
+function parseChildSessionVisibilityMode(value: unknown): ChildSessionVisibilityMode {
+  return value === 'always' || value === 'never' || value === 'selected-parent'
+    ? value
+    : 'selected-parent'
 }
 
 export function clampSidebarWidth(width: number, windowWidth = getWindowWidth()): number {
@@ -276,6 +293,7 @@ function readPersistedSidebarState(persistence: PersistencePort): PersistedSideb
       contextPanelMode: parsed.contextPanelMode,
       contentLayout: parsed.contentLayout,
       composerContextUsageDisplayMode: parsed.composerContextUsageDisplayMode,
+      childSessionVisibilityMode: parsed.childSessionVisibilityMode,
       collapsedProjectKeys: Array.isArray(parsed.collapsedProjectKeys)
         ? parsed.collapsedProjectKeys.filter((value): value is string => typeof value === 'string')
         : [],
