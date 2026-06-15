@@ -21,20 +21,13 @@ export function StateCard({
   className,
 }: StateCardProps) {
   return (
-    <div
-      className={cn(
-        'rounded-md border border-dashed border-fd-border-default bg-fd-surface px-4 py-4',
-        className,
-      )}
-    >
-      <div className="flex size-8 items-center justify-center rounded-md border border-fd-border-default bg-fd-panel text-fd-ember-400">
+    <div className={cn('ox-state-card px-4 py-4', className)}>
+      <div className="ox-state-card-icon flex size-8 items-center justify-center">
         <Icon className="size-3.5" />
       </div>
-      <p className="mt-3 text-[10px] font-medium uppercase tracking-wider text-fd-tertiary">
-        {eyebrow}
-      </p>
-      <h3 className="mt-1 text-sm font-semibold text-fd-primary">{title}</h3>
-      <p className="mt-1 max-w-lg text-xs leading-relaxed text-fd-secondary">{description}</p>
+      <p className="ox-label mt-3">{eyebrow}</p>
+      <h3 className="ox-title mt-1 text-sm">{title}</h3>
+      <p className="ox-description mt-1 max-w-lg text-xs">{description}</p>
       {actions ? <div className="mt-3 flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   )

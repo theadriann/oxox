@@ -40,7 +40,7 @@ export function ProjectGroup({
   if (isEditing) {
     return (
       <div className="group/header flex items-center gap-1 py-1" data-project-group={group.key}>
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-fd-border-default bg-fd-panel px-2.5 py-2">
+        <div className="ox-elevated flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2.5 py-2">
           <PencilLine className="size-3.5 shrink-0 text-fd-ember-400" aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <label className="sr-only" htmlFor={`project-display-name-${toIdentifier(group.key)}`}>
@@ -72,7 +72,7 @@ export function ProjectGroup({
           <div className="flex items-center gap-0.5">
             <button
               aria-label="Save project name"
-              className="inline-flex size-6 items-center justify-center rounded-md text-fd-primary transition-colors hover:bg-fd-elevated"
+              className="ox-icon-button inline-flex size-6 items-center justify-center text-fd-primary"
               type="button"
               onClick={() => store.submitProjectDisplayName(group.key, onSetProjectDisplayName)}
             >
@@ -80,7 +80,7 @@ export function ProjectGroup({
             </button>
             <button
               aria-label="Cancel project name edit"
-              className="inline-flex size-6 items-center justify-center rounded-md text-fd-secondary transition-colors hover:bg-fd-elevated hover:text-fd-primary"
+              className="ox-icon-button inline-flex size-6 items-center justify-center text-fd-secondary"
               type="button"
               onClick={store.cancelProjectEditing}
             >
@@ -94,7 +94,7 @@ export function ProjectGroup({
 
   return (
     <div className="group/header py-0.5" data-project-group={group.key}>
-      <div className="flex w-full items-center gap-1 rounded-lg px-2 py-1.5 transition-colors hover:bg-fd-panel">
+      <div className="ox-sidebar-row flex w-full items-center gap-1 px-2 py-1.5">
         <button
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas"
           type="button"
@@ -104,7 +104,7 @@ export function ProjectGroup({
             className={`size-3.5 shrink-0 text-fd-tertiary transition-transform duration-150 ${collapsed ? '' : 'rotate-90'}`}
             aria-hidden="true"
           />
-          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-fd-ember-500/10 text-[10px] font-semibold text-fd-ember-400">
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-md border border-fd-ember-400/15 bg-fd-ember-500/10 text-[10px] font-semibold text-fd-ember-300">
             {group.label.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
@@ -128,7 +128,7 @@ export function ProjectGroup({
         <span className="flex shrink-0 items-center gap-0.5">
           <button
             aria-label={`Create session in ${group.label}`}
-            className="inline-flex size-6 items-center justify-center rounded-md text-fd-tertiary opacity-0 transition-all hover:bg-white/[0.06] hover:text-fd-primary group-hover/header:opacity-100"
+            className="ox-icon-button inline-flex size-6 items-center justify-center opacity-0 transition-all group-hover/header:opacity-100"
             type="button"
             onClick={() => onNewSession(group.workspacePath ?? undefined)}
           >
@@ -138,7 +138,7 @@ export function ProjectGroup({
             <DropdownMenuTrigger asChild>
               <button
                 aria-label={`More actions for ${group.label}`}
-                className="inline-flex size-6 items-center justify-center rounded-md text-fd-tertiary opacity-0 transition-all hover:bg-white/[0.06] hover:text-fd-primary group-hover/header:opacity-100"
+                className="ox-icon-button inline-flex size-6 items-center justify-center opacity-0 transition-all group-hover/header:opacity-100"
                 type="button"
               >
                 <Ellipsis className="size-3.5" />

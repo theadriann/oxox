@@ -33,7 +33,7 @@ export function AppTopBar({
   onOpenSearch,
 }: AppTopBarProps) {
   return (
-    <header className="flex h-[50px] items-center gap-2 px-3" style={DRAG_STYLE}>
+    <header className="ox-topbar flex h-[50px] items-center gap-2 px-3" style={DRAG_STYLE}>
       {/* Spacer: matches sidebar width when open, traffic light width when closed */}
       <div
         className="shrink-0 transition-[width] duration-200 ease-in-out"
@@ -50,7 +50,7 @@ export function AppTopBar({
                   size="icon-sm"
                   aria-label={isSidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
                   aria-pressed={!isSidebarHidden}
-                  className="size-7 text-fd-tertiary hover:text-fd-secondary"
+                  className="ox-icon-button size-7"
                   onClick={onToggleSidebar}
                 >
                   <PanelLeft className="size-4" />
@@ -80,7 +80,7 @@ export function AppTopBar({
             </Tooltip>
           </TooltipProvider>
           {sessionProjectLabel ? (
-            <span className="shrink-0 rounded border border-fd-border-subtle bg-fd-panel px-1.5 py-0.5 text-[10px] text-fd-tertiary">
+            <span className="shrink-0 rounded-md border border-fd-border-subtle bg-fd-panel/70 px-1.5 py-0.5 text-[10px] text-fd-tertiary">
               {sessionProjectLabel}
             </span>
           ) : null}
@@ -99,7 +99,7 @@ export function AppTopBar({
                   size="sm"
                   aria-label="Open full-page search"
                   aria-pressed={isSearchOpen}
-                  className={`h-7 gap-1.5 px-2 ${isSearchOpen ? 'bg-white/[0.06] text-fd-primary' : 'text-fd-tertiary hover:text-fd-secondary'}`}
+                  className={`h-7 gap-1.5 px-2 ${isSearchOpen ? 'bg-fd-surface-hover text-fd-primary' : 'ox-icon-button'}`}
                   onClick={onOpenSearch}
                 >
                   <Search className="size-3.5" />
@@ -127,7 +127,7 @@ export function AppTopBar({
                     isContextPanelHidden ? 'Show session details' : 'Hide session details'
                   }
                   aria-pressed={!isContextPanelHidden}
-                  className={`size-7 ${isContextPanelHidden ? 'text-fd-tertiary' : 'bg-white/[0.06] text-fd-primary'}`}
+                  className={`size-7 ${isContextPanelHidden ? 'ox-icon-button' : 'bg-fd-surface-hover text-fd-primary'}`}
                   onClick={onToggleContextPanel}
                 >
                   <Info className="size-3.5" />

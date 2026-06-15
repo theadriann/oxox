@@ -336,6 +336,12 @@ describe('command palette core', () => {
     })
   })
 
+  afterEach(async () => {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  })
+
   it('opens from Cmd+K with a focused input, restores focus on Escape, and dismisses on outside click', async () => {
     renderAppWithSessions()
 

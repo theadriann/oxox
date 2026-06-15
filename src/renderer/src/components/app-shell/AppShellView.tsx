@@ -22,7 +22,7 @@ export function AppShellView({ prefersReducedMotion }: AppShellViewProps) {
 
   return (
     <div
-      className="relative h-screen bg-fd-canvas text-fd-primary"
+      className="relative h-[100dvh] overflow-hidden bg-fd-canvas text-fd-primary"
       data-motion-mode={prefersReducedMotion ? 'reduced' : 'full'}
     >
       <CommandPaletteConnected />

@@ -11,7 +11,7 @@ function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 function SkeletonBlock({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('oxox-skeleton rounded-[14px]', className)} {...props} />
+  return <Skeleton className={cn('ox-skeleton oxox-skeleton', className)} {...props} />
 }
 
 export { Skeleton, SkeletonBlock }

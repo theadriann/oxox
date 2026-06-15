@@ -46,7 +46,7 @@ function UserMessageCard({ item }: { item: MessageTimelineItem }) {
       {textSegments.length > 0 ? (
         <div className="flex justify-end">
           <div className="max-w-[85%] min-w-0">
-            <div className="overflow-hidden rounded-lg bg-fd-panel/60 px-3 py-1.5">
+            <div className="ox-user-bubble overflow-hidden rounded-lg px-3 py-1.5">
               <p className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fd-primary">
                 {textSegments.map((s) => s.content).join('\n\n')}
               </p>
@@ -57,7 +57,7 @@ function UserMessageCard({ item }: { item: MessageTimelineItem }) {
       ) : imageBlocks.length > 0 ? (
         <div className="flex justify-end">
           <div className="max-w-[85%] min-w-0">
-            <div className="overflow-hidden rounded-lg bg-fd-panel/60 px-3 py-1.5">
+            <div className="ox-user-bubble overflow-hidden rounded-lg px-3 py-1.5">
               {renderImageBlocks(item.id, imageBlocks, 'User')}
             </div>
           </div>

@@ -108,7 +108,7 @@ export function ContextPanel({
   return (
     <aside
       aria-label="Context panel"
-      className="oxox-context-panel-shell h-full min-h-0 overflow-hidden rounded-lg border border-fd-border-default bg-fd-surface"
+      className="oxox-context-panel-shell ox-elevated h-full min-h-0 overflow-hidden rounded-lg"
       data-panel-width={width}
       ref={panelRef}
     >
@@ -121,7 +121,7 @@ export function ContextPanel({
 
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center gap-2 border-b border-fd-border-subtle px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-fd-border-subtle bg-fd-surface/45 px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wider text-fd-tertiary">
             Session Details
           </p>
@@ -262,7 +262,7 @@ export function ContextPanel({
               {/* Token usage */}
               {liveSession && latestTokenUsage ? (
                 <DetailSection title="Token processing">
-                  <div className="rounded-md border border-fd-border-subtle bg-fd-panel/50 p-2">
+                  <div className="rounded-md border border-fd-border-subtle bg-fd-panel/60 p-2">
                     <div className="flex items-baseline justify-between">
                       <span className="text-[10px] text-fd-tertiary">Total processed</span>
                       <span className="font-mono text-xs font-medium tabular-nums text-fd-primary">
@@ -430,7 +430,7 @@ export function ContextPanel({
 
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className="rounded-lg border border-transparent p-1 transition-colors hover:border-fd-border-subtle/70 hover:bg-fd-surface/35">
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-fd-tertiary">
         {title}
       </p>
@@ -480,7 +480,7 @@ const DetailFieldCopyable = memo(function DetailFieldCopyable({
   }, [value])
 
   return (
-    <div className="group/copy flex flex-col gap-0.5 rounded-md px-1 py-1 transition-colors hover:bg-white/[0.02]">
+    <div className="group/copy flex flex-col gap-0.5 rounded-md px-1 py-1 transition-colors hover:bg-fd-surface-hover">
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-fd-tertiary">{label}</span>
         <button
@@ -521,7 +521,7 @@ function ContextStatsCard({ stats }: { stats: LiveSessionContextStatsInfo }) {
   const clampedPercentage = Math.max(0, Math.min(100, usedPercentage))
 
   return (
-    <div className="rounded-md border border-fd-border-subtle bg-fd-panel/50 p-2">
+    <div className="rounded-md border border-fd-border-subtle bg-fd-panel/60 p-2">
       <div className="flex items-baseline justify-between">
         <span className="text-[10px] text-fd-tertiary">
           {formatContextAccuracy(stats.accuracy)}

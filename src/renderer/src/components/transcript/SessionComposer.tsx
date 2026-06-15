@@ -339,13 +339,13 @@ export function SessionComposer({
       {imageAttachments.length > 0 ? (
         <div
           data-testid="image-attachment-container"
-          className="max-h-[150px] overflow-y-auto border-b border-fd-border-subtle px-3 py-2"
+          className="max-h-[150px] overflow-y-auto border-b border-fd-border-subtle bg-fd-surface/30 px-3 py-2"
         >
           <div className="flex flex-wrap gap-2">
             {imageAttachments.map((attachment) => (
               <div
                 key={attachment.id}
-                className="group flex max-w-[180px] items-center gap-2 rounded-md border border-fd-border-subtle bg-fd-surface/60 p-1.5"
+                className="group flex max-w-[180px] items-center gap-2 rounded-md border border-fd-border-subtle bg-fd-surface-elevated/70 p-1.5"
               >
                 <img
                   alt={`${attachment.name} attachment preview`}
@@ -357,7 +357,7 @@ export function SessionComposer({
                 </span>
                 <button
                   aria-label={`Remove ${attachment.name} attachment`}
-                  className="flex size-5 shrink-0 items-center justify-center rounded text-fd-tertiary transition-colors hover:bg-fd-surface hover:text-fd-primary"
+                  className="ox-icon-button flex size-5 shrink-0 items-center justify-center"
                   type="button"
                   onClick={() => onImageAttachmentRemove(attachment.id)}
                 >
@@ -370,7 +370,7 @@ export function SessionComposer({
             <div className="mt-2 flex justify-start">
               <button
                 aria-label="Clear all image attachments"
-                className="rounded px-2 py-1 text-[10px] font-medium text-fd-tertiary transition-colors hover:bg-fd-surface hover:text-fd-primary"
+                className="rounded px-2 py-1 text-[10px] font-medium text-fd-tertiary transition-colors hover:bg-fd-surface-hover hover:text-fd-primary"
                 type="button"
                 onClick={onImageAttachmentsClear}
               >
@@ -392,7 +392,7 @@ export function SessionComposer({
       <textarea
         ref={textareaRef}
         aria-label="Message composer"
-        className="w-full resize-none border-0 bg-transparent px-3 py-2 text-[13px] leading-[18px] text-fd-primary outline-none transition-colors placeholder:text-fd-tertiary focus-visible:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full resize-none border-0 bg-transparent px-3 py-2.5 text-[13px] leading-[19px] text-fd-primary outline-none transition-colors placeholder:text-fd-quaternary focus-visible:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
         disabled={isEditorDisabled}
         placeholder={
           isWorking
@@ -412,7 +412,7 @@ export function SessionComposer({
         onSelect={handleTextareaSelect}
       />
 
-      <div className="flex items-center justify-between gap-2 border-t border-fd-border-subtle px-2 py-1.5">
+      <div className="flex items-center justify-between gap-2 border-t border-fd-border-subtle bg-fd-surface/25 px-2 py-1.5">
         <div className="flex items-center gap-1.5">
           {(!isConnected || !isAttached) && canAttach ? (
             <TooltipProvider delayDuration={300}>
@@ -455,7 +455,7 @@ export function SessionComposer({
             <SelectTrigger
               aria-label="Mode selector"
               size="sm"
-              className="h-6 min-w-0 gap-1 border-input bg-transparent px-2 text-[11px] text-fd-tertiary dark:bg-transparent"
+              className="h-6 min-w-0 gap-1 border-fd-border-subtle bg-fd-surface/35 px-2 text-[11px] text-fd-tertiary dark:bg-fd-surface/35"
             >
               <SelectValue />
             </SelectTrigger>
@@ -477,7 +477,7 @@ export function SessionComposer({
               <SelectTrigger
                 aria-label="Reasoning effort selector"
                 size="sm"
-                className="h-6 min-w-0 gap-1 border-input bg-transparent px-2 text-[11px] text-fd-tertiary dark:bg-transparent"
+                className="h-6 min-w-0 gap-1 border-fd-border-subtle bg-fd-surface/35 px-2 text-[11px] text-fd-tertiary dark:bg-fd-surface/35"
               >
                 <span className="mr-0.5 text-[10px] text-fd-quaternary">Reasoning</span>
                 <SelectValue />
@@ -500,7 +500,7 @@ export function SessionComposer({
             <SelectTrigger
               aria-label="Autonomy level selector"
               size="sm"
-              className="h-6 min-w-0 gap-1 border-input bg-transparent px-2 text-[11px] text-fd-tertiary dark:bg-transparent"
+              className="h-6 min-w-0 gap-1 border-fd-border-subtle bg-fd-surface/35 px-2 text-[11px] text-fd-tertiary dark:bg-fd-surface/35"
             >
               <span className="text-[10px] text-fd-quaternary mr-0.5">Autonomy</span>
               <SelectValue />
@@ -525,7 +525,7 @@ export function SessionComposer({
           {isWorking ? (
             <button
               aria-label="Stop generation"
-              className="flex size-6 cursor-pointer items-center justify-center rounded-md bg-fd-ember-400 text-white transition-colors hover:bg-fd-ember-500 disabled:opacity-40"
+              className="flex size-6 cursor-pointer items-center justify-center rounded-md bg-fd-warning text-fd-canvas shadow-sm transition-colors hover:bg-fd-warning/90 disabled:opacity-40"
               disabled={isInterrupting}
               type="button"
               onClick={onInterrupt}
@@ -539,7 +539,7 @@ export function SessionComposer({
           ) : (
             <button
               aria-label="Send message"
-              className="flex size-6 cursor-pointer items-center justify-center rounded-md bg-fd-primary text-fd-canvas transition-colors hover:bg-fd-primary/80 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex size-6 cursor-pointer items-center justify-center rounded-md bg-fd-primary text-fd-canvas shadow-sm transition-colors hover:bg-fd-primary/90 disabled:cursor-not-allowed disabled:opacity-30"
               disabled={isSendDisabled}
               type="button"
               onClick={handleSubmit}
@@ -591,7 +591,7 @@ function WorkspaceFileMentionPopover({
   return (
     <div
       data-testid="workspace-file-search-panel"
-      className="relative border-b border-fd-border-subtle bg-fd-surface-elevated"
+      className="relative border-b border-fd-border-subtle bg-fd-surface-elevated/95 shadow-[0_-1px_0_rgba(255,255,255,0.03)_inset]"
     >
       {showTopShadow ? (
         <div

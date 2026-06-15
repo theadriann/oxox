@@ -37,11 +37,11 @@ export const ToolCallCard = memo(function ToolCallCard({
   const config = statusConfig[entry.status]
 
   return (
-    <div>
+    <div className="ox-tool-call rounded-md">
       <button
         aria-expanded={expanded}
         aria-label={`Toggle details for ${entry.toolName}`}
-        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-fd-surface/40"
+        className="flex w-full items-center gap-2 rounded-r-md px-2.5 py-1.5 text-left transition-colors hover:bg-fd-surface-hover"
         type="button"
         onClick={onToggle}
       >

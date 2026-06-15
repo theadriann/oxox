@@ -236,7 +236,7 @@ export function SessionSidebar({
   return (
     <TooltipProvider delayDuration={400}>
       <aside
-        className="oxox-sidebar-shell flex h-full flex-col border-r border-fd-border-subtle bg-fd-surface pt-[50px]"
+        className="oxox-sidebar-shell flex h-full flex-col border-r border-fd-border-subtle bg-fd-surface/95 pt-[50px]"
         aria-label="Session sidebar"
         onKeyDown={handleSidebarKeyDown}
       >
@@ -328,7 +328,7 @@ const SidebarHeader = memo(function SidebarHeader({
   onHideSidebar?: () => void
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-fd-border-subtle px-3 py-2.5">
+    <div className="flex items-center justify-between gap-2 border-b border-fd-border-subtle bg-fd-surface/60 px-3 py-2.5">
       <div className="flex items-center gap-2">
         <Button size="xs" onClick={onNewSession}>
           <Plus className="size-3.5" />
@@ -347,7 +347,7 @@ const SidebarHeader = memo(function SidebarHeader({
               <button
                 type="button"
                 aria-label="Hide sidebar"
-                className="inline-flex size-7 items-center justify-center rounded-md text-fd-tertiary transition-colors hover:bg-white/[0.06] hover:text-fd-secondary"
+                className="ox-icon-button inline-flex size-7 items-center justify-center"
                 onClick={onHideSidebar}
               >
                 <ChevronsLeft className="size-4" />

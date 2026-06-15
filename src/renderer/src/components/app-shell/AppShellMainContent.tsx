@@ -96,7 +96,7 @@ export function AppShellMainContent({ prefersReducedMotion }: AppShellMainConten
           </div>
           <div className="flex flex-col gap-2 pb-2">
             <ContentContainer layout={contentLayout}>
-              <div className="rounded-lg border border-fd-border-default bg-fd-panel">
+              <div className="ox-composer overflow-hidden rounded-lg">
                 <TodoListConnected />
                 {shouldRenderComposer ? (
                   <SessionComposerConnected canComposeDetached={canComposeDetached} />
