@@ -14,6 +14,7 @@ import { ForkWorkflowStore } from '../workflows/fork/fork-workflow.model'
 import { PermissionResolutionStore } from '../workflows/permission-resolution/permission-resolution.model'
 import { RenameWorkflowStore } from '../workflows/rename/rename-workflow.model'
 import { RewindWorkflowStore } from '../workflows/rewind/rewind-workflow.model'
+import { AsyncActionsStore } from './async-actions.model'
 import { createComposerState$ } from './composer.state'
 import type {
   ComposerImageAttachment,
@@ -40,12 +41,14 @@ import {
 } from './composer-preferences.persistence'
 import { type ComposerFeedback, FeedbackStore } from './feedback.model'
 
+export type { AsyncActionItem, AsyncActionStatus } from './async-actions.model'
 export type { ComposerSessionGateway, ComposerStatus } from './composer.types'
 export { type ComposerFeedback, type ComposerPreferences, SESSION_COMPOSER_STORAGE_KEY }
 
 export class ComposerStore {
   readonly state$: Observable<ComposerState> = createComposerState$()
 
+  readonly asyncActionsStore: AsyncActionsStore
   readonly feedbackStore: FeedbackStore
   readonly forkWorkflow: ForkWorkflowStore
   readonly renameWorkflow: RenameWorkflowStore
@@ -77,6 +80,7 @@ export class ComposerStore {
     this.persistence = persistence
     this.lastSessionId = sessionStore.selectedSessionId || null
 
+    this.asyncActionsStore = new AsyncActionsStore()
     this.feedbackStore = new FeedbackStore()
 
     this.forkWorkflow = new ForkWorkflowStore(
@@ -85,6 +89,7 @@ export class ComposerStore {
         this.sessionStore.selectedSession ??
         (this.liveSessionStore.selectedSnapshot as { title: string } | null),
       this.sessionApi,
+      this.asyncActionsStore,
       async (snapshot) => {
         await this.foundationStore.refresh()
         this.liveSessionStore.upsertSnapshot(snapshot)
@@ -726,6 +731,7 @@ export class ComposerStore {
   }
 
   dispose = (): void => {
+    this.asyncActionsStore.dispose()
     this.feedbackStore.dispose()
     this.preferencesReactionDisposer?.()
     this.preferencesReactionDisposer = null

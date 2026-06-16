@@ -3,6 +3,7 @@ import { useUIStore } from '../../state/root/store-provider'
 import { AppShellMainContent } from './AppShellMainContent'
 import { AppShellSidebarRegion } from './AppShellSidebarRegion'
 import { AppShellTopBarConnected } from './AppShellTopBarConnected'
+import { AsyncActionStackConnected } from './AsyncActionStackConnected'
 import { CommandPaletteConnected } from './CommandPaletteConnected'
 import { StatusBarConnected } from './StatusBarConnected'
 
@@ -26,6 +27,7 @@ export function AppShellView({ prefersReducedMotion }: AppShellViewProps) {
       data-motion-mode={prefersReducedMotion ? 'reduced' : 'full'}
     >
       <CommandPaletteConnected />
+      <AsyncActionStackConnected />
 
       <div className="absolute inset-x-0 top-0 z-10">
         <AppShellTopBarConnected />

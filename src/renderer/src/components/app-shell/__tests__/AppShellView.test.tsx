@@ -42,6 +42,10 @@ vi.mock('../CommandPaletteConnected', () => ({
   CommandPaletteConnected: () => <div data-testid="command-palette">connected</div>,
 }))
 
+vi.mock('../AsyncActionStackConnected', () => ({
+  AsyncActionStackConnected: () => <div data-testid="async-action-stack" />,
+}))
+
 vi.mock('../AppShellMainContent', () => ({
   AppShellMainContent: () => <div data-testid="main-content">main</div>,
 }))

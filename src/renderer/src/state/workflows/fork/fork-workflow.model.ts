@@ -1,5 +1,6 @@
 import { batch, type Observable } from '@legendapp/state'
 import type { LiveSessionSnapshot } from '../../../../../shared/ipc/contracts'
+import type { AsyncActionsStore } from '../../composer/async-actions.model'
 import { createForkWorkflowState$, type ForkWorkflowState } from './fork-workflow.state'
 
 export interface ForkSessionApi {
@@ -13,17 +14,20 @@ export class ForkWorkflowStore {
   private readonly getSelectedSessionId: () => string | null
   private readonly getSelectedSession: () => { title: string } | null
   private readonly sessionApi: ForkSessionApi
+  private readonly asyncActionsStore: AsyncActionsStore
   private readonly onForked?: (snapshot: LiveSessionSnapshot) => Promise<void>
 
   constructor(
     getSelectedSessionId: () => string | null,
     getSelectedSession: () => { title: string } | null,
     sessionApi: ForkSessionApi,
+    asyncActionsStore: AsyncActionsStore,
     onForked?: (snapshot: LiveSessionSnapshot) => Promise<void>,
   ) {
     this.getSelectedSessionId = getSelectedSessionId
     this.getSelectedSession = getSelectedSession
     this.sessionApi = sessionApi
+    this.asyncActionsStore = asyncActionsStore
     this.onForked = onForked
   }
 
@@ -89,24 +93,28 @@ export class ForkWorkflowStore {
       return null
     }
 
+    const actionId = this.asyncActionsStore.startAction('Creating fork', forkTitle)
+
     batch(() => {
       this.forkingSessionId = selectedSessionId
       this.error = null
+      this.closeForkDialog()
     })
 
     try {
       const snapshot = await fork(selectedSessionId, forkTitle)
       await this.onForked?.(snapshot)
-
-      batch(() => {
-        this.closeForkDialog()
-      })
+      this.asyncActionsStore.completeAction(actionId, 'Fork created', snapshot.title)
 
       return snapshot
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to fork the selected session.'
+
       batch(() => {
-        this.error = error instanceof Error ? error.message : 'Unable to fork the selected session.'
+        this.error = message
       })
+      this.asyncActionsStore.failAction(actionId, 'Fork failed', message)
       return null
     } finally {
       batch(() => {

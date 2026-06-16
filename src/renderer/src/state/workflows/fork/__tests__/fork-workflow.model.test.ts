@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LiveSessionSnapshot, OxoxBridge } from '../../../../../../shared/ipc/contracts'
+import { AsyncActionsStore } from '../../../composer/async-actions.model'
 import { ForkWorkflowStore } from '../fork-workflow.model'
 
 function createSnapshot(overrides: Partial<LiveSessionSnapshot> = {}): LiveSessionSnapshot {
@@ -30,17 +31,36 @@ function createSessionApi(overrides: Partial<OxoxBridge['session']> = {}) {
   }
 }
 
+function createForkWorkflowStore({
+  api = createSessionApi(),
+  onForked,
+  selectedSessionId = 'session-alpha',
+  title = 'Alpha session',
+}: {
+  api?: Partial<OxoxBridge['session']>
+  onForked?: (snapshot: LiveSessionSnapshot) => Promise<void>
+  selectedSessionId?: string | null
+  title?: string | null
+} = {}) {
+  const asyncActionsStore = new AsyncActionsStore()
+  const store = new ForkWorkflowStore(
+    () => selectedSessionId,
+    () => (title ? { title } : null),
+    api,
+    asyncActionsStore,
+    onForked,
+  )
+
+  return { asyncActionsStore, store }
+}
+
 describe('ForkWorkflowStore', () => {
   beforeEach(() => {
     window.localStorage.clear()
   })
 
   it('opens with a default fork title and closes', () => {
-    const store = new ForkWorkflowStore(
-      () => 'session-alpha',
-      () => ({ title: 'Alpha session' }),
-      createSessionApi(),
-    )
+    const { store } = createForkWorkflowStore()
 
     store.openForkDialog()
 
@@ -54,11 +74,7 @@ describe('ForkWorkflowStore', () => {
   })
 
   it('does not open dialog when no session is selected', () => {
-    const store = new ForkWorkflowStore(
-      () => null,
-      () => null,
-      createSessionApi(),
-    )
+    const { store } = createForkWorkflowStore({ selectedSessionId: null, title: null })
 
     store.openForkDialog()
 
@@ -70,12 +86,10 @@ describe('ForkWorkflowStore', () => {
     const fork = vi.fn().mockResolvedValue(snapshot)
     const forkViaDaemon = vi.fn().mockResolvedValue(createSnapshot())
     const onForked = vi.fn().mockResolvedValue(undefined)
-    const store = new ForkWorkflowStore(
-      () => 'session-alpha',
-      () => ({ title: 'Alpha session' }),
-      createSessionApi({ fork, forkViaDaemon }),
+    const { asyncActionsStore, store } = createForkWorkflowStore({
+      api: createSessionApi({ fork, forkViaDaemon }),
       onForked,
-    )
+    })
 
     store.openForkDialog()
     store.setForkDraft(' [Fork] Custom title ')
@@ -86,15 +100,49 @@ describe('ForkWorkflowStore', () => {
     expect(onForked).toHaveBeenCalledWith(snapshot)
     expect(store.isForkDialogOpen).toBe(false)
     expect(store.forkingSessionId).toBeNull()
+    expect(asyncActionsStore.actions[0]).toMatchObject({
+      title: 'Fork created',
+      description: '[Fork] Custom title',
+      status: 'success',
+    })
+  })
+
+  it('closes the dialog immediately while the fork continues in the background', async () => {
+    let resolveFork!: (snapshot: LiveSessionSnapshot) => void
+    const fork = vi.fn(
+      () =>
+        new Promise<LiveSessionSnapshot>((resolve) => {
+          resolveFork = resolve
+        }),
+    )
+    const { asyncActionsStore, store } = createForkWorkflowStore({
+      api: createSessionApi({ fork }),
+    })
+
+    store.openForkDialog()
+    const submitPromise = store.submitFork()
+
+    expect(store.isForkDialogOpen).toBe(false)
+    expect(asyncActionsStore.actions[0]).toMatchObject({
+      title: 'Creating fork',
+      description: '[Fork] Alpha session',
+      status: 'running',
+    })
+
+    resolveFork(createSnapshot({ title: '[Fork] Alpha session' }))
+    await submitPromise
+
+    expect(asyncActionsStore.actions[0]).toMatchObject({
+      title: 'Fork created',
+      status: 'success',
+    })
   })
 
   it('falls back to the daemon fork api', async () => {
     const forkViaDaemon = vi.fn().mockResolvedValue(createSnapshot())
-    const store = new ForkWorkflowStore(
-      () => 'session-alpha',
-      () => ({ title: 'Alpha session' }),
-      createSessionApi({ fork: undefined, forkViaDaemon }),
-    )
+    const { store } = createForkWorkflowStore({
+      api: createSessionApi({ fork: undefined, forkViaDaemon }),
+    })
 
     store.openForkDialog()
     await store.submitFork()
@@ -104,16 +152,19 @@ describe('ForkWorkflowStore', () => {
 
   it('surfaces errors from the fork call', async () => {
     const fork = vi.fn().mockRejectedValue(new Error('Fork failed'))
-    const store = new ForkWorkflowStore(
-      () => 'session-alpha',
-      () => ({ title: 'Alpha session' }),
-      createSessionApi({ fork }),
-    )
+    const { asyncActionsStore, store } = createForkWorkflowStore({
+      api: createSessionApi({ fork }),
+    })
 
     store.openForkDialog()
     await store.submitFork()
 
     expect(store.error).toBe('Fork failed')
     expect(store.forkingSessionId).toBeNull()
+    expect(asyncActionsStore.actions[0]).toMatchObject({
+      title: 'Fork failed',
+      description: 'Fork failed',
+      status: 'error',
+    })
   })
 })
