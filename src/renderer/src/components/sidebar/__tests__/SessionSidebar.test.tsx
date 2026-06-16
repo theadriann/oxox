@@ -220,6 +220,69 @@ describe('SessionSidebar', () => {
     expect(onNewSession).toHaveBeenCalledWith('/tmp/project-alpha')
   })
 
+  it('creates a folder from the project menu without using native prompt', async () => {
+    const onCreateFolder = vi.fn().mockReturnValue({
+      id: 'folder-feature',
+      projectKey: 'project-alpha',
+      name: 'New folder',
+      parentFolderId: null,
+      createdAt: '2026-03-25T00:00:00.000Z',
+      updatedAt: '2026-03-25T00:00:00.000Z',
+      order: 0,
+    })
+    const prompt = vi.fn(() => {
+      throw new Error('prompt() is not supported.')
+    })
+    vi.stubGlobal('prompt', prompt)
+
+    render(
+      <SessionSidebar
+        groups={[
+          {
+            key: 'project-alpha',
+            label: 'project-alpha',
+            workspacePath: '/tmp/project-alpha',
+            latestActivityAt: Date.parse('2026-03-25T00:00:00.000Z'),
+            sessions: [
+              {
+                id: 'session-alpha',
+                title: 'Alpha',
+                projectKey: 'project-alpha',
+                projectLabel: 'project-alpha',
+                projectWorkspacePath: '/tmp/project-alpha',
+                parentSessionId: null,
+                derivationType: null,
+                hasUserMessage: true,
+                status: 'active',
+                createdAt: '2026-03-24T23:40:00.000Z',
+                updatedAt: '2026-03-25T00:00:00.000Z',
+                lastActivityAt: '2026-03-25T00:00:00.000Z',
+                lastActivityTimestamp: Date.parse('2026-03-25T00:00:00.000Z'),
+              },
+            ],
+          },
+        ]}
+        selectedSessionId="session-alpha"
+        activeCount={1}
+        isProjectCollapsed={() => false}
+        onToggleProject={() => undefined}
+        onSelectSession={() => undefined}
+        onTogglePinnedSession={() => undefined}
+        onSetProjectDisplayName={() => undefined}
+        onCreateFolder={onCreateFolder}
+        pinnedSessions={[]}
+        onNewSession={() => undefined}
+        onResizeStart={() => undefined}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /more actions for project-alpha/i }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /new folder/i }))
+
+    expect(prompt).not.toHaveBeenCalled()
+    expect(onCreateFolder).toHaveBeenCalledWith('project-alpha', 'New folder', null)
+  })
+
   it('notifies the main-process search controller when the query changes', () => {
     const onSearchQueryChange = vi.fn()
 

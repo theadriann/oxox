@@ -13,6 +13,8 @@ export function createDefaultSessionState(): SessionState {
     projectDisplayNames: {},
     archivedSessionIds: [],
     archivedProjectKeys: [],
+    sessionFolders: [],
+    sessionFolderAssignments: {},
   }
 }
 

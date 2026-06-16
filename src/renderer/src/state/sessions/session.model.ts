@@ -20,6 +20,7 @@ import { createSessionState$ } from './session.state'
 import type {
   PersistedSessionPreferences,
   ProjectSessionGroup,
+  SessionFolder,
   SessionPreview,
   SessionState,
 } from './session.types'
@@ -27,6 +28,7 @@ import type {
 export type {
   ExtendedSessionStatus,
   ProjectSessionGroup,
+  SessionFolder,
   SessionPreview,
   SessionStatus,
 } from './session.types'
@@ -118,6 +120,22 @@ export class SessionStore {
 
   set archivedProjectKeys(value: string[]) {
     this.state$.archivedProjectKeys.set(value)
+  }
+
+  get sessionFolders(): SessionFolder[] {
+    return this.state$.sessionFolders.get()
+  }
+
+  set sessionFolders(value: SessionFolder[]) {
+    this.state$.sessionFolders.set(value)
+  }
+
+  get sessionFolderAssignments(): Record<string, string> {
+    return this.state$.sessionFolderAssignments.get()
+  }
+
+  set sessionFolderAssignments(value: Record<string, string>) {
+    this.state$.sessionFolderAssignments.set(value)
   }
 
   get selectedSession(): SessionPreview | undefined {
@@ -262,6 +280,143 @@ export class SessionStore {
     this.persistPreferences()
   }
 
+  createSessionFolder = (
+    projectKey: string,
+    name = 'New folder',
+    parentFolderId: string | null = null,
+  ): SessionFolder => {
+    const trimmedName = name.trim() || 'New folder'
+    const now = new Date().toISOString()
+    const parentFolder = parentFolderId
+      ? this.sessionFolders.find((folder) => folder.id === parentFolderId)
+      : null
+    const resolvedParentFolderId =
+      parentFolder && parentFolder.projectKey === projectKey ? parentFolder.id : null
+    const nextFolder: SessionFolder = {
+      id: createSessionFolderId(),
+      projectKey,
+      name: trimmedName,
+      parentFolderId: resolvedParentFolderId,
+      createdAt: now,
+      updatedAt: now,
+      order:
+        Math.max(
+          -1,
+          ...this.sessionFolders
+            .filter(
+              (folder) =>
+                folder.projectKey === projectKey &&
+                folder.parentFolderId === resolvedParentFolderId,
+            )
+            .map((folder) => folder.order),
+        ) + 1,
+    }
+
+    this.sessionFolders = [...this.sessionFolders, nextFolder]
+    this.persistPreferences()
+
+    return nextFolder
+  }
+
+  renameSessionFolder = (folderId: string, name: string): void => {
+    const trimmedName = name.trim()
+    if (!trimmedName) return
+
+    const updatedAt = new Date().toISOString()
+    const nextFolders = this.sessionFolders.map((folder) =>
+      folder.id === folderId ? { ...folder, name: trimmedName, updatedAt } : folder,
+    )
+
+    if (nextFolders === this.sessionFolders) return
+    this.sessionFolders = nextFolders
+    this.persistPreferences()
+  }
+
+  deleteSessionFolder = (folderId: string): void => {
+    const folderIdsToDelete = collectDescendantFolderIds(this.sessionFolders, folderId)
+    if (folderIdsToDelete.size === 0) return
+
+    const nextAssignments = { ...this.sessionFolderAssignments }
+    for (const [sessionId, assignedFolderId] of Object.entries(nextAssignments)) {
+      if (folderIdsToDelete.has(assignedFolderId)) {
+        delete nextAssignments[sessionId]
+      }
+    }
+
+    batch(() => {
+      this.sessionFolders = this.sessionFolders.filter(
+        (folder) => !folderIdsToDelete.has(folder.id),
+      )
+      this.sessionFolderAssignments = nextAssignments
+    })
+    this.persistPreferences()
+  }
+
+  moveSessionToFolder = (sessionId: string, folderId: string): void => {
+    const session = this.sessionsById[sessionId]
+    const folder = this.sessionFolders.find((candidate) => candidate.id === folderId)
+
+    if (!session || !folder || session.projectKey !== folder.projectKey || isNestedChild(session)) {
+      return
+    }
+
+    this.sessionFolderAssignments = {
+      ...this.sessionFolderAssignments,
+      [sessionId]: folderId,
+    }
+    this.persistPreferences()
+  }
+
+  assignSessionToFolder = (sessionId: string, folderId: string): void => {
+    if (!this.sessionFolders.some((folder) => folder.id === folderId)) return
+
+    this.sessionFolderAssignments = {
+      ...this.sessionFolderAssignments,
+      [sessionId]: folderId,
+    }
+    this.persistPreferences()
+  }
+
+  moveSessionToProject = (sessionId: string, projectKey: string): void => {
+    const session = this.sessionsById[sessionId]
+    if (!session || session.projectKey !== projectKey || isNestedChild(session)) return
+
+    const nextAssignments = { ...this.sessionFolderAssignments }
+    delete nextAssignments[sessionId]
+    this.sessionFolderAssignments = nextAssignments
+    this.persistPreferences()
+  }
+
+  moveFolder = (
+    folderId: string,
+    projectKey: string,
+    parentFolderId: string | null = null,
+  ): void => {
+    const folder = this.sessionFolders.find((candidate) => candidate.id === folderId)
+    if (!folder || folder.projectKey !== projectKey || folder.id === parentFolderId) return
+
+    const parentFolder = parentFolderId
+      ? this.sessionFolders.find((candidate) => candidate.id === parentFolderId)
+      : null
+    const resolvedParentFolderId =
+      parentFolder && parentFolder.projectKey === projectKey ? parentFolder.id : null
+
+    if (
+      resolvedParentFolderId &&
+      collectDescendantFolderIds(this.sessionFolders, folder.id).has(resolvedParentFolderId)
+    ) {
+      return
+    }
+
+    const updatedAt = new Date().toISOString()
+    this.sessionFolders = this.sessionFolders.map((candidate) =>
+      candidate.id === folderId
+        ? { ...candidate, parentFolderId: resolvedParentFolderId, updatedAt }
+        : candidate,
+    )
+    this.persistPreferences()
+  }
+
   hydrateSessions = (sessionRecords: SessionRecord[]): void => {
     const nextSessions = applyDisplayNameOverrides(
       sessionRecords.map((session) => createSessionPreview(session)).sort(sortSessionsByRecency),
@@ -350,6 +505,8 @@ export class SessionStore {
         this.selectedSessionId = currentSessions[0]?.id ?? ''
       }
     })
+
+    this.cleanupFolderPreferences(currentSessions)
   }
 
   private setSessions(nextSessions: SessionPreview[]): void {
@@ -387,6 +544,8 @@ export class SessionStore {
       this.archivedSessionIds = persistedPreferences.archivedSessionIds ?? []
       this.archivedProjectKeys = persistedPreferences.archivedProjectKeys ?? []
       this.projectDisplayNames = persistedPreferences.projectDisplayNames ?? {}
+      this.sessionFolders = persistedPreferences.sessionFolders ?? []
+      this.sessionFolderAssignments = persistedPreferences.sessionFolderAssignments ?? {}
       this.sessions = applyDisplayNameOverrides(this.sessions, this.projectDisplayNames)
     })
   }
@@ -397,8 +556,76 @@ export class SessionStore {
       projectDisplayNames: this.projectDisplayNames,
       archivedSessionIds: this.archivedSessionIds,
       archivedProjectKeys: this.archivedProjectKeys,
+      sessionFolders: this.sessionFolders,
+      sessionFolderAssignments: this.sessionFolderAssignments,
     }
 
     this.persistence.set(SESSION_PREFERENCES_STORAGE_KEY, preferences)
   }
+
+  private cleanupFolderPreferences(sessions: SessionPreview[]): void {
+    const validProjectKeys = new Set(sessions.map((session) => session.projectKey))
+    const validSessionIds = new Set(sessions.map((session) => session.id))
+    const validFolders = this.sessionFolders.filter((folder) =>
+      validProjectKeys.has(folder.projectKey),
+    )
+    const validFolderIds = new Set(validFolders.map((folder) => folder.id))
+    const normalizedFolders = validFolders.map((folder) =>
+      folder.parentFolderId && validFolderIds.has(folder.parentFolderId)
+        ? folder
+        : { ...folder, parentFolderId: null },
+    )
+    const nextAssignments = Object.fromEntries(
+      Object.entries(this.sessionFolderAssignments).filter(
+        ([sessionId, folderId]) => validSessionIds.has(sessionId) && validFolderIds.has(folderId),
+      ),
+    )
+
+    const foldersChanged =
+      normalizedFolders.length !== this.sessionFolders.length ||
+      normalizedFolders.some((folder, index) => folder !== this.sessionFolders[index])
+    const assignmentsChanged =
+      Object.keys(nextAssignments).length !== Object.keys(this.sessionFolderAssignments).length
+
+    if (!foldersChanged && !assignmentsChanged) return
+
+    batch(() => {
+      if (foldersChanged) {
+        this.sessionFolders = normalizedFolders
+      }
+      if (assignmentsChanged) {
+        this.sessionFolderAssignments = nextAssignments
+      }
+    })
+    this.persistPreferences()
+  }
+}
+
+function createSessionFolderId(): string {
+  return `folder-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function collectDescendantFolderIds(folders: SessionFolder[], folderId: string): Set<string> {
+  const collected = new Set<string>()
+  const queue = [folderId]
+
+  while (queue.length > 0) {
+    const nextId = queue.shift()
+    if (!nextId || collected.has(nextId)) continue
+
+    collected.add(nextId)
+    for (const folder of folders) {
+      if (folder.parentFolderId === nextId) {
+        queue.push(folder.id)
+      }
+    }
+  }
+
+  return collected
+}
+
+function isNestedChild(session: SessionPreview): boolean {
+  return Boolean(
+    session.parentSessionId && session.derivationType && session.derivationType !== 'fork',
+  )
 }

@@ -1,4 +1,14 @@
-import { Archive, Check, ChevronRight, Ellipsis, PencilLine, Plus, X } from 'lucide-react'
+import {
+  Archive,
+  Check,
+  ChevronRight,
+  Ellipsis,
+  FolderPlus,
+  PencilLine,
+  Plus,
+  X,
+} from 'lucide-react'
+import type { DragEvent } from 'react'
 
 import {
   DropdownMenu,
@@ -22,9 +32,12 @@ interface ProjectGroupProps {
   isEditing: boolean
   store: SessionSidebarStore
   onToggleProject: (projectKey: string) => void
-  onNewSession: (workspacePath?: string) => void
+  onNewSession: (workspacePath?: string, folderId?: string | null) => void
   onSetProjectDisplayName: (projectKey: string, value: string) => void
   onArchiveProject?: (projectKey: string) => void
+  onCreateFolder?: (projectKey: string, parentFolderId?: string | null) => void
+  onDropSessionToProject?: (sessionId: string, projectKey: string) => void
+  onDropFolderToProject?: (folderId: string, projectKey: string) => void
 }
 
 export function ProjectGroup({
@@ -36,6 +49,9 @@ export function ProjectGroup({
   onNewSession,
   onSetProjectDisplayName,
   onArchiveProject,
+  onCreateFolder,
+  onDropSessionToProject,
+  onDropFolderToProject,
 }: ProjectGroupProps) {
   if (isEditing) {
     return (
@@ -92,12 +108,32 @@ export function ProjectGroup({
     )
   }
 
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!onDropSessionToProject && !onDropFolderToProject) return
+    event.preventDefault()
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    const dragPayload = parseSidebarDragPayload(event.dataTransfer.getData('text/plain'))
+    if (!dragPayload) return
+
+    event.preventDefault()
+    if (dragPayload.kind === 'session') {
+      onDropSessionToProject?.(dragPayload.id, group.key)
+      return
+    }
+
+    onDropFolderToProject?.(dragPayload.id, group.key)
+  }
+
   return (
     <div className="group/header py-0.5" data-project-group={group.key}>
       <div className="ox-sidebar-row flex w-full items-center gap-1 px-2 py-1.5">
         <button
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas"
           type="button"
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
           onClick={() => onToggleProject(group.key)}
         >
           <ChevronRight
@@ -149,6 +185,12 @@ export function ProjectGroup({
                 <PencilLine className="size-3.5" />
                 Rename workspace
               </DropdownMenuItem>
+              {onCreateFolder ? (
+                <DropdownMenuItem onClick={() => onCreateFolder(group.key, null)}>
+                  <FolderPlus className="size-3.5" />
+                  New folder
+                </DropdownMenuItem>
+              ) : null}
               {onArchiveProject ? (
                 <DropdownMenuItem onClick={() => onArchiveProject(group.key)}>
                   <Archive className="size-3.5" />
@@ -164,6 +206,25 @@ export function ProjectGroup({
       </div>
     </div>
   )
+}
+
+type SidebarDragPayload =
+  | {
+      kind: 'session'
+      id: string
+    }
+  | {
+      kind: 'folder'
+      id: string
+    }
+
+function parseSidebarDragPayload(value: string): SidebarDragPayload | null {
+  const [kind, id] = value.split(':')
+  if ((kind === 'session' || kind === 'folder') && id) {
+    return { kind, id }
+  }
+
+  return null
 }
 
 function toIdentifier(value: string): string {

@@ -134,6 +134,14 @@ describe('app-shell connected selectors', () => {
           },
         ],
         selectedSessionId: 'session-1',
+        sessionFolders: [],
+        sessionFolderAssignments: {},
+        createSessionFolder: vi.fn(),
+        renameSessionFolder: vi.fn(),
+        deleteSessionFolder: vi.fn(),
+        moveSessionToFolder: vi.fn(),
+        moveSessionToProject: vi.fn(),
+        moveFolder: vi.fn(),
         selectSession: vi.fn(),
         setProjectDisplayName: vi.fn(),
         togglePinnedSession: vi.fn(),
@@ -152,6 +160,7 @@ describe('app-shell connected selectors', () => {
     expect(sidebarProps.sidebar.activeCount).toBe(2)
     expect(sidebarProps.sidebar.isLoading).toBe(true)
     expect(sidebarProps.sidebar.onCompactSession).toBeTypeOf('function')
+    expect(sidebarProps.sidebar.onCreateFolder).toBeTypeOf('function')
     expect(sidebarProps.sidebar.isProjectCollapsed('project-1')).toBe(false)
     expect(isProjectCollapsed).toHaveBeenCalledWith('project-1')
 
@@ -272,6 +281,14 @@ describe('app-shell connected selectors', () => {
         pinnedSessions: [child],
         projectGroups: [group],
         selectedSessionId: 'parent',
+        sessionFolders: [],
+        sessionFolderAssignments: {},
+        createSessionFolder: vi.fn(),
+        renameSessionFolder: vi.fn(),
+        deleteSessionFolder: vi.fn(),
+        moveSessionToFolder: vi.fn(),
+        moveSessionToProject: vi.fn(),
+        moveFolder: vi.fn(),
         selectSession: vi.fn(),
         setProjectDisplayName: vi.fn(),
         togglePinnedSession: vi.fn(),
@@ -289,7 +306,7 @@ describe('app-shell connected selectors', () => {
       'other-parent',
       'fork',
     ])
-    expect(props.sidebar.pinnedSessions.map((session) => session.id)).toEqual(['child'])
+    expect(props.sidebar.pinnedSessions).toEqual([])
 
     uiStore.setChildSessionVisibilityMode('never')
     props = buildAppShellSidebarProps(baseOptions)

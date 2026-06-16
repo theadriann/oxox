@@ -36,11 +36,23 @@ export interface ProjectSessionGroup {
   sessions: SessionPreview[]
 }
 
+export interface SessionFolder {
+  id: string
+  projectKey: string
+  name: string
+  parentFolderId: string | null
+  createdAt: string
+  updatedAt: string
+  order: number
+}
+
 export interface PersistedSessionPreferences {
   pinnedSessionIds?: string[]
   projectDisplayNames?: Record<string, string>
   archivedSessionIds?: string[]
   archivedProjectKeys?: string[]
+  sessionFolders?: SessionFolder[]
+  sessionFolderAssignments?: Record<string, string>
 }
 
 export interface SessionState {
@@ -54,4 +66,6 @@ export interface SessionState {
   projectDisplayNames: Record<string, string>
   archivedSessionIds: string[]
   archivedProjectKeys: string[]
+  sessionFolders: SessionFolder[]
+  sessionFolderAssignments: Record<string, string>
 }

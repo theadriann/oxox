@@ -20,6 +20,7 @@ export interface PersistedSidebarState {
   isContextPanelHidden?: boolean
   contextPanelMode?: ContextPanelMode
   collapsedProjectKeys?: string[]
+  collapsedFolderIds?: string[]
   contentLayout?: ContentLayout
   composerContextUsageDisplayMode?: ComposerContextUsageDisplayMode
   childSessionVisibilityMode?: ChildSessionVisibilityMode
@@ -35,6 +36,7 @@ export interface UIState {
   isResizingContextPanel: boolean
   isCommandPaletteOpen: boolean
   collapsedProjectKeys: string[]
+  collapsedFolderIds: string[]
   contentLayout: ContentLayout
   composerContextUsageDisplayMode: ComposerContextUsageDisplayMode
   childSessionVisibilityMode: ChildSessionVisibilityMode
@@ -53,6 +55,7 @@ export function createDefaultUIState(): UIState {
     isResizingContextPanel: false,
     isCommandPaletteOpen: false,
     collapsedProjectKeys: [],
+    collapsedFolderIds: [],
     contentLayout: 'fixed',
     composerContextUsageDisplayMode: 'percentage',
     childSessionVisibilityMode: 'selected-parent',

@@ -133,7 +133,7 @@ interface BuildAppShellSidebarPropsOptions {
   onCompactSession: (sessionId: string) => void
   onCopySessionId: (sessionId: string) => void
   onForkSession: (sessionId: string) => void
-  onNewSession: (workspacePath?: string) => void
+  onNewSession: (workspacePath?: string, folderId?: string | null) => void
   onRenameSession: (sessionId: string) => void
   onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void
   onRewindSession: (sessionId: string) => void
@@ -143,8 +143,16 @@ interface BuildAppShellSidebarPropsOptions {
     pinnedSessions: SessionSidebarProps['pinnedSessions']
     projectGroups: SessionSidebarProps['groups']
     selectedSessionId: string
+    sessionFolders: NonNullable<SessionSidebarProps['sessionFolders']>
+    sessionFolderAssignments: NonNullable<SessionSidebarProps['sessionFolderAssignments']>
     sessionsById$: NonNullable<SessionSidebarProps['sessionsById$']>
     selectSession: SessionSidebarProps['onSelectSession']
+    createSessionFolder: NonNullable<SessionSidebarProps['onCreateFolder']>
+    renameSessionFolder: NonNullable<SessionSidebarProps['onRenameFolder']>
+    deleteSessionFolder: NonNullable<SessionSidebarProps['onDeleteFolder']>
+    moveSessionToFolder: NonNullable<SessionSidebarProps['onMoveSessionToFolder']>
+    moveSessionToProject: NonNullable<SessionSidebarProps['onMoveSessionToProject']>
+    moveFolder: NonNullable<SessionSidebarProps['onMoveFolder']>
     setProjectDisplayName: SessionSidebarProps['onSetProjectDisplayName']
     togglePinnedSession: SessionSidebarProps['onTogglePinnedSession']
   }
@@ -182,11 +190,20 @@ export function buildAppShellSidebarProps({
       activeCount: sessionStore.activeCount,
       errorState,
       groups: filteredSidebarSessions.groups,
+      sessionFolders: sessionStore.sessionFolders,
+      sessionFolderAssignments: sessionStore.sessionFolderAssignments,
       isLoading: foundationStore.isLoading,
       isProjectCollapsed: uiStore.isProjectCollapsed,
+      isFolderCollapsed: uiStore.isFolderCollapsed,
       onNewSession,
       onResizeStart,
       onSelectSession: sessionStore.selectSession,
+      onCreateFolder: sessionStore.createSessionFolder,
+      onRenameFolder: sessionStore.renameSessionFolder,
+      onDeleteFolder: sessionStore.deleteSessionFolder,
+      onMoveSessionToFolder: sessionStore.moveSessionToFolder,
+      onMoveSessionToProject: sessionStore.moveSessionToProject,
+      onMoveFolder: sessionStore.moveFolder,
       onSetProjectDisplayName: sessionStore.setProjectDisplayName,
       onArchiveProject: sessionStore.archiveProject,
       onArchiveSession: sessionStore.archiveSession,
@@ -197,6 +214,7 @@ export function buildAppShellSidebarProps({
       onRewindSession,
       onTogglePinnedSession: sessionStore.togglePinnedSession,
       onToggleProject: uiStore.toggleProjectCollapsed,
+      onToggleFolder: uiStore.toggleFolderCollapsed,
       onHideSidebar: uiStore.toggleSidebar,
       pinnedSessions: filteredSidebarSessions.pinnedSessions,
       selectedSessionId: sessionStore.selectedSessionId,
@@ -219,8 +237,10 @@ function filterChildSessionsForSidebar({
   groups: SessionSidebarProps['groups']
   pinnedSessions: SessionSidebarProps['pinnedSessions']
 } {
+  const visiblePinnedSessions = pinnedSessions.filter((session) => !isChildSession(session))
+
   if (mode === 'always') {
-    return { groups, pinnedSessions }
+    return { groups, pinnedSessions: visiblePinnedSessions }
   }
 
   const sessions = [...groups.flatMap((group) => group.sessions), ...pinnedSessions]
@@ -257,7 +277,7 @@ function filterChildSessionsForSidebar({
         }
       })
       .filter((group): group is SessionSidebarProps['groups'][number] => Boolean(group)),
-    pinnedSessions: pinnedSessions.filter(shouldShowSession),
+    pinnedSessions: visiblePinnedSessions.filter(shouldShowSession),
   }
 }
 

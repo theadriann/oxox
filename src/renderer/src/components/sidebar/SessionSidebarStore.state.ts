@@ -8,6 +8,8 @@ export interface SessionSidebarState {
   projectRevealCounts: Record<string, number>
   editingProjectKey: string | null
   draftProjectName: string
+  editingFolderId: string | null
+  draftFolderName: string
   searchQueryDraft: string
   filters: SidebarFilters
   isFilterPanelOpen: boolean
@@ -22,6 +24,8 @@ export function createDefaultSessionSidebarState(): SessionSidebarState {
     projectRevealCounts: {},
     editingProjectKey: null,
     draftProjectName: '',
+    editingFolderId: null,
+    draftFolderName: '',
     searchQueryDraft: DEFAULT_SIDEBAR_FILTERS.query,
     filters: { ...DEFAULT_SIDEBAR_FILTERS },
     isFilterPanelOpen: false,

@@ -22,6 +22,7 @@ describe('UIStore', () => {
     store.setContextPanelWidth(900)
     store.setComposerContextUsageDisplayMode('tokens')
     store.toggleProjectCollapsed('project-alpha')
+    store.toggleFolderCollapsed('folder-alpha')
     store.toggleSidebar()
     store.toggleContextPanel()
 
@@ -31,6 +32,7 @@ describe('UIStore', () => {
     expect(restoredStore.state$.contextPanelWidth.get()).toBe(600)
     expect(restoredStore.state$.composerContextUsageDisplayMode.get()).toBe('tokens')
     expect(restoredStore.isProjectCollapsed('project-alpha')).toBe(true)
+    expect(restoredStore.isFolderCollapsed('folder-alpha')).toBe(true)
     expect(restoredStore.state$.isSidebarHidden.get()).toBe(true)
     expect(restoredStore.state$.isContextPanelHidden.get()).toBe(true)
   })

@@ -228,6 +228,135 @@ describe('SessionStore', () => {
     )
   })
 
+  it('persists folders and session assignments through an injected persistence port', () => {
+    const persistence = createMemoryPersistencePort()
+    const sessions: SessionRecord[] = [
+      {
+        id: 'session-alpha',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        parentSessionId: null,
+        modelId: 'gpt-5.4',
+        title: 'Alpha project work',
+        status: 'active',
+        transport: 'artifacts',
+        createdAt: '2026-03-24T08:00:00.000Z',
+        lastActivityAt: '2026-03-24T09:00:00.000Z',
+        updatedAt: '2026-03-24T09:00:00.000Z',
+      },
+    ]
+    const store = new SessionStore(persistence)
+
+    store.hydrateSessions(sessions)
+    const folder = store.createSessionFolder('project-alpha', 'Auth research')
+    store.moveSessionToFolder('session-alpha', folder.id)
+
+    const restoredStore = new SessionStore(persistence)
+    restoredStore.hydrateSessions(sessions)
+
+    expect(restoredStore.sessionFolders).toMatchObject([
+      {
+        id: folder.id,
+        projectKey: 'project-alpha',
+        name: 'Auth research',
+        parentFolderId: null,
+      },
+    ])
+    expect(restoredStore.sessionFolderAssignments).toEqual({
+      'session-alpha': folder.id,
+    })
+  })
+
+  it('supports nested folder moves and keeps child sessions out of folder assignments', () => {
+    const store = new SessionStore(createMemoryPersistencePort())
+
+    store.hydrateSessions([
+      {
+        id: 'session-parent',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        parentSessionId: null,
+        modelId: 'gpt-5.4',
+        title: 'Parent',
+        status: 'active',
+        transport: 'artifacts',
+        createdAt: '2026-03-24T08:00:00.000Z',
+        lastActivityAt: '2026-03-24T09:00:00.000Z',
+        updatedAt: '2026-03-24T09:00:00.000Z',
+      },
+      {
+        id: 'session-child',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        parentSessionId: 'session-parent',
+        derivationType: 'subagent',
+        modelId: 'gpt-5.4',
+        title: 'Child',
+        status: 'completed',
+        transport: 'artifacts',
+        createdAt: '2026-03-24T08:30:00.000Z',
+        lastActivityAt: '2026-03-24T08:45:00.000Z',
+        updatedAt: '2026-03-24T08:45:00.000Z',
+      },
+    ])
+
+    const parentFolder = store.createSessionFolder('project-alpha', 'Feature')
+    const childFolder = store.createSessionFolder('project-alpha', 'Fixes')
+
+    store.moveFolder(childFolder.id, 'project-alpha', parentFolder.id)
+    store.moveSessionToFolder('session-parent', childFolder.id)
+    store.moveSessionToFolder('session-child', parentFolder.id)
+
+    expect(
+      store.sessionFolders.find((folder) => folder.id === childFolder.id)?.parentFolderId,
+    ).toBe(parentFolder.id)
+    expect(store.sessionFolderAssignments).toEqual({
+      'session-parent': childFolder.id,
+    })
+
+    store.moveSessionToProject('session-parent', 'project-alpha')
+
+    expect(store.sessionFolderAssignments).toEqual({})
+  })
+
+  it('cleans folder preferences for removed sessions and projects', () => {
+    const persistence = createMemoryPersistencePort()
+    const store = new SessionStore(persistence)
+
+    store.hydrateSessions([
+      {
+        id: 'session-alpha',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        parentSessionId: null,
+        modelId: 'gpt-5.4',
+        title: 'Alpha',
+        status: 'active',
+        transport: 'artifacts',
+        createdAt: '2026-03-24T08:00:00.000Z',
+        lastActivityAt: '2026-03-24T09:00:00.000Z',
+        updatedAt: '2026-03-24T09:00:00.000Z',
+      },
+    ])
+    const folder = store.createSessionFolder('project-alpha', 'Feature')
+    store.moveSessionToFolder('session-alpha', folder.id)
+
+    store.hydrateSessions([])
+
+    expect(store.sessionFolders).toEqual([])
+    expect(store.sessionFolderAssignments).toEqual({})
+    expect(persistence.get('oxox.session.preferences', {})).toEqual(
+      expect.objectContaining({
+        sessionFolders: [],
+        sessionFolderAssignments: {},
+      }),
+    )
+  })
+
   it('hides archived sessions and projects from all sidebar collections while keeping them in archive lists', () => {
     const sessions: SessionRecord[] = [
       {

@@ -22,7 +22,7 @@ interface UseNewSessionFormResult {
   path: string
   error: string | null
   isSubmitting: boolean
-  openDraft: (workspacePath?: string) => void
+  openDraft: (workspacePath?: string, folderId?: string | null) => void
   pickDirectory: () => Promise<void>
   submitNewSession: (payload: {
     text: string
@@ -48,11 +48,13 @@ export function useNewSessionForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const triggerRef = useRef<HTMLElement | null>(null)
   const previousSessionIdRef = useRef('')
+  const pendingFolderIdRef = useRef<string | null>(null)
 
   const closeForm = useCallback(() => {
     setShowForm(false)
     setPath('')
     setError(null)
+    pendingFolderIdRef.current = null
     composerStore.clearPendingDraft()
 
     if (previousSessionIdRef.current) {
@@ -71,7 +73,7 @@ export function useNewSessionForm({
   }, [composerStore, sessionStore])
 
   const openDraft = useCallback(
-    (workspacePath?: string) => {
+    (workspacePath?: string, folderId?: string | null) => {
       if (!showForm) {
         previousSessionIdRef.current = sessionStore.selectedSessionId
       }
@@ -81,6 +83,7 @@ export function useNewSessionForm({
       setShowForm(true)
       setPath(workspacePath?.trim() ?? '')
       setError(null)
+      pendingFolderIdRef.current = folderId ?? null
       composerStore.setDraft('')
       sessionStore.startDraftSelection()
 
@@ -158,6 +161,9 @@ export function useNewSessionForm({
 
         liveSessionStore.upsertSnapshot(refreshedSnapshot)
         sessionStore.selectSession(createdSession.sessionId)
+        if (pendingFolderIdRef.current) {
+          sessionStore.assignSessionToFolder(createdSession.sessionId, pendingFolderIdRef.current)
+        }
         composerStore.updatePreferences(createdSession.sessionId, {
           modelId: payload.modelId,
           interactionMode: payload.interactionMode,
@@ -167,6 +173,7 @@ export function useNewSessionForm({
         composerStore.resetForSession(createdSession.sessionId)
         composerStore.clearPendingDraft()
         previousSessionIdRef.current = createdSession.sessionId
+        pendingFolderIdRef.current = null
         setShowForm(false)
         setPath('')
       } catch (nextError) {

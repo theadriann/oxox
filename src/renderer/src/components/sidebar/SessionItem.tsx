@@ -10,7 +10,7 @@ import {
   Pin,
   RotateCcw,
 } from 'lucide-react'
-import { type KeyboardEvent, memo } from 'react'
+import { type DragEvent, type KeyboardEvent, memo } from 'react'
 
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
 import type { SessionPreview } from '../../state/sessions/session.model'
@@ -38,6 +38,7 @@ interface SessionItemProps {
   isFocused: boolean
   isPinned: boolean
   isSelected: boolean
+  depth?: number
   now$: Observable<number>
   onFocus: (focusKey: string | null) => void
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>, focusKey: string, sessionId: string) => void
@@ -49,6 +50,7 @@ interface SessionItemProps {
   onRewindSession?: (sessionId: string) => void
   onSelectSession: (sessionId: string) => void
   onTogglePinnedSession: (sessionId: string) => void
+  onSessionDragStart?: (event: DragEvent<HTMLDivElement>, sessionId: string) => void
   setSessionRef: (focusKey: string, element: HTMLButtonElement | null) => void
   session$: Observable<SessionPreview>
 }
@@ -58,6 +60,7 @@ export const SessionItem = memo(function SessionItem({
   isFocused,
   isPinned,
   isSelected,
+  depth = 0,
   now$,
   onFocus,
   onKeyDown,
@@ -69,6 +72,7 @@ export const SessionItem = memo(function SessionItem({
   onRewindSession,
   onSelectSession,
   onTogglePinnedSession,
+  onSessionDragStart,
   setSessionRef,
   session$,
 }: SessionItemProps) {
@@ -87,6 +91,7 @@ export const SessionItem = memo(function SessionItem({
   const effectiveStatus = isSubagent ? 'idle' : status
   const statusDot = STATUS_DOT[effectiveStatus] ?? ''
   const transportLabel = getSessionTransportLabel(transport, transportLocation)
+  const indentPx = (isDerivedChild ? 28 : 10) + depth * 14
 
   return (
     <div
@@ -97,13 +102,16 @@ export const SessionItem = memo(function SessionItem({
     >
       <button
         ref={(element) => setSessionRef(focusKey, element)}
-        className={`flex min-w-0 flex-1 items-center gap-2 py-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas ${isDerivedChild ? 'pl-7 pr-1' : 'pl-2.5 pr-1'}`}
+        className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-1 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas"
+        style={{ paddingLeft: indentPx }}
         type="button"
+        draggable={!isDerivedChild}
         title={title}
         tabIndex={isFocused ? 0 : -1}
         data-session-item={focusKey}
         data-session-id={sessionId}
         onClick={() => onSelectSession(sessionId)}
+        onDragStart={(event) => onSessionDragStart?.(event, sessionId)}
         onFocus={() => onFocus(focusKey)}
         onKeyDown={(event) => onKeyDown(event, focusKey, sessionId)}
       >

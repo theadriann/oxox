@@ -136,6 +136,9 @@ function NewSessionFormProbe({
       <button onClick={() => void form.openDraft()} type="button">
         Open draft
       </button>
+      <button onClick={() => void form.openDraft('/tmp/workspace', 'folder-feature')} type="button">
+        Open folder draft
+      </button>
       <button onClick={() => void form.pickDirectory()} type="button">
         Choose workspace
       </button>
@@ -251,5 +254,39 @@ describe('useNewSessionForm', () => {
     expect(stores.liveSessionStore.selectedSnapshot?.sessionId).toBe('session-live-1')
     expect(screen.getByTestId('show-form').textContent).toBe('false')
     expect(screen.getByTestId('is-submitting').textContent).toBe('false')
+  })
+
+  it('assigns sessions created from a folder to that folder', async () => {
+    const stores = createStores()
+    const create = vi.fn().mockResolvedValue(createSnapshot())
+    const addUserMessage = vi.fn().mockResolvedValue(undefined)
+    const getSnapshot = vi.fn().mockResolvedValue(createSnapshot())
+
+    stores.sessionStore.createSessionFolder('project-existing', 'Feature')
+    stores.sessionStore.sessionFolders = stores.sessionStore.sessionFolders.map((folder) => ({
+      ...folder,
+      id: 'folder-feature',
+    }))
+
+    render(
+      <NewSessionFormProbe
+        {...stores}
+        dialogApi={{}}
+        sessionApi={{
+          create,
+          addUserMessage,
+          getSnapshot,
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /open folder draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /submit session/i }))
+
+    await waitFor(() => {
+      expect(stores.sessionStore.sessionFolderAssignments).toEqual({
+        'session-live-1': 'folder-feature',
+      })
+    })
   })
 })

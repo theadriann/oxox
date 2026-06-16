@@ -1,6 +1,6 @@
 import { batch, type Observable } from '@legendapp/state'
 import type { KeyboardEvent } from 'react'
-import type { ProjectSessionGroup } from '../../state/sessions/session.model'
+import type { ProjectSessionGroup, SessionFolder } from '../../state/sessions/session.model'
 import { createSessionSidebarState$, type SessionSidebarState } from './SessionSidebarStore.state'
 import { DEFAULT_SIDEBAR_FILTERS, type SidebarFilters } from './sessionFiltering'
 
@@ -43,6 +43,22 @@ export class SessionSidebarStore {
 
   set draftProjectName(value: string) {
     this.state$.draftProjectName.set(value)
+  }
+
+  get editingFolderId(): string | null {
+    return this.state$.editingFolderId.get()
+  }
+
+  set editingFolderId(value: string | null) {
+    this.state$.editingFolderId.set(value)
+  }
+
+  get draftFolderName(): string {
+    return this.state$.draftFolderName.get()
+  }
+
+  set draftFolderName(value: string) {
+    this.state$.draftFolderName.set(value)
   }
 
   get searchQueryDraft(): string {
@@ -228,6 +244,32 @@ export class SessionSidebarStore {
     batch(() => {
       this.editingProjectKey = null
       this.draftProjectName = ''
+    })
+  }
+
+  startEditingFolder = (folder: Pick<SessionFolder, 'id' | 'name'>): void => {
+    batch(() => {
+      this.editingFolderId = folder.id
+      this.draftFolderName = folder.name
+    })
+  }
+
+  setDraftFolderName = (value: string): void => {
+    this.draftFolderName = value
+  }
+
+  submitFolderName = (
+    folderId: string,
+    onRenameFolder: (folderId: string, value: string) => void,
+  ): void => {
+    onRenameFolder(folderId, this.draftFolderName)
+    this.cancelFolderEditing()
+  }
+
+  cancelFolderEditing = (): void => {
+    batch(() => {
+      this.editingFolderId = null
+      this.draftFolderName = ''
     })
   }
 

@@ -5,7 +5,11 @@ import type { ChangeEvent, KeyboardEvent } from 'react'
 import { memo, type PointerEvent, useCallback, useMemo, useRef } from 'react'
 import type { SessionSearchMatch } from '../../../../shared/ipc/contracts'
 import { useMountEffect } from '../../hooks/useMountEffect'
-import type { ProjectSessionGroup, SessionPreview } from '../../state/sessions/session.model'
+import type {
+  ProjectSessionGroup,
+  SessionFolder,
+  SessionPreview,
+} from '../../state/sessions/session.model'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { SkeletonBlock } from '../ui/skeleton'
@@ -28,6 +32,8 @@ const SIDEBAR_QUERY_COMMIT_DELAY_MS = 120
 export interface SessionSidebarProps {
   groups: ProjectSessionGroup[]
   pinnedSessions: SessionPreview[]
+  sessionFolders?: SessionFolder[]
+  sessionFolderAssignments?: Record<string, string>
   sessionsById$?: Observable<Record<string, SessionPreview>>
   selectedSessionId: string
   activeCount: number
@@ -39,7 +45,9 @@ export interface SessionSidebarProps {
     onAction: () => void
   }
   isProjectCollapsed: (projectKey: string) => boolean
+  isFolderCollapsed?: (folderId: string) => boolean
   onToggleProject: (projectKey: string) => void
+  onToggleFolder?: (folderId: string) => void
   onSelectSession: (sessionId: string) => void
   onTogglePinnedSession: (sessionId: string) => void
   onSetProjectDisplayName: (projectKey: string, value: string) => void
@@ -50,7 +58,17 @@ export interface SessionSidebarProps {
   onForkSession?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
-  onNewSession: (workspacePath?: string) => void
+  onCreateFolder?: (
+    projectKey: string,
+    name: string,
+    parentFolderId?: string | null,
+  ) => SessionFolder | undefined
+  onRenameFolder?: (folderId: string, name: string) => void
+  onDeleteFolder?: (folderId: string) => void
+  onMoveSessionToFolder?: (sessionId: string, folderId: string) => void
+  onMoveSessionToProject?: (sessionId: string, projectKey: string) => void
+  onMoveFolder?: (folderId: string, projectKey: string, parentFolderId?: string | null) => void
+  onNewSession: (workspacePath?: string, folderId?: string | null) => void
   onHideSidebar?: () => void
   onResizeStart: (event: PointerEvent<HTMLDivElement>) => void
   searchMatches?: readonly SessionSearchMatch[] | null
@@ -64,6 +82,8 @@ interface SessionSidebarViewProps extends SessionSidebarProps {
 export function SessionSidebar({
   groups,
   pinnedSessions,
+  sessionFolders = [],
+  sessionFolderAssignments = {},
   sessionsById$,
   selectedSessionId,
   activeCount,
@@ -71,7 +91,9 @@ export function SessionSidebar({
   isLoading = false,
   errorState,
   isProjectCollapsed,
+  isFolderCollapsed = () => false,
   onToggleProject,
+  onToggleFolder = () => undefined,
   onSelectSession,
   onTogglePinnedSession,
   onSetProjectDisplayName,
@@ -82,6 +104,12 @@ export function SessionSidebar({
   onForkSession,
   onRenameSession,
   onRewindSession,
+  onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
+  onMoveSessionToFolder,
+  onMoveSessionToProject,
+  onMoveFolder,
   onNewSession,
   onHideSidebar,
   onResizeStart,
@@ -90,7 +118,7 @@ export function SessionSidebar({
 }: SessionSidebarViewProps) {
   const sessionRefs = useRef(new Map<string, HTMLButtonElement>())
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
-  const hasAnySessions = groups.length > 0 || pinnedSessions.length > 0
+  const hasAnySessions = groups.length > 0 || pinnedSessions.length > 0 || sessionFolders.length > 0
   const resolvedSessionsById$ = useMemo(
     () => sessionsById$ ?? observable(indexSessionsById(groups, pinnedSessions)),
     [groups, pinnedSessions, sessionsById$],
@@ -98,6 +126,7 @@ export function SessionSidebar({
   const editingProjectKey = useValue(() =>
     store.isEditingProjectValid(groups) ? store.editingProjectKey : null,
   )
+  const editingFolderId = useValue(() => store.editingFolderId)
   const filters = useValue(() => store.filters)
   const searchQueryDraft = useValue(() => store.searchQueryDraft)
   const isFilterPanelOpen = useValue(() => store.isFilterPanelOpen)
@@ -111,8 +140,11 @@ export function SessionSidebar({
     buildVisibleItems(
       filteredSidebar.pinnedSessions,
       filteredSidebar.groups,
+      sessionFolders,
+      sessionFolderAssignments,
       filteredSidebar.isFiltering,
       isProjectCollapsed,
+      isFolderCollapsed,
       store,
     ),
   )
@@ -121,11 +153,15 @@ export function SessionSidebar({
     buildFlatItems({
       pinnedSessions: filteredSidebar.pinnedSessions,
       groups: filteredSidebar.groups,
+      sessionFolders,
+      sessionFolderAssignments,
       isFiltering: filteredSidebar.isFiltering,
       isLoading,
       hasError: Boolean(errorState),
       editingProjectKey,
+      editingFolderId,
       isProjectCollapsed,
+      isFolderCollapsed,
       store,
     }),
   )
@@ -181,6 +217,11 @@ export function SessionSidebar({
         store.cancelProjectEditing()
         return
       }
+      if (store.editingFolderId) {
+        event.preventDefault()
+        store.cancelFolderEditing()
+        return
+      }
       if (store.isSearchOpen) {
         event.preventDefault()
         clearPendingQueryCommit()
@@ -232,6 +273,16 @@ export function SessionSidebar({
   const handleNewSession = useCallback(() => {
     onNewSession()
   }, [onNewSession])
+
+  const handleCreateFolder = useCallback(
+    (projectKey: string, parentFolderId?: string | null) => {
+      const folder = onCreateFolder?.(projectKey, 'New folder', parentFolderId)
+      if (folder) {
+        store.startEditingFolder(folder)
+      }
+    },
+    [onCreateFolder, store],
+  )
 
   return (
     <TooltipProvider delayDuration={400}>
@@ -285,6 +336,7 @@ export function SessionSidebar({
               sessionRefs={sessionRefs.current}
               scrollAreaRef={scrollAreaRef}
               onToggleProject={onToggleProject}
+              onToggleFolder={onToggleFolder}
               onNewSession={onNewSession}
               onSetProjectDisplayName={onSetProjectDisplayName}
               onArchiveProject={onArchiveProject}
@@ -296,6 +348,12 @@ export function SessionSidebar({
               onRewindSession={onRewindSession}
               onSelectSession={onSelectSession}
               onTogglePinnedSession={onTogglePinnedSession}
+              onCreateFolder={onCreateFolder ? handleCreateFolder : undefined}
+              onRenameFolder={onRenameFolder}
+              onDeleteFolder={onDeleteFolder}
+              onMoveSessionToFolder={onMoveSessionToFolder}
+              onMoveSessionToProject={onMoveSessionToProject}
+              onMoveFolder={onMoveFolder}
               onSessionKeyDown={handleSessionKeyDown}
               onFocus={store.setFocusedItemKey}
             />

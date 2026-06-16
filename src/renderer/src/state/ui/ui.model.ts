@@ -209,6 +209,23 @@ export class UIStore {
     this.persist()
   }
 
+  isFolderCollapsed = (folderId: string): boolean => {
+    return this.state$.collapsedFolderIds.get().includes(folderId)
+  }
+
+  toggleFolderCollapsed = (folderId: string): void => {
+    const index = this.state$.collapsedFolderIds.get().indexOf(folderId)
+
+    if (index >= 0) {
+      this.state$.collapsedFolderIds[index].delete()
+      this.persist()
+      return
+    }
+
+    this.state$.collapsedFolderIds.push(folderId)
+    this.persist()
+  }
+
   private hydrate(): void {
     const nextState = readPersistedSidebarState(this.persistence)
 
@@ -223,6 +240,7 @@ export class UIStore {
         contextPanelMode:
           nextState.contextPanelMode === 'git-diff' ? 'git-diff' : 'session-details',
         collapsedProjectKeys: nextState.collapsedProjectKeys ?? [],
+        collapsedFolderIds: nextState.collapsedFolderIds ?? [],
         contentLayout: nextState.contentLayout === 'fluid' ? 'fluid' : 'fixed',
         composerContextUsageDisplayMode:
           nextState.composerContextUsageDisplayMode === 'tokens' ? 'tokens' : 'percentage',
@@ -242,6 +260,7 @@ export class UIStore {
       isContextPanelHidden: current.isContextPanelHidden,
       contextPanelMode: current.contextPanelMode,
       collapsedProjectKeys: [...current.collapsedProjectKeys],
+      collapsedFolderIds: [...current.collapsedFolderIds],
       contentLayout: current.contentLayout,
       composerContextUsageDisplayMode: current.composerContextUsageDisplayMode,
       childSessionVisibilityMode: current.childSessionVisibilityMode,
@@ -296,6 +315,9 @@ function readPersistedSidebarState(persistence: PersistencePort): PersistedSideb
       childSessionVisibilityMode: parsed.childSessionVisibilityMode,
       collapsedProjectKeys: Array.isArray(parsed.collapsedProjectKeys)
         ? parsed.collapsedProjectKeys.filter((value): value is string => typeof value === 'string')
+        : [],
+      collapsedFolderIds: Array.isArray(parsed.collapsedFolderIds)
+        ? parsed.collapsedFolderIds.filter((value): value is string => typeof value === 'string')
         : [],
     }
   } catch {

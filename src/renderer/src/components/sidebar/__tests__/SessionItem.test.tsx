@@ -169,8 +169,7 @@ describe('SessionItem', () => {
       />,
     )
 
-    expect(screen.getByTitle('Alpha').className).toContain('pl-2.5')
-    expect(screen.getByTitle('Alpha').className).not.toContain('pl-7')
+    expect(screen.getByTitle('Alpha').getAttribute('style')).toContain('padding-left: 10px')
   })
 
   it('indents subagent sessions as child rows', () => {
@@ -198,6 +197,6 @@ describe('SessionItem', () => {
       />,
     )
 
-    expect(screen.getByTitle('Alpha').className).toContain('pl-7')
+    expect(screen.getByTitle('Alpha').getAttribute('style')).toContain('padding-left: 28px')
   })
 })
