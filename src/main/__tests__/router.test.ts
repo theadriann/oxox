@@ -97,6 +97,7 @@ describe('registerAppIpcHandlers', () => {
       detachSession: vi.fn(),
       addUserMessage: vi.fn(),
       renameSession: vi.fn().mockResolvedValue(undefined),
+      deleteSession: vi.fn().mockResolvedValue(undefined),
       updateSessionSettings: vi.fn(),
       listSessionTools: vi
         .fn()
@@ -429,6 +430,8 @@ describe('registerAppIpcHandlers', () => {
     })
     await ipcMain.handlers.get(IPC_CHANNELS.sessionRename)?.(undefined, 'session-1', 'Renamed live')
     expect(service.renameSession).toHaveBeenCalledWith('session-1', 'Renamed live')
+    await ipcMain.handlers.get(IPC_CHANNELS.sessionDelete)?.(undefined, 'session-1')
+    expect(service.deleteSession).toHaveBeenCalledWith('session-1')
     expect(
       await ipcMain.handlers.get(IPC_CHANNELS.sessionListTools)?.(undefined, 'session-1'),
     ).toEqual([{ id: 'tool-read', llmId: 'Read', currentlyAllowed: true }])
@@ -505,6 +508,7 @@ describe('registerAppIpcHandlers', () => {
       detachSession: vi.fn().mockResolvedValue(snapshot),
       addUserMessage: vi.fn(),
       renameSession: vi.fn(),
+      deleteSession: vi.fn(),
       updateSessionSettings: vi.fn(),
       listSessionTools: vi.fn(),
       listSessionSkills: vi.fn(),
@@ -580,6 +584,7 @@ describe('registerAppIpcHandlers', () => {
       detachSession: vi.fn(),
       addUserMessage: vi.fn(),
       renameSession: vi.fn(),
+      deleteSession: vi.fn(),
       updateSessionSettings: vi.fn(),
       listSessionTools: vi.fn(),
       listSessionSkills: vi.fn(),

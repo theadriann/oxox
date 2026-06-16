@@ -451,6 +451,59 @@ describe('createDatabaseService', () => {
     })
   })
 
+  it('removes a session by id and cascades session-owned metadata', () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-db-'))
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createNodeSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    database.upsertArtifactSession({
+      sessionId: 'session-delete',
+      sourcePath: '/tmp/session-delete.jsonl',
+      projectWorkspacePath: '/tmp/project',
+      modelId: 'gpt-5.4',
+      hasUserMessage: true,
+      owner: null,
+      messageCount: 1,
+      isFavorite: true,
+      decompSessionType: null,
+      decompMissionId: null,
+      title: 'Delete me',
+      status: 'completed',
+      transport: 'artifacts',
+      createdAt: '2026-04-25T10:00:00.000Z',
+      lastActivityAt: '2026-04-25T10:01:00.000Z',
+      updatedAt: '2026-04-25T10:01:00.000Z',
+      lastByteOffset: 12,
+      lastMtimeMs: 123,
+      checksum: 'checksum-delete',
+    })
+    database.upsertSessionRuntime({
+      sessionId: 'session-delete',
+      transport: 'stream-jsonrpc',
+      status: 'idle',
+      processId: 123,
+      viewerCount: 1,
+      lastEventAt: '2026-04-25T10:02:00.000Z',
+      updatedAt: '2026-04-25T10:02:00.000Z',
+    })
+    database.upsertSessionRewindBoundary({
+      sessionId: 'session-delete',
+      messageId: 'message-1',
+      rewindBoundaryMessageId: 'boundary-1',
+      updatedAt: '2026-04-25T10:02:00.000Z',
+    })
+
+    database.removeSession('session-delete')
+
+    expect(database.getSession('session-delete')).toBeNull()
+    expect(database.listSyncMetadata()).toEqual([])
+    expect(database.listSessionRuntimes()).toEqual([])
+    expect(database.listSessionRewindBoundaries('session-delete')).toEqual([])
+  })
+
   it('prefers the freshest persisted last-activity over an older runtime event timestamp', () => {
     const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-db-'))
     const database = createDatabaseService({

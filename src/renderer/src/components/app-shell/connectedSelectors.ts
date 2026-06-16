@@ -132,6 +132,7 @@ interface BuildAppShellSidebarPropsOptions {
   }
   onCompactSession: (sessionId: string) => void
   onCopySessionId: (sessionId: string) => void
+  onDeleteSession: (sessionId: string) => void
   onForkSession: (sessionId: string) => void
   onNewSession: (workspacePath?: string, folderId?: string | null) => void
   onRenameSession: (sessionId: string) => void
@@ -165,6 +166,7 @@ export function buildAppShellSidebarProps({
   foundationStore,
   onCompactSession,
   onCopySessionId,
+  onDeleteSession,
   onForkSession,
   onNewSession,
   onRenameSession,
@@ -209,6 +211,7 @@ export function buildAppShellSidebarProps({
       onArchiveSession: sessionStore.archiveSession,
       onCompactSession,
       onCopySessionId,
+      onDeleteSession,
       onForkSession,
       onRenameSession,
       onRewindSession,

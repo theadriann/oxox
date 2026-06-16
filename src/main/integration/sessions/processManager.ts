@@ -709,6 +709,23 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
       return tracker.subscribe(sessionId, sink)
     },
 
+    async deleteSession(sessionId: string): Promise<void> {
+      const session = tracker.get(sessionId)
+
+      if (!session) {
+        options.database.clearSessionRuntime(sessionId)
+        return
+      }
+
+      session.viewerIds.clear()
+      session.subscribers.clear()
+      if (session.transport) {
+        await session.transport.dispose()
+      }
+      options.database.clearSessionRuntime(sessionId)
+      tracker.delete(sessionId)
+    },
+
     async dispose(): Promise<void> {
       const sessionsToDispose: ManagedSession[] = []
       tracker.forEach((session) => {

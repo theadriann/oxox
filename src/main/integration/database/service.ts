@@ -193,6 +193,7 @@ export interface DatabaseService {
   ) => void
   listSessionLineageIds: () => string[]
   clearSessionRuntime: (sessionId: string) => void
+  removeSession: (sessionId: string) => void
   upsertSessionRewindBoundary: (boundary: SessionRewindBoundaryUpsert) => void
   upsertSession: (session: SessionUpsert) => void
   upsertSessionRuntime: (runtime: SessionRuntimeUpsert) => void
@@ -494,6 +495,10 @@ export function createDatabaseService({
       WHERE source_path = ?
     )
   `)
+  const deleteSessionByIdStatement = database.prepare(`
+    DELETE FROM sessions
+    WHERE id = ?
+  `)
 
   const deleteSyncMetadataBySourcePathStatement = database.prepare(`
     DELETE FROM sync_metadata
@@ -667,6 +672,9 @@ export function createDatabaseService({
     },
     clearSessionRuntime: (sessionId) => {
       deleteSessionRuntimeStatement.run(sessionId)
+    },
+    removeSession: (sessionId) => {
+      deleteSessionByIdStatement.run(sessionId)
     },
     upsertSessionRewindBoundary: (boundary) => {
       upsertSessionRewindBoundaryStatement.run(

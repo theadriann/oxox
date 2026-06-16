@@ -79,6 +79,7 @@ export const IPC_CHANNELS = {
   sessionDetach: 'session:detach',
   sessionAddUserMessage: 'session:add-user-message',
   sessionRename: 'session:rename',
+  sessionDelete: 'session:delete',
   sessionListTools: 'session:list-tools',
   sessionListSkills: 'session:list-skills',
   sessionListMcpServers: 'session:list-mcp-servers',
@@ -1214,6 +1215,7 @@ export interface OxoxBridge {
     getContextStats: (sessionId: string) => Promise<LiveSessionContextStatsInfo | null>
     updateSettings: (sessionId: string, settings: Partial<LiveSessionSettings>) => Promise<void>
     interrupt: (sessionId: string) => Promise<void>
+    deleteSession: (sessionId: string) => Promise<void>
     fork: (sessionId: string, title?: string) => Promise<LiveSessionSnapshot>
     forkViaDaemon: (sessionId: string, title?: string) => Promise<LiveSessionSnapshot>
     renameViaDaemon: (sessionId: string, title: string) => Promise<void>

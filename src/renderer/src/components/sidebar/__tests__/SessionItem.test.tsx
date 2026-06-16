@@ -31,6 +31,7 @@ describe('SessionItem', () => {
   it('renders a selected session row and forwards archive actions', async () => {
     const onArchiveSession = vi.fn()
     const onCompactSession = vi.fn()
+    const onDeleteSession = vi.fn()
     const session$ = observable(createSessionPreview())
     const now$ = observable(Date.parse('2026-03-25T00:00:00.000Z'))
 
@@ -46,6 +47,7 @@ describe('SessionItem', () => {
         onTogglePinnedSession={vi.fn()}
         onArchiveSession={onArchiveSession}
         onCompactSession={onCompactSession}
+        onDeleteSession={onDeleteSession}
         onKeyDown={vi.fn()}
         onFocus={vi.fn()}
         setSessionRef={vi.fn()}
@@ -60,6 +62,11 @@ describe('SessionItem', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /archive session/i }))
 
     expect(onArchiveSession).toHaveBeenCalledWith('session-alpha')
+
+    await userEvent.click(screen.getByRole('button', { name: /more actions for alpha/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /delete session/i }))
+
+    expect(onDeleteSession).toHaveBeenCalledWith('session-alpha')
   })
 
   it('updates row content from the observable session node', () => {

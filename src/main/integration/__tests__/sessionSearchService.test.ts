@@ -137,6 +137,9 @@ function createLiveSnapshot(
 
 function createRecordingSearchStore() {
   const documents = new Map<string, SearchDocument>()
+  const deleteSession = vi.fn((sessionId: string) => {
+    documents.delete(sessionId)
+  })
   const replaceMetadataDocuments = vi.fn((nextDocuments: SearchDocument[]) => {
     const nextIds = new Set(nextDocuments.map((document) => document.id))
 
@@ -166,17 +169,52 @@ function createRecordingSearchStore() {
   )
   const store: SessionSearchStore = {
     listHydratedDocumentIds,
+    deleteSession,
     replaceMetadataDocuments,
     upsertDocument,
     searchDocuments,
   }
 
-  return { store, replaceMetadataDocuments, upsertDocument }
+  return { deleteSession, store, replaceMetadataDocuments, upsertDocument }
 }
 
 describe('createSessionSearchService', () => {
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('deletes a session from metadata and the backing search store', async () => {
+    const { deleteSession, store } = createRecordingSearchStore()
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([
+        createSession({ id: 'keep-session', title: 'Keep alpha' }),
+        createSession({ id: 'delete-session', title: 'Delete beta' }),
+      ]),
+      createSearchStore: () => store,
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [
+          {
+            kind: 'message',
+            id: `${sessionId}:message`,
+            sourceMessageId: `${sessionId}:message`,
+            role: 'assistant',
+            text: sessionId === 'delete-session' ? 'unique deleted content' : 'kept content',
+            contentBlocks: [{ type: 'text', text: 'content' }],
+          },
+        ]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    await service.waitForHydration()
+    expect(service.searchSessions({ query: 'beta' }).matches[0]?.sessionId).toBe('delete-session')
+
+    service.deleteSession('delete-session')
+
+    expect(deleteSession).toHaveBeenCalledWith('delete-session')
+    expect(service.searchSessions({ query: 'beta' }).matches).toEqual([])
+    expect(service.searchSessions({ query: 'alpha' }).matches[0]?.sessionId).toBe('keep-session')
   })
 
   it('returns metadata matches immediately and prioritizes title matches over path matches', () => {

@@ -109,6 +109,7 @@ interface SessionProcessManagerLike {
     },
   ) => Promise<RuntimeLiveSessionSnapshot>
   interruptSession: (sessionId: string) => Promise<void>
+  deleteSession: (sessionId: string) => Promise<void>
   dispose: () => Promise<void>
 }
 
@@ -187,6 +188,7 @@ export interface FoundationLiveSessionRuntime {
     title?: string,
   ) => Promise<LiveSessionSnapshot>
   interruptSession: (sessionId: string) => Promise<void>
+  deleteSession: (sessionId: string) => Promise<void>
   subscribeToSnapshots: (listener: (sessionId: string) => void) => () => void
   subscribeToEvents: (
     listener: (payload: { sessionId: string; event: LiveSessionEventRecord }) => void,
@@ -377,6 +379,12 @@ export function createFoundationLiveSessionRuntime({
     interruptSession: async (sessionId) => {
       await sessionProcessManager.interruptSession(sessionId)
       emitSnapshot(sessionId)
+      onChange?.()
+    },
+    deleteSession: async (sessionId) => {
+      sessionEventUnsubscribers.get(sessionId)?.()
+      sessionEventUnsubscribers.delete(sessionId)
+      await sessionProcessManager.deleteSession(sessionId)
       onChange?.()
     },
     subscribeToSnapshots: (listener) => {

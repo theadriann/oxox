@@ -228,6 +228,56 @@ describe('SessionStore', () => {
     )
   })
 
+  it('removes deleted sessions from local lists and persisted preferences', () => {
+    const persistence = createMemoryPersistencePort()
+    const store = new SessionStore(persistence)
+
+    store.hydrateSessions([
+      {
+        id: 'session-alpha',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        title: 'Alpha',
+        status: 'completed',
+        transport: 'artifacts',
+        createdAt: '2026-03-24T08:00:00.000Z',
+        lastActivityAt: '2026-03-24T09:00:00.000Z',
+        updatedAt: '2026-03-24T09:00:00.000Z',
+      },
+      {
+        id: 'session-beta',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        title: 'Beta',
+        status: 'completed',
+        transport: 'artifacts',
+        createdAt: '2026-03-24T07:00:00.000Z',
+        lastActivityAt: '2026-03-24T08:00:00.000Z',
+        updatedAt: '2026-03-24T08:00:00.000Z',
+      },
+    ])
+    store.togglePinnedSession('session-alpha')
+    store.archiveSession('session-alpha')
+    const folder = store.createSessionFolder('project-alpha', 'Saved')
+    store.moveSessionToFolder('session-alpha', folder.id)
+    store.selectSession('session-alpha')
+
+    store.deleteSessionLocally('session-alpha')
+
+    expect(store.sessions.map((session) => session.id)).toEqual(['session-beta'])
+    expect(store.sessionsById['session-alpha']).toBeUndefined()
+    expect(store.selectedSessionId).toBe('session-beta')
+    expect(persistence.get('oxox.session.preferences', {})).toEqual(
+      expect.objectContaining({
+        pinnedSessionIds: [],
+        archivedSessionIds: [],
+        sessionFolderAssignments: {},
+      }),
+    )
+  })
+
   it('persists folders and session assignments through an injected persistence port', () => {
     const persistence = createMemoryPersistencePort()
     const sessions: SessionRecord[] = [

@@ -98,6 +98,7 @@ interface SessionListProps {
   onArchiveSession?: (sessionId: string) => void
   onCopySessionId?: (sessionId: string) => void
   onCompactSession?: (sessionId: string) => void
+  onDeleteSession?: (sessionId: string) => void
   onForkSession?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
@@ -133,6 +134,7 @@ export function SessionList({
   onArchiveSession,
   onCopySessionId,
   onCompactSession,
+  onDeleteSession,
   onForkSession,
   onRenameSession,
   onRewindSession,
@@ -262,6 +264,7 @@ export function SessionList({
                 onArchiveSession={onArchiveSession}
                 onCopySessionId={onCopySessionId}
                 onCompactSession={onCompactSession}
+                onDeleteSession={onDeleteSession}
                 onForkSession={onForkSession}
                 onRenameSession={onRenameSession}
                 onRewindSession={onRewindSession}

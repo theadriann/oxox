@@ -59,6 +59,7 @@ export interface SearchDocument {
 
 export interface SessionSearchStore {
   listHydratedDocumentIds: () => string[]
+  deleteSession: (sessionId: string) => void
   replaceMetadataDocuments: (documents: SearchDocument[]) => void
   upsertDocument: (
     document: SearchDocument,
@@ -94,6 +95,7 @@ interface CreateSessionSearchServiceOptions {
 interface SessionSearchService {
   searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
   getIndexingProgress: () => SessionSearchIndexingProgress
+  deleteSession: (sessionId: string) => void
   replaceFoundation: (bootstrap: FoundationBootstrap, options?: ReplaceFoundationOptions) => void
   scheduleLiveSnapshotUpdate: (snapshot: LiveSessionSnapshot) => void
   waitForHydration: () => Promise<void>
@@ -416,11 +418,28 @@ export function createSessionSearchService({
     )
   }
 
+  const deleteSession = (sessionId: string): void => {
+    documents.delete(sessionId)
+    hydratedDocumentIds.delete(sessionId)
+    failedHydrationDocumentIds.delete(sessionId)
+    pendingLiveSnapshots.delete(sessionId)
+
+    const timer = liveTimers.get(sessionId)
+    if (timer) {
+      clearTimeout(timer)
+      liveTimers.delete(sessionId)
+    }
+
+    searchStore.deleteSession(sessionId)
+    updateIndexingProgressFromPlan()
+  }
+
   replaceFoundation(bootstrap)
 
   return {
     searchSessions,
     getIndexingProgress: () => indexingProgress,
+    deleteSession,
     replaceFoundation,
     scheduleLiveSnapshotUpdate,
     waitForHydration: () => hydrationPromise,
@@ -831,6 +850,9 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
   `)
   const deleteDocumentStatement = database.prepare(
     'DELETE FROM session_search_documents WHERE id = ?',
+  )
+  const deleteArtifactSourceStatement = database.prepare(
+    'DELETE FROM artifact_sources WHERE session_id = ?',
   )
   const selectSearchDocumentIdsBySessionStatement = database.prepare<{ id: number }>(
     'SELECT id FROM search_documents WHERE session_id = ?',
@@ -1257,9 +1279,28 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       }
     },
   )
+  const deleteSessionTransaction = database.transaction((sessionId: string) => {
+    for (const row of selectSearchDocumentIdsBySessionStatement.all(sessionId)) {
+      deleteSearchFtsStatement.run(row.id)
+      deleteSearchPathFtsStatement.run(row.id)
+    }
+
+    deleteSearchDocumentStatement.run(sessionId)
+    deleteSessionBlockStatement.run(sessionId)
+    deleteSessionToolCallStatement.run(sessionId)
+    deleteSessionCompactionStatement.run(sessionId)
+    deleteSessionTodoStatement.run(sessionId)
+    deleteSessionFileSnapshotStatement.run(sessionId)
+    deleteSessionEntityStatement.run(sessionId)
+    deleteArtifactSourceStatement.run(sessionId)
+    deleteDocumentStatement.run(sessionId)
+  })
 
   return {
     listHydratedDocumentIds: () => hydratedIdsStatement.all().map((row) => row.id),
+    deleteSession: (sessionId) => {
+      deleteSessionTransaction(sessionId)
+    },
     replaceMetadataDocuments: (nextDocuments) => {
       replaceMetadataTransaction(nextDocuments)
     },

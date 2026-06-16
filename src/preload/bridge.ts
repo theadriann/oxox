@@ -345,6 +345,8 @@ export function createOxoxBridge(
       updateSettings: (sessionId, settings) =>
         invokeTyped<void>(invoke, IPC_CHANNELS.sessionUpdateSettings, sessionId, settings),
       interrupt: (sessionId) => invokeTyped<void>(invoke, IPC_CHANNELS.sessionInterrupt, sessionId),
+      deleteSession: (sessionId) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.sessionDelete, sessionId),
       fork: (sessionId, title) =>
         invokeTyped<LiveSessionSnapshot>(invoke, IPC_CHANNELS.sessionFork, sessionId, title),
       forkViaDaemon: (sessionId, title) =>

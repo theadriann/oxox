@@ -49,6 +49,7 @@ import type {
 } from '../../shared/ipc/contracts'
 import type { PluginRegistry } from '../app/PluginRegistry'
 import { createBackgroundArtifactScanner } from './artifacts/backgroundScanner'
+import { deleteSessionArtifacts } from './artifacts/deleteSessionArtifacts'
 import { createEnvironmentDaemonAuthProvider, type DaemonAuthProvider } from './daemon/auth'
 import { createDaemonSessionControl } from './daemon/sessionControl'
 import { createDaemonTransport, type DaemonTransport } from './daemon/transport'
@@ -171,6 +172,7 @@ export interface FoundationService {
     title?: string,
   ) => Promise<LiveSessionSnapshot>
   renameSessionViaDaemon: (sessionId: string, title: string) => Promise<void>
+  deleteSession: (sessionId: string) => Promise<void>
   interruptSession: (sessionId: string) => Promise<void>
   getBootstrap: () => FoundationBootstrap
   getDatabaseDiagnostics: () => DatabaseDiagnostics
@@ -551,6 +553,21 @@ export function createFoundationService(
       await liveSessionRuntime.renameSession(sessionId, title)
       emitFoundationChanged()
     },
+    deleteSession: async (sessionId) => {
+      const sourcePath =
+        database.listSyncMetadata().find((metadata) => metadata.sessionId === sessionId)
+          ?.sourcePath ?? null
+
+      await liveSessionRuntime.deleteSession(sessionId)
+      deleteSessionArtifacts({
+        sessionsRoot,
+        sessionId,
+        sourcePath,
+      })
+      searchService.deleteSession(sessionId)
+      database.removeSession(sessionId)
+      emitFoundationChanged()
+    },
     updateSessionSettings: liveSessionRuntime.updateSessionSettings,
     resolvePermissionRequest: liveSessionRuntime.resolvePermissionRequest,
     resolveAskUserRequest: liveSessionRuntime.resolveAskUserRequest,
@@ -632,6 +649,7 @@ function createNoopSessionSearchService(): ReturnType<typeof createSessionSearch
       isIndexing: false,
       updatedAt: new Date().toISOString(),
     }),
+    deleteSession: () => {},
     replaceFoundation: () => {},
     scheduleLiveSnapshotUpdate: () => {},
     waitForHydration: async () => {},

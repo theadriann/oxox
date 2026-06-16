@@ -9,6 +9,7 @@ import {
   Pencil,
   Pin,
   RotateCcw,
+  Trash2,
 } from 'lucide-react'
 import { type DragEvent, type KeyboardEvent, memo } from 'react'
 
@@ -45,6 +46,7 @@ interface SessionItemProps {
   onArchiveSession?: (sessionId: string) => void
   onCopySessionId?: (sessionId: string) => void
   onCompactSession?: (sessionId: string) => void
+  onDeleteSession?: (sessionId: string) => void
   onForkSession?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
@@ -67,6 +69,7 @@ export const SessionItem = memo(function SessionItem({
   onArchiveSession,
   onCopySessionId,
   onCompactSession,
+  onDeleteSession,
   onForkSession,
   onRenameSession,
   onRewindSession,
@@ -186,6 +189,12 @@ export const SessionItem = memo(function SessionItem({
                 Archive session
               </DropdownMenuItem>
             </>
+          ) : null}
+          {onDeleteSession ? (
+            <DropdownMenuItem variant="destructive" onClick={() => onDeleteSession(sessionId)}>
+              <Trash2 className="size-3.5" />
+              Delete session
+            </DropdownMenuItem>
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>

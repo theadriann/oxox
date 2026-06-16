@@ -389,6 +389,7 @@ describe('createOxoxBridge', () => {
           return Promise.resolve('/tmp/live-session')
         case IPC_CHANNELS.sessionAddUserMessage:
         case IPC_CHANNELS.sessionRename:
+        case IPC_CHANNELS.sessionDelete:
         case IPC_CHANNELS.sessionUpdateSettings:
         case IPC_CHANNELS.sessionRenameViaDaemon:
         case IPC_CHANNELS.appInstallUpdate:
@@ -587,6 +588,7 @@ describe('createOxoxBridge', () => {
       bridge.session.renameViaDaemon('session-live-1', 'Renamed live session'),
     ).resolves.toBeUndefined()
     await expect(bridge.session.interrupt('session-live-1')).resolves.toBeUndefined()
+    await expect(bridge.session.deleteSession('session-live-1')).resolves.toBeUndefined()
     await expect(bridge.app?.installUpdate()).resolves.toBeUndefined()
     await expect(bridge.app?.openNewWindow()).resolves.toBeUndefined()
     await expect(bridge.dialog.selectDirectory()).resolves.toBe('/tmp/live-session')
@@ -644,6 +646,7 @@ describe('createOxoxBridge', () => {
       'Renamed live session',
     )
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionInterrupt, 'session-live-1')
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionDelete, 'session-live-1')
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.appInstallUpdate)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.appOpenWindow)
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.dialogSelectDirectory)

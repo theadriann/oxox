@@ -251,6 +251,26 @@ export class SessionStore {
     this.persistPreferences()
   }
 
+  deleteSessionLocally = (sessionId: string): void => {
+    const nextAssignments = { ...this.sessionFolderAssignments }
+    delete nextAssignments[sessionId]
+    const nextSessions = this.sessions.filter((session) => session.id !== sessionId)
+
+    batch(() => {
+      this.pinnedSessionIds = this.pinnedSessionIds.filter((id) => id !== sessionId)
+      this.archivedSessionIds = this.archivedSessionIds.filter((id) => id !== sessionId)
+      this.sessionFolderAssignments = nextAssignments
+      this.setSessions(nextSessions)
+
+      if (this.selectedSessionId === sessionId) {
+        this.selectedSessionId = nextSessions[0]?.id ?? ''
+        this.missingSelectedSession = false
+        this.isDraftSelectionActive = false
+      }
+    })
+    this.persistPreferences()
+  }
+
   get archivedSessions(): SessionPreview[] {
     const archivedSet = new Set(this.archivedSessionIds)
     return this.sessions.filter((s) => archivedSet.has(s.id))

@@ -11,6 +11,7 @@ import {
   useSessionStore,
   useUIStore,
 } from '../../state/root/store-provider'
+import { showAppNotification } from '../notifications/notificationCenter'
 import { SettingsSidebar } from '../settings/SettingsSidebar'
 import { SessionSidebarConnected } from '../sidebar/SessionSidebarConnected'
 import { useAppShellControllerContext } from './AppShellControllerContext'
@@ -80,12 +81,57 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
     [composerStore, sessionStore],
   )
 
+  const handleDeleteSession = useCallback(
+    (sessionId: string) => {
+      const title = sessionStore.sessionsById[sessionId]?.title ?? 'this session'
+      const confirmed = window.confirm(
+        `Delete "${title}" permanently?\n\nThis removes the local Droid transcript files and OXOX indexes. This cannot be undone.`,
+      )
+
+      if (!confirmed) {
+        return
+      }
+
+      const deleteSession = rootStore.api.session.deleteSession
+      if (!deleteSession) {
+        showAppNotification({
+          id: `session-delete-unavailable-${sessionId}`,
+          kind: 'error',
+          title: 'Delete unavailable',
+          description: 'This OXOX build does not expose session deletion.',
+        })
+        return
+      }
+
+      void deleteSession(sessionId)
+        .then(() => {
+          sessionStore.deleteSessionLocally(sessionId)
+          showAppNotification({
+            id: `session-delete-success-${sessionId}`,
+            kind: 'success',
+            title: 'Session deleted',
+            description: `Deleted "${title}".`,
+          })
+        })
+        .catch((error) => {
+          showAppNotification({
+            id: `session-delete-failed-${sessionId}-${Date.now()}`,
+            kind: 'error',
+            title: 'Delete failed',
+            description: error instanceof Error ? error.message : String(error),
+          })
+        })
+    },
+    [rootStore.api.session.deleteSession, sessionStore],
+  )
+
   const sidebarState = useValue(() =>
     buildAppShellSidebarProps({
       errorState: sidebarErrorState,
       foundationStore,
       onCompactSession: handleCompactSession,
       onCopySessionId: handleCopySessionId,
+      onDeleteSession: handleDeleteSession,
       onForkSession: handleForkSession,
       onNewSession: newSessionForm.openDraft,
       onRenameSession: handleRenameSession,
