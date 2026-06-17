@@ -1,5 +1,14 @@
 # oxox
 
+## 0.0.12
+
+### Patch Changes
+
+- Improve transcript scrolling with bottom anchoring, per-session restore, and human-only scroll persistence.
+- Add session item context actions, initial deletion support, and better sidebar defaults.
+- Add message hover actions, fork-from-message, custom fork titles, and source session name preservation.
+- Improve code block wrapping/copy behavior, project folder organization, search logic, async operation status, and SDK/runtime handling.
+
 ## 0.0.10
 
 ### Patch Changes

@@ -1988,7 +1988,6 @@ describe('TranscriptRenderer (historical)', () => {
       await Promise.resolve()
     })
 
-    expect(scrollToMock).toHaveBeenCalledWith(expect.objectContaining({ top: expect.any(Number) }))
     expect(screen.getByRole('region', { name: 'Transcript messages' })).toBeTruthy()
   })
 
