@@ -1,5 +1,11 @@
 # oxox
 
+## 0.0.14
+
+### Patch Changes
+
+- Make Command-Q trigger OXOX's explicit quit flow so the whole app shuts down.
+
 ## 0.0.13
 
 ### Patch Changes
