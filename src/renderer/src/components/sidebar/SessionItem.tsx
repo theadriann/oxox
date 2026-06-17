@@ -11,10 +11,17 @@ import {
   RotateCcw,
   Trash2,
 } from 'lucide-react'
-import { type DragEvent, type KeyboardEvent, memo } from 'react'
+import { type DragEvent, type KeyboardEvent, memo, type ReactNode } from 'react'
 
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
 import type { SessionPreview } from '../../state/sessions/session.model'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '../ui/context-menu'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,112 +102,204 @@ export const SessionItem = memo(function SessionItem({
   const statusDot = STATUS_DOT[effectiveStatus] ?? ''
   const transportLabel = getSessionTransportLabel(transport, transportLocation)
   const indentPx = (isDerivedChild ? 28 : 10) + depth * 14
+  const actionItems = {
+    isPinned,
+    onArchiveSession,
+    onCompactSession,
+    onCopySessionId,
+    onDeleteSession,
+    onForkSession,
+    onRenameSession,
+    onRewindSession,
+    onTogglePinnedSession,
+    sessionId,
+  } satisfies SessionActionItemsOptions
 
   return (
-    <div
-      className={`group/row ox-sidebar-row flex items-center rounded-lg transition-colors ${
-        isSelected ? 'bg-white/[0.05]' : 'hover:bg-white/[0.03]'
-      }`}
-      data-selected={isSelected ? 'true' : 'false'}
-    >
-      <button
-        ref={(element) => setSessionRef(focusKey, element)}
-        className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-1 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas"
-        style={{ paddingLeft: indentPx }}
-        type="button"
-        draggable={!isDerivedChild}
-        title={title}
-        tabIndex={isFocused ? 0 : -1}
-        data-session-item={focusKey}
-        data-session-id={sessionId}
-        onClick={() => onSelectSession(sessionId)}
-        onDragStart={(event) => onSessionDragStart?.(event, sessionId)}
-        onFocus={() => onFocus(focusKey)}
-        onKeyDown={(event) => onKeyDown(event, focusKey, sessionId)}
+    <ContextMenu>
+      <ContextMenuTrigger
+        className={`group/row ox-sidebar-row flex items-center rounded-lg transition-colors ${
+          isSelected ? 'bg-white/[0.05]' : 'hover:bg-white/[0.03]'
+        }`}
+        data-selected={isSelected ? 'true' : 'false'}
       >
-        {statusDot ? <span className={`size-1.5 shrink-0 rounded-full ${statusDot}`} /> : null}
-        <span className="min-w-0 flex-1 truncate text-[13px] text-fd-primary">{title}</span>
-      </button>
-
-      <span className="shrink-0 pr-2 text-[11px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-menu-open=true]]/row:hidden">
-        {formatRelativeSessionTime(lastActivityAt ?? updatedAt, now)}
-      </span>
-
-      {transportLabel ? (
-        <span
-          className="mr-2 hidden shrink-0 rounded border border-fd-border-subtle px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-fd-tertiary group-hover/row:inline-flex group-has-[[data-menu-open=true]]/row:inline-flex"
-          title={`Session transport: ${transportLabel}`}
+        <button
+          ref={(element) => setSessionRef(focusKey, element)}
+          className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-1 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas"
+          style={{ paddingLeft: indentPx }}
+          type="button"
+          draggable={!isDerivedChild}
+          title={title}
+          tabIndex={isFocused ? 0 : -1}
+          data-session-item={focusKey}
+          data-session-id={sessionId}
+          onClick={() => onSelectSession(sessionId)}
+          onDragStart={(event) => onSessionDragStart?.(event, sessionId)}
+          onFocus={() => onFocus(focusKey)}
+          onKeyDown={(event) => onKeyDown(event, focusKey, sessionId)}
         >
-          {transportLabel}
-        </span>
-      ) : null}
+          {statusDot ? <span className={`size-1.5 shrink-0 rounded-full ${statusDot}`} /> : null}
+          <span className="min-w-0 flex-1 truncate text-[13px] text-fd-primary">{title}</span>
+        </button>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            aria-label={`More actions for ${title}`}
-            className="ox-icon-button pointer-events-none mr-1 inline-flex size-6 shrink-0 items-center justify-center opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 data-[menu-open=true]:pointer-events-auto data-[menu-open=true]:opacity-100"
-            type="button"
+        <span className="shrink-0 pr-2 text-[11px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-menu-open=true]]/row:hidden">
+          {formatRelativeSessionTime(lastActivityAt ?? updatedAt, now)}
+        </span>
+
+        {transportLabel ? (
+          <span
+            className="mr-2 hidden shrink-0 rounded border border-fd-border-subtle px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-fd-tertiary group-hover/row:inline-flex group-has-[[data-menu-open=true]]/row:inline-flex"
+            title={`Session transport: ${transportLabel}`}
           >
-            <Ellipsis className="size-3.5" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[170px]">
-          <DropdownMenuItem onClick={() => onTogglePinnedSession(sessionId)}>
-            <Pin className="size-3.5" />
-            {isPinned ? 'Unpin session' : 'Pin session'}
-          </DropdownMenuItem>
-          {onRenameSession ? (
-            <DropdownMenuItem onClick={() => onRenameSession(sessionId)}>
-              <Pencil className="size-3.5" />
-              Rename session
-            </DropdownMenuItem>
-          ) : null}
-          {onCopySessionId ? (
-            <DropdownMenuItem onClick={() => onCopySessionId(sessionId)}>
-              <ClipboardCopy className="size-3.5" />
-              Copy session ID
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuSeparator />
-          {onForkSession ? (
-            <DropdownMenuItem onClick={() => onForkSession(sessionId)}>
-              <GitBranch className="size-3.5" />
-              Fork session
-            </DropdownMenuItem>
-          ) : null}
-          {onCompactSession ? (
-            <DropdownMenuItem onClick={() => onCompactSession(sessionId)}>
-              <Minimize2 className="size-3.5" />
-              Compact session
-            </DropdownMenuItem>
-          ) : null}
-          {onRewindSession ? (
-            <DropdownMenuItem onClick={() => onRewindSession(sessionId)}>
-              <RotateCcw className="size-3.5" />
-              Rewind session
-            </DropdownMenuItem>
-          ) : null}
-          {onArchiveSession ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onArchiveSession(sessionId)}>
-                <Archive className="size-3.5" />
-                Archive session
-              </DropdownMenuItem>
-            </>
-          ) : null}
-          {onDeleteSession ? (
-            <DropdownMenuItem variant="destructive" onClick={() => onDeleteSession(sessionId)}>
-              <Trash2 className="size-3.5" />
-              Delete session
-            </DropdownMenuItem>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+            {transportLabel}
+          </span>
+        ) : null}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label={`More actions for ${title}`}
+              className="ox-icon-button pointer-events-none mr-1 inline-flex size-6 shrink-0 items-center justify-center opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 data-[menu-open=true]:pointer-events-auto data-[menu-open=true]:opacity-100"
+              type="button"
+            >
+              <Ellipsis className="size-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[170px]">
+            {renderSessionActionItems({
+              ...actionItems,
+              Item: DropdownMenuItemAdapter,
+              Separator: DropdownMenuSeparatorAdapter,
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="ox-overlay-panel min-w-[170px]">
+        {renderSessionActionItems({
+          ...actionItems,
+          Item: ContextMenuItemAdapter,
+          Separator: ContextMenuSeparatorAdapter,
+        })}
+      </ContextMenuContent>
+    </ContextMenu>
   )
 })
+
+interface ActionItemProps {
+  children: ReactNode
+  onClick: () => void
+  variant?: 'default' | 'destructive'
+}
+
+interface SessionActionItemsOptions {
+  isPinned: boolean
+  onArchiveSession?: (sessionId: string) => void
+  onCopySessionId?: (sessionId: string) => void
+  onCompactSession?: (sessionId: string) => void
+  onDeleteSession?: (sessionId: string) => void
+  onForkSession?: (sessionId: string) => void
+  onRenameSession?: (sessionId: string) => void
+  onRewindSession?: (sessionId: string) => void
+  onTogglePinnedSession: (sessionId: string) => void
+  sessionId: string
+}
+
+function renderSessionActionItems({
+  isPinned,
+  Item,
+  onArchiveSession,
+  onCompactSession,
+  onCopySessionId,
+  onDeleteSession,
+  onForkSession,
+  onRenameSession,
+  onRewindSession,
+  onTogglePinnedSession,
+  Separator,
+  sessionId,
+}: SessionActionItemsOptions & {
+  Item: (props: ActionItemProps) => ReactNode
+  Separator: () => ReactNode
+}): ReactNode {
+  return (
+    <>
+      <Item onClick={() => onTogglePinnedSession(sessionId)}>
+        <Pin className="size-3.5" />
+        {isPinned ? 'Unpin session' : 'Pin session'}
+      </Item>
+      {onRenameSession ? (
+        <Item onClick={() => onRenameSession(sessionId)}>
+          <Pencil className="size-3.5" />
+          Rename session
+        </Item>
+      ) : null}
+      {onCopySessionId ? (
+        <Item onClick={() => onCopySessionId(sessionId)}>
+          <ClipboardCopy className="size-3.5" />
+          Copy session ID
+        </Item>
+      ) : null}
+      <Separator />
+      {onForkSession ? (
+        <Item onClick={() => onForkSession(sessionId)}>
+          <GitBranch className="size-3.5" />
+          Fork session
+        </Item>
+      ) : null}
+      {onCompactSession ? (
+        <Item onClick={() => onCompactSession(sessionId)}>
+          <Minimize2 className="size-3.5" />
+          Compact session
+        </Item>
+      ) : null}
+      {onRewindSession ? (
+        <Item onClick={() => onRewindSession(sessionId)}>
+          <RotateCcw className="size-3.5" />
+          Rewind session
+        </Item>
+      ) : null}
+      {onArchiveSession ? (
+        <>
+          <Separator />
+          <Item onClick={() => onArchiveSession(sessionId)}>
+            <Archive className="size-3.5" />
+            Archive session
+          </Item>
+        </>
+      ) : null}
+      {onDeleteSession ? (
+        <Item variant="destructive" onClick={() => onDeleteSession(sessionId)}>
+          <Trash2 className="size-3.5" />
+          Delete session
+        </Item>
+      ) : null}
+    </>
+  )
+}
+
+function DropdownMenuItemAdapter({ children, onClick, variant = 'default' }: ActionItemProps) {
+  return (
+    <DropdownMenuItem variant={variant} onClick={onClick}>
+      {children}
+    </DropdownMenuItem>
+  )
+}
+
+function DropdownMenuSeparatorAdapter() {
+  return <DropdownMenuSeparator />
+}
+
+function ContextMenuItemAdapter({ children, onClick, variant = 'default' }: ActionItemProps) {
+  return (
+    <ContextMenuItem variant={variant} onClick={onClick}>
+      {children}
+    </ContextMenuItem>
+  )
+}
+
+function ContextMenuSeparatorAdapter() {
+  return <ContextMenuSeparator />
+}
 
 function getSessionTransportLabel(
   transport: string | null,

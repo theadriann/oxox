@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { observable } from '@legendapp/state'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import type { SessionPreview } from '../../../state/sessions/session.model'
@@ -67,6 +67,40 @@ describe('SessionItem', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /delete session/i }))
 
     expect(onDeleteSession).toHaveBeenCalledWith('session-alpha')
+  })
+
+  it('opens the same actions from the row context menu', async () => {
+    const onArchiveSession = vi.fn()
+    const onRenameSession = vi.fn()
+    const session$ = observable(createSessionPreview())
+    const now$ = observable(Date.parse('2026-03-25T00:00:00.000Z'))
+
+    render(
+      <SessionItem
+        session$={session$}
+        focusKey="project:project-alpha:session-alpha"
+        isPinned={false}
+        isSelected={false}
+        isFocused={true}
+        now$={now$}
+        onSelectSession={vi.fn()}
+        onTogglePinnedSession={vi.fn()}
+        onArchiveSession={onArchiveSession}
+        onRenameSession={onRenameSession}
+        onKeyDown={vi.fn()}
+        onFocus={vi.fn()}
+        setSessionRef={vi.fn()}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByTitle('Alpha'), { clientX: 20, clientY: 20 })
+
+    await userEvent.click(screen.getByRole('menuitem', { name: /rename session/i }))
+    expect(onRenameSession).toHaveBeenCalledWith('session-alpha')
+
+    fireEvent.contextMenu(screen.getByTitle('Alpha'), { clientX: 20, clientY: 20 })
+    await userEvent.click(screen.getByRole('menuitem', { name: /archive session/i }))
+    expect(onArchiveSession).toHaveBeenCalledWith('session-alpha')
   })
 
   it('updates row content from the observable session node', () => {
