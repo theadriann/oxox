@@ -96,6 +96,13 @@ describe('packaging configuration', () => {
         output: 'release',
       },
       files: ['out/**', 'node_modules/**', 'package.json'],
+      extraResources: [
+        {
+          from: 'build/icons',
+          to: 'icons',
+          filter: ['oxox-trayTemplate.png', 'oxox-trayTemplate@2x.png'],
+        },
+      ],
       asarUnpack: ['node_modules/better-sqlite3/**/*'],
       publish: [
         {
@@ -119,6 +126,8 @@ describe('packaging configuration', () => {
     expect(existsSync(resolve(projectRoot, 'build/entitlements.mac.plist'))).toBe(true)
     expect(existsSync(resolve(projectRoot, 'build/icons/icon.icns'))).toBe(true)
     expect(existsSync(resolve(projectRoot, 'build/icons/oxox.png'))).toBe(true)
+    expect(existsSync(resolve(projectRoot, 'build/icons/oxox-trayTemplate.png'))).toBe(true)
+    expect(existsSync(resolve(projectRoot, 'build/icons/oxox-trayTemplate@2x.png'))).toBe(true)
     expect(existsSync(resolve(projectRoot, 'build/icons/icon.png'))).toBe(false)
     expect(existsSync(resolve(projectRoot, 'build/icons/appstore.png'))).toBe(false)
     expect(existsSync(resolve(projectRoot, 'build/icons/playstore.png'))).toBe(false)

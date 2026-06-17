@@ -122,6 +122,16 @@
       "node_modules/**",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "build/icons",
+        "to": "icons",
+        "filter": [
+          "oxox-trayTemplate.png",
+          "oxox-trayTemplate@2x.png"
+        ]
+      }
+    ],
     "asarUnpack": [
       "node_modules/better-sqlite3/**/*"
     ],

@@ -4,7 +4,10 @@ import {
   APP_ICON_SIZES,
   buildAppIconSvg,
   buildTrayIconSvg,
+  resolveTrayIconPath,
   TRAY_ICON_SIZES,
+  TRAY_ICON_TEMPLATE_FILE,
+  TRAY_ICON_TEMPLATE_RETINA_FILE,
 } from '../native/appIcon'
 
 describe('placeholder app icons', () => {
@@ -20,6 +23,22 @@ describe('placeholder app icons', () => {
 
   it('defines a crisp menu bar tray icon with template-sized representations', () => {
     expect(TRAY_ICON_SIZES).toEqual([16, 18, 32, 36])
+    expect(TRAY_ICON_TEMPLATE_FILE).toBe('oxox-trayTemplate.png')
+    expect(TRAY_ICON_TEMPLATE_RETINA_FILE).toBe('oxox-trayTemplate@2x.png')
+    expect(
+      resolveTrayIconPath({
+        isPackaged: false,
+        projectRoot: '/repo',
+        resourcesPath: '/resources',
+      }),
+    ).toBe('/repo/build/icons/oxox-trayTemplate.png')
+    expect(
+      resolveTrayIconPath({
+        isPackaged: true,
+        projectRoot: '/repo',
+        resourcesPath: '/resources',
+      }),
+    ).toBe('/resources/icons/oxox-trayTemplate.png')
 
     const svg = buildTrayIconSvg(32)
 

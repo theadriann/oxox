@@ -1,9 +1,13 @@
 import { Buffer } from 'node:buffer'
-import { nativeImage } from 'electron'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { app, nativeImage } from 'electron'
 import { FACTORY_CORE_DARK } from '../../shared/designTokens'
 
 export const APP_ICON_SIZES = [64, 128, 256, 512] as const
 export const TRAY_ICON_SIZES = [16, 18, 32, 36] as const
+export const TRAY_ICON_TEMPLATE_FILE = 'oxox-trayTemplate.png'
+export const TRAY_ICON_TEMPLATE_RETINA_FILE = 'oxox-trayTemplate@2x.png'
 
 export function buildAppIconSvg(size: number): string {
   const strokeWidth = Math.max(6, Math.round(size * 0.035))
@@ -53,10 +57,29 @@ export function createAppIcon() {
 }
 
 export function createTrayIcon() {
-  const image = createImage(buildTrayIconSvg(TRAY_ICON_SIZES.at(-1) ?? 36))
+  const trayIconPath = resolveTrayIconPath()
+  const image = existsSync(trayIconPath)
+    ? nativeImage.createFromPath(trayIconPath)
+    : createImage(buildTrayIconSvg(TRAY_ICON_SIZES.at(-1) ?? 36))
   image.setTemplateImage(true)
 
   return image
+}
+
+export function resolveTrayIconPath({
+  isPackaged = app.isPackaged,
+  projectRoot = process.cwd(),
+  resourcesPath = process.resourcesPath,
+}: {
+  isPackaged?: boolean
+  projectRoot?: string
+  resourcesPath?: string
+} = {}) {
+  const iconDirectory = isPackaged
+    ? resolve(resourcesPath, 'icons')
+    : resolve(projectRoot, 'build/icons')
+
+  return resolve(iconDirectory, TRAY_ICON_TEMPLATE_FILE)
 }
 
 function createImage(svgMarkup: string) {
