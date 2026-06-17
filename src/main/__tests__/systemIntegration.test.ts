@@ -49,6 +49,7 @@ describe('installSystemIntegration', () => {
     expect(setDockIcon).toHaveBeenCalledWith('icon')
     expect(installMacApplicationMenu).toHaveBeenCalledWith('OXOX', {
       onOpenNewWindow,
+      onQuit,
     })
     expect(createSystemTray).toHaveBeenCalledWith({
       appName: 'OXOX',

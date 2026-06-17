@@ -24,6 +24,7 @@ interface InstallSystemIntegrationOptions {
     appName: string,
     options: {
       onOpenNewWindow: () => void
+      onQuit: () => void
     },
   ) => void
   createSystemTray?: (options: {
@@ -69,6 +70,7 @@ export function installSystemIntegration({
 
   installMenu(appName, {
     onOpenNewWindow,
+    onQuit,
   })
 
   const tray = buildSystemTray({

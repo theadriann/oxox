@@ -5,7 +5,8 @@ import { buildMacApplicationMenuTemplate } from '../native/menu'
 describe('buildMacApplicationMenuTemplate', () => {
   it('builds the macOS app, File, Edit, View, and Window menus with standard roles', () => {
     const onOpenNewWindow = vi.fn()
-    const template = buildMacApplicationMenuTemplate('OXOX', { onOpenNewWindow })
+    const onQuit = vi.fn()
+    const template = buildMacApplicationMenuTemplate('OXOX', { onOpenNewWindow, onQuit })
 
     expect(template.map((item) => item.label)).toEqual(['OXOX', 'File', 'Edit', 'View', 'Window'])
 
@@ -18,7 +19,10 @@ describe('buildMacApplicationMenuTemplate', () => {
     expect(appMenu).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ role: 'about' }),
-        expect.objectContaining({ role: 'quit' }),
+        expect.objectContaining({
+          accelerator: 'Command+Q',
+          label: 'Quit OXOX',
+        }),
       ]),
     )
     expect(fileMenu).toEqual(
@@ -58,8 +62,13 @@ describe('buildMacApplicationMenuTemplate', () => {
     const newWindowItem = Array.isArray(fileMenu)
       ? fileMenu.find((item) => item.label === 'New Window')
       : undefined
+    const quitItem = Array.isArray(appMenu)
+      ? appMenu.find((item) => item.label === 'Quit OXOX')
+      : undefined
 
     newWindowItem?.click?.(undefined as never, undefined as never, undefined as never)
+    quitItem?.click?.(undefined as never, undefined as never, undefined as never)
     expect(onOpenNewWindow).toHaveBeenCalledOnce()
+    expect(onQuit).toHaveBeenCalledOnce()
   })
 })

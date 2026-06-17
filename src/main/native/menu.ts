@@ -3,11 +3,12 @@ import { Menu } from 'electron'
 
 export interface BuildMacApplicationMenuOptions {
   onOpenNewWindow?: () => void
+  onQuit?: () => void
 }
 
 export function buildMacApplicationMenuTemplate(
   appName: string,
-  { onOpenNewWindow }: BuildMacApplicationMenuOptions = {},
+  { onOpenNewWindow, onQuit }: BuildMacApplicationMenuOptions = {},
 ): MenuItemConstructorOptions[] {
   return [
     {
@@ -21,7 +22,11 @@ export function buildMacApplicationMenuTemplate(
         { role: 'hideOthers' },
         { role: 'unhide' },
         { type: 'separator' },
-        { role: 'quit' },
+        {
+          label: `Quit ${appName}`,
+          accelerator: 'Command+Q',
+          click: () => onQuit?.(),
+        },
       ],
     },
     {
