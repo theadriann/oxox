@@ -14,6 +14,7 @@ export interface GracefulQuitController {
   handleBeforeQuit: (event: BeforeQuitEventLike) => void
   isQuitting: () => boolean
   markQuitting: () => void
+  requestQuit: (finalize?: () => void) => boolean
 }
 
 export function createGracefulQuitController({
@@ -26,18 +27,30 @@ export function createGracefulQuitController({
   let quitting = false
   let inFlight = false
 
-  const runGracefulQuit = async (): Promise<void> => {
+  const runGracefulQuit = async (finalize: () => void): Promise<void> => {
     try {
       await detachActiveSessions()
       persistOpenWindows()
       await stopKernel()
       inFlight = false
-      quitApp()
+      finalize()
     } catch (error) {
       inFlight = false
       quitting = false
       onError(error)
     }
+  }
+
+  const beginGracefulQuit = (finalize: () => void): boolean => {
+    if (quitting || inFlight) {
+      return false
+    }
+
+    quitting = true
+    inFlight = true
+    void runGracefulQuit(finalize)
+
+    return true
   }
 
   return {
@@ -52,13 +65,12 @@ export function createGracefulQuitController({
         return
       }
 
-      quitting = true
-      inFlight = true
-      void runGracefulQuit()
+      beginGracefulQuit(quitApp)
     },
     isQuitting: () => quitting,
     markQuitting: () => {
       quitting = true
     },
+    requestQuit: (finalize = quitApp) => beginGracefulQuit(finalize),
   }
 }

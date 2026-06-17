@@ -90,6 +90,50 @@ describe('createGracefulQuitController', () => {
     expect(controller.isQuitting()).toBe(true)
   })
 
+  it('can run graceful cleanup before a custom update install finalizer', async () => {
+    const detachActiveSessions = vi.fn().mockResolvedValue(undefined)
+    const persistOpenWindows = vi.fn()
+    const stopKernel = vi.fn().mockResolvedValue(undefined)
+    const installUpdate = vi.fn()
+    const quitApp = vi.fn()
+    const controller = createGracefulQuitController({
+      detachActiveSessions,
+      persistOpenWindows,
+      stopKernel,
+      quitApp,
+      onError: vi.fn(),
+    })
+
+    const requested = controller.requestQuit(installUpdate)
+
+    expect(requested).toBe(true)
+    expect(controller.isQuitting()).toBe(true)
+    expect(installUpdate).not.toHaveBeenCalled()
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(detachActiveSessions).toHaveBeenCalledTimes(1)
+    expect(persistOpenWindows).toHaveBeenCalledTimes(1)
+    expect(stopKernel).toHaveBeenCalledTimes(1)
+    expect(installUpdate).toHaveBeenCalledTimes(1)
+    expect(quitApp).not.toHaveBeenCalled()
+  })
+
+  it('ignores duplicate explicit quit requests while cleanup is running', () => {
+    const deferred = createDeferred()
+    const controller = createGracefulQuitController({
+      detachActiveSessions: vi.fn().mockReturnValue(deferred.promise),
+      persistOpenWindows: vi.fn(),
+      stopKernel: vi.fn().mockResolvedValue(undefined),
+      quitApp: vi.fn(),
+      onError: vi.fn(),
+    })
+
+    expect(controller.requestQuit(vi.fn())).toBe(true)
+    expect(controller.requestQuit(vi.fn())).toBe(false)
+  })
+
   it('reports cleanup failures, resets in-flight state, and allows retry', async () => {
     const onError = vi.fn()
     const detachActiveSessions = vi

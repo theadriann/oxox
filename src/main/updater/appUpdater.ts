@@ -23,7 +23,7 @@ export interface AppUpdater {
   start: () => Promise<AppUpdateState>
   getState: () => AppUpdateState
   checkForUpdates: () => Promise<AppUpdateState>
-  installUpdate: () => void
+  installDownloadedUpdate: () => void
   dispose: () => void
 }
 
@@ -198,7 +198,7 @@ export function createAppUpdater({
 
       return state
     },
-    installUpdate() {
+    installDownloadedUpdate() {
       if (!state.canInstall) {
         return
       }

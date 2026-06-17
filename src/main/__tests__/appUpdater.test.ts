@@ -90,7 +90,7 @@ describe('createAppUpdater', () => {
     expect(states.at(-1)?.phase).toBe('downloaded')
   })
 
-  it('supports manual checks and restart installation', async () => {
+  it('supports manual checks and invokes downloaded update installation', async () => {
     const updater = new MockAutoUpdater()
     const service = createAppUpdater({
       appVersion: '0.0.4',
@@ -101,7 +101,7 @@ describe('createAppUpdater', () => {
     await service.start()
     await service.checkForUpdates()
     updater.emit('update-downloaded', { version: '0.0.5' })
-    service.installUpdate()
+    service.installDownloadedUpdate()
 
     expect(updater.checkForUpdates).toHaveBeenCalledTimes(2)
     expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true)

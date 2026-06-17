@@ -20,6 +20,7 @@ import { installSystemIntegration } from './native/systemIntegration'
 import { getRuntimeInfo } from './runtime/runtimeInfo'
 import { getContentSecurityPolicy } from './security/csp'
 import { type AppUpdater, createAppUpdater } from './updater/appUpdater'
+import { createUpdateInstallCoordinator } from './updater/updateInstallCoordinator'
 import { buildMainWindowOptions } from './windows/mainWindow'
 import { createWindowCoordinator } from './windows/windowCoordinator'
 import { createWindowLifecycleCoordinator } from './windows/windowLifecycle'
@@ -221,14 +222,19 @@ app.whenReady().then(async () => {
       const pluginRegistry = appKernel?.getPluginRegistry()
       const pluginHost = appKernel?.getPluginHost()
 
-      if (!pluginRegistry || !pluginHost || !appUpdater) {
+      const updater = appUpdater
+
+      if (!pluginRegistry || !pluginHost || !updater) {
         throw new Error('App kernel unavailable during IPC registration.')
       }
 
       return registerAppIpcHandlers({
         ipcMain,
         service,
-        updater: appUpdater,
+        updater: createUpdateInstallCoordinator({
+          updater,
+          requestQuit: gracefulQuitController.requestQuit,
+        }),
         keepBootstrapHandlerOnCleanup: true,
         pluginRegistry,
         pluginHost,
