@@ -91,6 +91,16 @@ describe('registerAppIpcHandlers', () => {
         updatedAt: '2026-04-27T00:00:00.000Z',
       }),
       getSessionTranscript: vi.fn(),
+      getSessionTranscriptScrollState: vi.fn().mockReturnValue({
+        sessionId: 'session-scroll',
+        scrollTop: 120,
+        scrollHeight: 900,
+        clientHeight: 300,
+        distanceFromBottom: 480,
+        isAtBottom: false,
+        updatedAt: '2026-06-17T00:00:00.000Z',
+      }),
+      setSessionTranscriptScrollState: vi.fn(),
       createSession: vi.fn(),
       getSessionSnapshot: vi.fn(),
       attachSession: vi.fn(),
@@ -333,6 +343,25 @@ describe('registerAppIpcHandlers', () => {
       matches: [{ sessionId: 'session-1', score: 10, reasons: [] }],
     })
     expect(service.searchSessions).toHaveBeenCalledWith({ query: 'sdk' })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.transcriptGetScrollState)?.(
+        undefined,
+        'session-scroll',
+      ),
+    ).toEqual(expect.objectContaining({ sessionId: 'session-scroll', scrollTop: 120 }))
+    await ipcMain.handlers.get(IPC_CHANNELS.transcriptSetScrollState)?.(undefined, {
+      sessionId: 'session-scroll',
+      scrollTop: 240,
+      scrollHeight: 900,
+      clientHeight: 300,
+      distanceFromBottom: 360,
+      isAtBottom: false,
+      updatedAt: '2026-06-17T00:00:01.000Z',
+    })
+    expect(service.getSessionTranscriptScrollState).toHaveBeenCalledWith('session-scroll')
+    expect(service.setSessionTranscriptScrollState).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-scroll', scrollTop: 240 }),
+    )
     await expect(
       ipcMain.handlers.get(IPC_CHANNELS.workspaceFilesList)?.(undefined, {
         sessionId: 'session-daemon',
@@ -502,6 +531,8 @@ describe('registerAppIpcHandlers', () => {
       searchWorkspaceFiles: vi.fn(),
       getWorkspaceFileContent: vi.fn(),
       getSessionTranscript: vi.fn(),
+      getSessionTranscriptScrollState: vi.fn(),
+      setSessionTranscriptScrollState: vi.fn(),
       createSession: vi.fn().mockResolvedValue(snapshot),
       getSessionSnapshot: vi.fn(),
       attachSession: vi.fn().mockResolvedValue(snapshot),
@@ -578,6 +609,8 @@ describe('registerAppIpcHandlers', () => {
       searchWorkspaceFiles: vi.fn(),
       getWorkspaceFileContent: vi.fn(),
       getSessionTranscript: vi.fn(),
+      getSessionTranscriptScrollState: vi.fn(),
+      setSessionTranscriptScrollState: vi.fn(),
       createSession: vi.fn(),
       getSessionSnapshot: vi.fn(),
       attachSession: vi.fn(),

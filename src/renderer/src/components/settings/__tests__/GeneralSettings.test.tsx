@@ -74,4 +74,14 @@ describe('GeneralSettings', () => {
 
     expect(rootStore.uiStore.state$.childSessionVisibilityMode.get()).toBe('never')
   })
+
+  it('lets users opt into per-session transcript position restoration', () => {
+    const { rootStore } = renderGeneralSettings()
+
+    expect(rootStore.uiStore.state$.persistTranscriptScrollPerSession.get()).toBe(false)
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Remember transcript position' }))
+
+    expect(rootStore.uiStore.state$.persistTranscriptScrollPerSession.get()).toBe(true)
+  })
 })

@@ -7,6 +7,7 @@ import type { PluginHostStore } from '../state/plugins/plugin-host.model'
 import type { RootStore } from '../state/root/root.model'
 import type { SessionStore } from '../state/sessions/session.model'
 import type { TranscriptStore } from '../state/transcripts/transcript.model'
+import type { UIStore } from '../state/ui/ui.model'
 import type { UpdateStore } from '../state/updates/update.model'
 import { useAppUpdateEvents } from './useAppUpdateEvents'
 import { useFoundationPoll } from './useFoundationPoll'
@@ -24,6 +25,7 @@ interface UseAppRuntimeOptions {
   pluginHostStore: PluginHostStore
   sessionStore: SessionStore
   transcriptStore: TranscriptStore
+  uiStore: UIStore
   updateStore: UpdateStore
   onSelectSession: (sessionId: string) => void
 }
@@ -37,6 +39,7 @@ export function useAppRuntime({
   pluginHostStore,
   sessionStore,
   transcriptStore,
+  uiStore,
   updateStore,
   onSelectSession,
 }: UseAppRuntimeOptions): void {
@@ -61,5 +64,16 @@ export function useAppRuntime({
     }
 
     void transcriptStore.openSession(nextSessionId)
+  })
+
+  useObserveEffect(() => {
+    const nextSessionId = sessionStore.selectedSessionId
+    const shouldRestoreScroll = uiStore.state$.persistTranscriptScrollPerSession.get()
+
+    if (!nextSessionId || !shouldRestoreScroll) {
+      return
+    }
+
+    void transcriptStore.loadScrollState(nextSessionId)
   })
 }

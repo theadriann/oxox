@@ -139,6 +139,7 @@ describe('createDatabaseService', () => {
         'sync_metadata',
         'session_runtime',
         'session_lineage',
+        'session_transcript_scroll_state',
       ]),
     )
     expect(syncMetadataColumns).toEqual(
@@ -495,6 +496,21 @@ describe('createDatabaseService', () => {
       rewindBoundaryMessageId: 'boundary-1',
       updatedAt: '2026-04-25T10:02:00.000Z',
     })
+    database.upsertSessionTranscriptScrollState({
+      sessionId: 'session-delete',
+      scrollTop: 420,
+      scrollHeight: 1200,
+      clientHeight: 300,
+      distanceFromBottom: 480,
+      isAtBottom: false,
+      updatedAt: '2026-04-25T10:03:00.000Z',
+    })
+
+    expect(database.getSessionTranscriptScrollState('session-delete')).toMatchObject({
+      sessionId: 'session-delete',
+      scrollTop: 420,
+      isAtBottom: false,
+    })
 
     database.removeSession('session-delete')
 
@@ -502,6 +518,7 @@ describe('createDatabaseService', () => {
     expect(database.listSyncMetadata()).toEqual([])
     expect(database.listSessionRuntimes()).toEqual([])
     expect(database.listSessionRewindBoundaries('session-delete')).toEqual([])
+    expect(database.getSessionTranscriptScrollState('session-delete')).toBeNull()
   })
 
   it('prefers the freshest persisted last-activity over an older runtime event timestamp', () => {

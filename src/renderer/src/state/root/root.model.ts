@@ -42,13 +42,17 @@ export class RootStore {
     const getSessionTranscript = this.api.transcript.getSessionTranscript
     const getSnapshot = this.api.session.getSnapshot
 
-    this.transcriptStore = new TranscriptStore((sessionId) => {
-      if (!getSessionTranscript) {
-        throw new Error('Transcript bridge unavailable.')
-      }
+    this.transcriptStore = new TranscriptStore(
+      (sessionId) => {
+        if (!getSessionTranscript) {
+          throw new Error('Transcript bridge unavailable.')
+        }
 
-      return getSessionTranscript(sessionId)
-    })
+        return getSessionTranscript(sessionId)
+      },
+      this.api.transcript.getScrollState,
+      this.api.transcript.setScrollState,
+    )
     this.transportStore = new TransportStore()
     this.uiStore = new UIStore(persistence)
     const listCapabilities = this.api.plugin.listCapabilities

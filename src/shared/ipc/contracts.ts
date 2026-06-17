@@ -73,6 +73,8 @@ export const IPC_CHANNELS = {
   sessionSearch: 'session:search',
   sessionSearchIndexingProgress: 'session:search-indexing-progress',
   transcriptGetSessionTranscript: 'transcript:get-session-transcript',
+  transcriptGetScrollState: 'transcript:get-scroll-state',
+  transcriptSetScrollState: 'transcript:set-scroll-state',
   sessionCreate: 'session:create',
   sessionGetSnapshot: 'session:get-snapshot',
   sessionAttach: 'session:attach',
@@ -527,6 +529,16 @@ export interface SessionTranscript {
   sourcePath: string
   loadedAt: string
   entries: TranscriptEntry[]
+}
+
+export interface SessionTranscriptScrollState {
+  sessionId: string
+  scrollTop: number
+  scrollHeight: number
+  clientHeight: number
+  distanceFromBottom: number
+  isAtBottom: boolean
+  updatedAt: string
 }
 
 export interface SessionSearchRequest {
@@ -1174,6 +1186,8 @@ export interface OxoxBridge {
   }
   transcript: {
     getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
+    getScrollState: (sessionId: string) => Promise<SessionTranscriptScrollState | null>
+    setScrollState: (state: SessionTranscriptScrollState) => Promise<void>
   }
   search: {
     sessions: (request: SessionSearchRequest) => Promise<SessionSearchResponse>

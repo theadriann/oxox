@@ -61,6 +61,15 @@ describe('app-shell connected selectors', () => {
       },
       transcriptScrollSignal: 7,
       transcriptStore: {
+        scrollStateForSession: vi.fn().mockReturnValue({
+          sessionId: 'session-1',
+          scrollTop: 120,
+          scrollHeight: 900,
+          clientHeight: 300,
+          distanceFromBottom: 480,
+          isAtBottom: false,
+          updatedAt: '2026-06-17T00:00:00.000Z',
+        }),
         isRefreshingSession: vi.fn().mockReturnValue(true),
         openSession,
         refreshErrorForSession: vi.fn().mockReturnValue('load failed'),
@@ -82,6 +91,13 @@ describe('app-shell connected selectors', () => {
       transportStore: {
         protocol: 'artifacts',
       } as never,
+      uiStore: {
+        state$: {
+          persistTranscriptScrollPerSession: {
+            get: () => true,
+          },
+        },
+      } as never,
     })
 
     expect(props.showNewSessionForm).toBe(true)
@@ -91,6 +107,10 @@ describe('app-shell connected selectors', () => {
     expect(props.selectedTranscriptRefreshError).toBe('load failed')
     expect(props.selectedLiveTimeline).toEqual([])
     expect(props.transcriptSearchTarget?.messageId).toBe('message-1')
+    expect(props.transcriptScrollPersistenceEnabled).toBe(true)
+    expect(props.transcriptScrollState).toEqual(
+      expect.objectContaining({ sessionId: 'session-1', scrollTop: 120 }),
+    )
 
     props.onPickDirectory()
     props.onRefreshFoundation()

@@ -5,6 +5,7 @@ import type {
   ProjectRecord,
   SessionRecord,
   SessionTranscript,
+  SessionTranscriptScrollState,
   SyncMetadataRecord,
 } from '../../../shared/ipc/contracts'
 import type { DaemonTransport } from '../daemon/transport'
@@ -19,6 +20,8 @@ export interface FoundationQueries {
   listSessions: () => SessionRecord[]
   listSyncMetadata: () => SyncMetadataRecord[]
   getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
+  getSessionTranscriptScrollState: (sessionId: string) => SessionTranscriptScrollState | null
+  setSessionTranscriptScrollState: (state: SessionTranscriptScrollState) => void
 }
 
 type LoadSessionTranscript = (
@@ -35,7 +38,13 @@ export interface CreateFoundationQueriesOptions {
   database: Pick<
     DatabaseService,
     'getDiagnostics' | 'listProjects' | 'listSessionRewindBoundaries' | 'listSyncMetadata'
-  >
+  > &
+    Partial<
+      Pick<
+        DatabaseService,
+        'getSessionTranscriptScrollState' | 'upsertSessionTranscriptScrollState'
+      >
+    >
   sessionCatalog: Pick<FoundationSessionCatalog, 'listSessions'>
   daemonTransport: Pick<DaemonTransport, 'getStatus'>
   droidCliStatus: DroidCliStatus
@@ -70,6 +79,11 @@ export function createFoundationQueries(
     listProjects: () => options.database.listProjects(),
     listSessions: () => options.sessionCatalog.listSessions(),
     listSyncMetadata: () => options.database.listSyncMetadata(),
+    getSessionTranscriptScrollState: (sessionId) =>
+      options.database.getSessionTranscriptScrollState?.(sessionId) ?? null,
+    setSessionTranscriptScrollState: (state) => {
+      options.database.upsertSessionTranscriptScrollState?.(state)
+    },
     getSessionTranscript: async (sessionId) => {
       const sourcePath = options.database
         .listSyncMetadata()

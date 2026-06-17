@@ -7,6 +7,7 @@ import type {
   DatabaseDiagnostics,
   ProjectRecord,
   SessionRecord,
+  SessionTranscriptScrollState,
   SyncMetadataRecord,
 } from '../../../shared/ipc/contracts'
 
@@ -69,6 +70,16 @@ const FOUNDATION_SCHEMA = `
     rewind_boundary_message_id TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (session_id, message_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS session_transcript_scroll_state (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    scroll_top REAL NOT NULL,
+    scroll_height REAL NOT NULL,
+    client_height REAL NOT NULL,
+    distance_from_bottom REAL NOT NULL,
+    is_at_bottom INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE INDEX IF NOT EXISTS idx_sessions_project_id ON sessions(project_id);
@@ -183,6 +194,7 @@ export interface DatabaseService {
   listPersistedSessions: () => SessionRecord[]
   listSessionRuntimes: () => SessionRuntimeRecord[]
   listSessionRewindBoundaries: (sessionId: string) => SessionRewindBoundaryRecord[]
+  getSessionTranscriptScrollState: (sessionId: string) => SessionTranscriptScrollState | null
   listSessions: () => SessionRecord[]
   listSyncMetadata: () => SyncMetadataRecord[]
   linkSessionParent: (
@@ -195,6 +207,7 @@ export interface DatabaseService {
   clearSessionRuntime: (sessionId: string) => void
   removeSession: (sessionId: string) => void
   upsertSessionRewindBoundary: (boundary: SessionRewindBoundaryUpsert) => void
+  upsertSessionTranscriptScrollState: (state: SessionTranscriptScrollState) => void
   upsertSession: (session: SessionUpsert) => void
   upsertSessionRuntime: (runtime: SessionRuntimeUpsert) => void
   upsertArtifactSession: (session: ArtifactSessionUpsert) => void
@@ -413,6 +426,19 @@ export function createDatabaseService({
     ORDER BY updated_at ASC, message_id ASC
   `)
 
+  const sessionTranscriptScrollStateStatement = database.prepare<SessionTranscriptScrollState>(`
+      SELECT
+        session_id AS sessionId,
+        scroll_top AS scrollTop,
+        scroll_height AS scrollHeight,
+        client_height AS clientHeight,
+        distance_from_bottom AS distanceFromBottom,
+        is_at_bottom AS isAtBottom,
+        updated_at AS updatedAt
+      FROM session_transcript_scroll_state
+      WHERE session_id = ?
+    `)
+
   const tableNamesStatement = database.prepare<TableNameRow>(`
     SELECT name
     FROM sqlite_master
@@ -554,6 +580,26 @@ export function createDatabaseService({
       updated_at = excluded.updated_at
   `)
 
+  const upsertSessionTranscriptScrollStateStatement = database.prepare(`
+    INSERT INTO session_transcript_scroll_state (
+      session_id,
+      scroll_top,
+      scroll_height,
+      client_height,
+      distance_from_bottom,
+      is_at_bottom,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(session_id) DO UPDATE SET
+      scroll_top = excluded.scroll_top,
+      scroll_height = excluded.scroll_height,
+      client_height = excluded.client_height,
+      distance_from_bottom = excluded.distance_from_bottom,
+      is_at_bottom = excluded.is_at_bottom,
+      updated_at = excluded.updated_at
+  `)
+
   const persistSessionRow = (session: SessionUpsert): void => {
     if (session.projectWorkspacePath) {
       const project: ProjectMutationInput = {
@@ -659,6 +705,10 @@ export function createDatabaseService({
     listPersistedSessions: () => persistedSessionStatement.all().map(normalizeSessionRecord),
     listSessionRuntimes: () => sessionRuntimeStatement.all(),
     listSessionRewindBoundaries: (sessionId) => sessionRewindBoundaryStatement.all(sessionId),
+    getSessionTranscriptScrollState: (sessionId) => {
+      const row = sessionTranscriptScrollStateStatement.get(sessionId)
+      return row ? normalizeSessionTranscriptScrollState(row) : null
+    },
     listSessions: () => sessionStatement.all().map(normalizeSessionRecord),
     listSyncMetadata: () => syncMetadataStatement.all(),
     linkSessionParent: (sessionId, parentSessionId, relationship, createdAt) => {
@@ -682,6 +732,17 @@ export function createDatabaseService({
         boundary.messageId,
         boundary.rewindBoundaryMessageId,
         boundary.updatedAt,
+      )
+    },
+    upsertSessionTranscriptScrollState: (state) => {
+      upsertSessionTranscriptScrollStateStatement.run(
+        state.sessionId,
+        state.scrollTop,
+        state.scrollHeight,
+        state.clientHeight,
+        state.distanceFromBottom,
+        state.isAtBottom ? 1 : 0,
+        state.updatedAt,
       )
     },
     upsertSession: (session) => {
@@ -733,6 +794,19 @@ function normalizeSessionRecord(session: SessionRecord): SessionRecord {
       session.isFavorite === undefined || session.isFavorite === null
         ? false
         : Boolean(session.isFavorite),
+  }
+}
+
+function normalizeSessionTranscriptScrollState(
+  state: SessionTranscriptScrollState,
+): SessionTranscriptScrollState {
+  return {
+    ...state,
+    scrollTop: Number(state.scrollTop),
+    scrollHeight: Number(state.scrollHeight),
+    clientHeight: Number(state.clientHeight),
+    distanceFromBottom: Number(state.distanceFromBottom),
+    isAtBottom: Boolean(state.isAtBottom),
   }
 }
 

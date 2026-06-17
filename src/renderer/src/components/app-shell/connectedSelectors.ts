@@ -51,6 +51,9 @@ interface BuildDetailPanelConnectedPropsOptions {
   transcriptSearchTarget: SessionSearchTarget | null
   transcriptScrollSignal: number
   transcriptStore: {
+    scrollStateForSession: (
+      sessionId: string,
+    ) => DetailPanelProps['transcriptScrollState'] | undefined
     isRefreshingSession: (sessionId: string) => boolean
     openSession: (sessionId: string) => Promise<void>
     refreshErrorForSession: (sessionId: string) => string | null
@@ -59,6 +62,7 @@ interface BuildDetailPanelConnectedPropsOptions {
   transportStore: {
     protocol: string
   }
+  uiStore: UIStore
 }
 
 export function buildDetailPanelConnectedProps({
@@ -73,11 +77,17 @@ export function buildDetailPanelConnectedProps({
   transcriptScrollSignal,
   transcriptStore,
   transportStore,
+  uiStore,
 }: BuildDetailPanelConnectedPropsOptions): DetailPanelProps {
   const selectedSessionId = sessionStore.selectedSessionId
   const selectedTranscript = selectedSessionId
     ? transcriptStore.transcriptForSession(selectedSessionId)
     : null
+  const transcriptScrollPersistenceEnabled = uiStore.state$.persistTranscriptScrollPerSession.get()
+  const transcriptScrollState =
+    selectedSessionId && transcriptScrollPersistenceEnabled
+      ? transcriptStore.scrollStateForSession(selectedSessionId)
+      : null
 
   return {
     foundation: foundationStore.foundation,
@@ -106,6 +116,7 @@ export function buildDetailPanelConnectedProps({
 
       void transcriptStore.openSession(selectedSessionId)
     },
+    onTranscriptScrollStateChange: () => undefined,
     onSubmitAskUserResponse: (payload) =>
       void composerStore.permissionResolution.resolveAskUser(payload.requestId, payload.answers),
     pendingAskUserRequestIds: composerStore.permissionResolution.pendingAskUserRequestIds,
@@ -120,7 +131,9 @@ export function buildDetailPanelConnectedProps({
     showNewSessionForm: newSessionForm.showForm,
     transcriptPrimaryActionRef,
     transcriptSearchTarget,
+    transcriptScrollPersistenceEnabled,
     transcriptScrollSignal,
+    transcriptScrollState,
     transportProtocol: transportStore.protocol,
   }
 }

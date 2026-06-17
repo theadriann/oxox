@@ -1,19 +1,36 @@
 import { batch, type Observable } from '@legendapp/state'
-import type { SessionTranscript } from '../../../../shared/ipc/contracts'
+import type {
+  SessionTranscript,
+  SessionTranscriptScrollState,
+} from '../../../../shared/ipc/contracts'
 import { createTranscriptState$, type TranscriptState } from './transcript.state'
 
 type TranscriptLoader = (sessionId: string) => Promise<SessionTranscript>
+type TranscriptScrollStateLoader = (
+  sessionId: string,
+) => Promise<SessionTranscriptScrollState | null>
+type TranscriptScrollStateSaver = (state: SessionTranscriptScrollState) => Promise<void>
+
 const UNAVAILABLE_TRANSCRIPT_LOADER: TranscriptLoader = async () => {
   throw new Error('Transcript bridge unavailable.')
 }
 
 export class TranscriptStore {
   private readonly transcriptLoader: TranscriptLoader
+  private readonly transcriptScrollStateLoader?: TranscriptScrollStateLoader
+  private readonly transcriptScrollStateSaver?: TranscriptScrollStateSaver
+  private readonly pendingScrollStateLoads = new Set<string>()
 
   readonly state$: Observable<TranscriptState> = createTranscriptState$()
 
-  constructor(transcriptLoader: TranscriptLoader = UNAVAILABLE_TRANSCRIPT_LOADER) {
+  constructor(
+    transcriptLoader: TranscriptLoader = UNAVAILABLE_TRANSCRIPT_LOADER,
+    transcriptScrollStateLoader?: TranscriptScrollStateLoader,
+    transcriptScrollStateSaver?: TranscriptScrollStateSaver,
+  ) {
     this.transcriptLoader = transcriptLoader
+    this.transcriptScrollStateLoader = transcriptScrollStateLoader
+    this.transcriptScrollStateSaver = transcriptScrollStateSaver
   }
 
   transcriptForSession = (sessionId: string): SessionTranscript | null => {
@@ -26,6 +43,10 @@ export class TranscriptStore {
 
   transcriptRevisionForSession = (sessionId: string): number => {
     return this.state$.transcriptRevisionsBySession[sessionId].get() ?? 0
+  }
+
+  scrollStateForSession = (sessionId: string): SessionTranscriptScrollState | null | undefined => {
+    return this.state$.scrollStatesBySession[sessionId].get()
   }
 
   refreshErrorForSession = (sessionId: string): string | null => {
@@ -73,5 +94,32 @@ export class TranscriptStore {
         )
       })
     }
+  }
+
+  loadScrollState = async (sessionId: string): Promise<void> => {
+    if (!sessionId || this.pendingScrollStateLoads.has(sessionId)) {
+      return
+    }
+
+    if (!this.transcriptScrollStateLoader) {
+      this.state$.scrollStatesBySession[sessionId].set(null)
+      return
+    }
+
+    this.pendingScrollStateLoads.add(sessionId)
+
+    try {
+      const state = await this.transcriptScrollStateLoader(sessionId)
+      this.state$.scrollStatesBySession[sessionId].set(state)
+    } catch {
+      this.state$.scrollStatesBySession[sessionId].set(null)
+    } finally {
+      this.pendingScrollStateLoads.delete(sessionId)
+    }
+  }
+
+  saveScrollState = (state: SessionTranscriptScrollState): void => {
+    this.state$.scrollStatesBySession[state.sessionId].set(state)
+    void this.transcriptScrollStateSaver?.(state).catch(() => undefined)
   }
 }

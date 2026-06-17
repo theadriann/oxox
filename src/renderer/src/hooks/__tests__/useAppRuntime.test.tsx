@@ -96,6 +96,13 @@ describe('useAppRuntime', () => {
     const composerStore = {
       resetForSession: vi.fn(),
     }
+    const uiStore = {
+      state$: {
+        persistTranscriptScrollPerSession: {
+          get: () => false,
+        },
+      },
+    }
     const onSelectSession = vi.fn()
 
     render(
@@ -108,6 +115,7 @@ describe('useAppRuntime', () => {
         sessionStore={sessionStore}
         transcriptStore={transcriptStore}
         composerStore={composerStore}
+        uiStore={uiStore}
         updateStore={updateStore}
         onSelectSession={onSelectSession}
       />,
@@ -150,6 +158,13 @@ describe('useAppRuntime', () => {
     }
     const sessionStore = new SessionStore()
     sessionStore.selectedSessionId = 'session-1'
+    const uiStore = {
+      state$: {
+        persistTranscriptScrollPerSession: {
+          get: () => false,
+        },
+      },
+    }
 
     render(
       <RuntimeProbe
@@ -188,6 +203,7 @@ describe('useAppRuntime', () => {
         sessionStore={sessionStore as never}
         transcriptStore={transcriptStore}
         composerStore={composerStore}
+        uiStore={uiStore}
         onSelectSession={vi.fn()}
       />,
     )

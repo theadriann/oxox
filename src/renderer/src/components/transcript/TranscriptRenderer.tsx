@@ -1,4 +1,3 @@
-import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   AlertTriangle,
   ArrowDown,
@@ -8,19 +7,11 @@ import {
   Loader2,
   ServerCog,
 } from 'lucide-react'
-import {
-  type MutableRefObject,
-  memo,
-  type ReactNode,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { type MutableRefObject, memo, type ReactNode, useCallback, useMemo, useState } from 'react'
 import type {
   LiveSessionAskUserAnswerRecord,
   SessionSearchTarget,
+  SessionTranscriptScrollState,
 } from '../../../../shared/ipc/contracts'
 import { logTranscriptPerformanceEvent } from '../../diagnostics/transcriptPerformance'
 import { Button } from '../ui/button'
@@ -42,6 +33,7 @@ import {
   useTranscriptInlineSearch,
   useTranscriptInlineSearchHighlights,
 } from './transcriptInlineSearch'
+import { useTranscriptVirtualScroll } from './useTranscriptVirtualScroll'
 
 const TRANSCRIPT_LOADING_ROW_IDS = [
   'transcript-loading-a',
@@ -57,6 +49,8 @@ export interface TranscriptRendererProps {
   scrollContextKey?: string
   searchTarget?: SessionSearchTarget | null
   scrollToBottomSignal?: number
+  scrollPersistenceEnabled?: boolean
+  scrollRestoreState?: SessionTranscriptScrollState | null
   primaryActionRef?: MutableRefObject<HTMLElement | null>
   pendingPermissionRequestIds?: string[]
   pendingAskUserRequestIds?: string[]
@@ -66,6 +60,7 @@ export interface TranscriptRendererProps {
     answers: LiveSessionAskUserAnswerRecord[]
   }) => void
   onForkFromMessage?: (messageId: string) => void
+  onScrollStateChange?: (state: SessionTranscriptScrollState) => void
   onRetry?: () => void
 }
 
@@ -77,22 +72,31 @@ export function TranscriptRenderer({
   scrollContextKey,
   searchTarget = null,
   scrollToBottomSignal = 0,
+  scrollPersistenceEnabled = false,
+  scrollRestoreState = null,
   primaryActionRef,
   pendingPermissionRequestIds = [],
   pendingAskUserRequestIds = [],
   onResolvePermissionRequest,
   onSubmitAskUserResponse,
   onForkFromMessage,
+  onScrollStateChange,
   onRetry,
 }: TranscriptRendererProps) {
   const renderItems = useMemo(() => buildRenderItems(items), [items])
+  const resolvedScrollContextKey =
+    scrollContextKey ?? (isLive ? 'live-transcript' : 'historical-transcript')
+  const virtualizerMountKey = `${resolvedScrollContextKey}:${renderItems.length > 0 ? 'ready' : 'empty'}`
 
   if (isLive) {
     return (
       <LiveTranscriptView
+        key={virtualizerMountKey}
         items={renderItems}
-        scrollContextKey={scrollContextKey ?? 'live-transcript'}
+        scrollContextKey={resolvedScrollContextKey}
         scrollToBottomSignal={scrollToBottomSignal}
+        scrollPersistenceEnabled={scrollPersistenceEnabled}
+        scrollRestoreState={scrollRestoreState}
         searchTarget={searchTarget}
         primaryActionRef={primaryActionRef}
         pendingPermissionRequestIds={pendingPermissionRequestIds}
@@ -100,20 +104,25 @@ export function TranscriptRenderer({
         onResolvePermissionRequest={onResolvePermissionRequest}
         onSubmitAskUserResponse={onSubmitAskUserResponse}
         onForkFromMessage={onForkFromMessage}
+        onScrollStateChange={onScrollStateChange}
       />
     )
   }
 
   return (
     <HistoricalTranscriptView
+      key={virtualizerMountKey}
       items={renderItems}
       isLoading={isLoading}
       searchTarget={searchTarget}
       loadingError={loadingError}
-      scrollContextKey={scrollContextKey ?? 'historical-transcript'}
+      scrollContextKey={resolvedScrollContextKey}
       scrollToBottomSignal={scrollToBottomSignal}
+      scrollPersistenceEnabled={scrollPersistenceEnabled}
+      scrollRestoreState={scrollRestoreState}
       primaryActionRef={primaryActionRef}
       onForkFromMessage={onForkFromMessage}
+      onScrollStateChange={onScrollStateChange}
       onRetry={onRetry}
     />
   )
@@ -194,10 +203,6 @@ function estimateRenderItemSize(item: RenderItem | undefined): number {
   return item.kind === 'tool-group' || item.kind === 'mcp-status-group' ? 72 : 180
 }
 
-function estimateTotalHeight(items: RenderItem[]): number {
-  return items.reduce((total, item) => total + estimateRenderItemSize(item), 0)
-}
-
 function isMcpStatusEvent(item: TimelineItem): item is Extract<TimelineItem, { kind: 'event' }> {
   return item.kind === 'event' && item.typeLabel === 'mcp.statusChanged'
 }
@@ -222,6 +227,10 @@ function renderItemMatchesSearchTarget(item: RenderItem, target: SessionSearchTa
   return item.id === target.sourceId
 }
 
+function findRenderItemSearchTargetIndex(items: RenderItem[], target: SessionSearchTarget): number {
+  return items.findIndex((item) => renderItemMatchesSearchTarget(item, target))
+}
+
 function getRenderItemMessageId(item: RenderItem): string | null {
   if (item.kind !== 'timeline-item') {
     return null
@@ -238,28 +247,12 @@ function getRenderItemToolCallId(item: RenderItem): string | null {
   return item.kind === 'timeline-item' && item.item.kind === 'tool' ? item.item.toolUseId : null
 }
 
-function createFallbackVirtualRows(
-  items: RenderItem[],
-  estimateSize: (item: RenderItem | undefined) => number,
-) {
-  let nextStart = 0
-
-  return items.slice(0, Math.min(items.length, 12)).map((item, index) => {
-    const row = {
-      index,
-      key: item.id,
-      start: nextStart,
-    }
-
-    nextStart += estimateSize(item)
-    return row
-  })
-}
-
 function LiveTranscriptView({
   items,
   scrollContextKey,
   scrollToBottomSignal,
+  scrollPersistenceEnabled,
+  scrollRestoreState,
   searchTarget,
   primaryActionRef,
   pendingPermissionRequestIds,
@@ -267,10 +260,13 @@ function LiveTranscriptView({
   onResolvePermissionRequest,
   onSubmitAskUserResponse,
   onForkFromMessage,
+  onScrollStateChange,
 }: {
   items: RenderItem[]
   scrollContextKey: string
   scrollToBottomSignal: number
+  scrollPersistenceEnabled: boolean
+  scrollRestoreState: SessionTranscriptScrollState | null
   searchTarget?: SessionSearchTarget | null
   primaryActionRef?: MutableRefObject<HTMLElement | null>
   pendingPermissionRequestIds: string[]
@@ -281,18 +277,13 @@ function LiveTranscriptView({
     answers: LiveSessionAskUserAnswerRecord[]
   }) => void
   onForkFromMessage?: (messageId: string) => void
+  onScrollStateChange?: (state: SessionTranscriptScrollState) => void
 }) {
   const [expandedToolIds, setExpandedToolIds] = useState<Record<string, boolean>>({})
   const [expandedToolGroupIds, setExpandedToolGroupIds] = useState<Record<string, boolean>>({})
   const [expandedMcpStatusGroupIds, setExpandedMcpStatusGroupIds] = useState<
     Record<string, boolean>
   >({})
-  const [showJumpButton, setShowJumpButton] = useState(false)
-  const autoScrollRef = useRef(true)
-  const isAtBottomRef = useRef(true)
-  const scrollAreaRef = useRef<HTMLDivElement | null>(null)
-  const lastScrollContextKeyRef = useRef(scrollContextKey)
-  const jumpButtonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingPermissionRequestIdSet = useMemo(
     () => new Set(pendingPermissionRequestIds),
     [pendingPermissionRequestIds],
@@ -303,61 +294,31 @@ function LiveTranscriptView({
   )
 
   const latestTimelineMarker = useMemo(() => getLatestTimelineMarker(items), [items])
-  const prevTimelineMarkerRef = useRef(latestTimelineMarker)
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getItemKey: (index) => items[index]?.id ?? index,
-    getScrollElement: () => scrollAreaRef.current,
-    initialRect: { height: 640, width: 960 },
-    estimateSize: (index) => estimateRenderItemSize(items[index]),
+  const transcriptScroll = useTranscriptVirtualScroll({
+    estimateSize: estimateRenderItemSize,
+    findSearchTargetIndex: findRenderItemSearchTargetIndex,
+    getItemKey: (item, index) => item?.id ?? index,
+    items,
+    latestTimelineMarker,
+    onScrollStateChange,
     overscan: 10,
+    primaryActionRef,
+    scrollContextKey,
+    scrollPersistenceEnabled,
+    scrollRestoreState,
+    scrollToBottomSignal,
+    searchTarget,
   })
   const inlineSearchTexts = useMemo(() => items.map(getRenderItemSearchText), [items])
   const inlineSearch = useTranscriptInlineSearch({
     searchTexts: inlineSearchTexts,
-    onNavigateToRow: (rowIndex) => {
-      autoScrollRef.current = false
-      isAtBottomRef.current = false
-      virtualizer.scrollToIndex(rowIndex, { align: 'center' })
-    },
+    onNavigateToRow: transcriptScroll.navigateToRow,
   })
   useTranscriptInlineSearchHighlights({
-    containerRef: scrollAreaRef,
+    containerRef: transcriptScroll.scrollAreaRef,
     isOpen: inlineSearch.isOpen,
     query: inlineSearch.query,
   })
-  const virtualItems = virtualizer.getVirtualItems()
-  const estimatedTotalHeight =
-    virtualizer.getTotalSize() > 0 ? virtualizer.getTotalSize() : estimateTotalHeight(items)
-  const rowsToRender =
-    virtualItems.length > 0
-      ? virtualItems
-      : createFallbackVirtualRows(items, estimateRenderItemSize)
-
-  const handleScroll = useCallback(() => {
-    const el = scrollAreaRef.current
-    if (!el) return
-    const atBottom = el.scrollHeight - el.clientHeight - el.scrollTop <= 32
-    isAtBottomRef.current = atBottom
-    autoScrollRef.current = atBottom
-
-    // Debounce the jump button visibility to avoid re-renders during scroll
-    if (jumpButtonTimerRef.current) clearTimeout(jumpButtonTimerRef.current)
-    jumpButtonTimerRef.current = setTimeout(() => {
-      setShowJumpButton(!atBottom)
-    }, 150)
-  }, [])
-
-  const handleScrollToBottom = useCallback(() => {
-    const el = scrollAreaRef.current
-    if (!el) return
-    const targetTop = Math.max(estimatedTotalHeight, el.scrollHeight)
-    scrollTo(el, targetTop, 'smooth')
-    virtualizer.scrollToIndex(Math.max(items.length - 1, 0))
-    isAtBottomRef.current = true
-    autoScrollRef.current = true
-    setShowJumpButton(false)
-  }, [estimatedTotalHeight, items.length, virtualizer])
 
   const onToggleTool = useCallback((toolUseId: string) => {
     setExpandedToolIds((c) => ({ ...c, [toolUseId]: !c[toolUseId] }))
@@ -371,72 +332,6 @@ function LiveTranscriptView({
     setExpandedMcpStatusGroupIds((c) => ({ ...c, [groupId]: !c[groupId] }))
   }, [])
 
-  useLayoutEffect(() => {
-    if (lastScrollContextKeyRef.current === scrollContextKey) return
-    lastScrollContextKeyRef.current = scrollContextKey
-    isAtBottomRef.current = true
-    autoScrollRef.current = true
-    setShowJumpButton(false)
-  }, [scrollContextKey])
-
-  useLayoutEffect(() => {
-    if (!autoScrollRef.current || items.length === 0 || latestTimelineMarker.length === 0) return
-
-    if (prevTimelineMarkerRef.current === latestTimelineMarker) return
-    prevTimelineMarkerRef.current = latestTimelineMarker
-
-    const el = scrollAreaRef.current
-    if (!el) return
-
-    const targetTop = Math.max(estimatedTotalHeight, el.scrollHeight)
-    scrollTo(el, targetTop)
-    virtualizer.scrollToIndex(Math.max(items.length - 1, 0))
-    isAtBottomRef.current = isScrolledToBottom(el)
-  }, [estimatedTotalHeight, items.length, latestTimelineMarker, virtualizer])
-
-  const lastConsumedScrollSignalRef = useRef(scrollToBottomSignal)
-
-  useLayoutEffect(() => {
-    if (scrollToBottomSignal === lastConsumedScrollSignalRef.current) return
-    lastConsumedScrollSignalRef.current = scrollToBottomSignal
-
-    const el = scrollAreaRef.current
-    if (!el) return
-
-    const targetTop = Math.max(estimatedTotalHeight, el.scrollHeight)
-    scrollTo(el, targetTop)
-    virtualizer.scrollToIndex(Math.max(items.length - 1, 0))
-    isAtBottomRef.current = true
-    autoScrollRef.current = true
-    setShowJumpButton(false)
-  }, [estimatedTotalHeight, items.length, scrollToBottomSignal, virtualizer])
-
-  const appliedSearchTargetRef = useRef<SessionSearchTarget | null>(null)
-
-  useLayoutEffect(() => {
-    if (!searchTarget || items.length === 0) return
-    if (appliedSearchTargetRef.current === searchTarget) return
-
-    const targetIndex = items.findIndex((item) => renderItemMatchesSearchTarget(item, searchTarget))
-
-    if (targetIndex < 0) {
-      return
-    }
-
-    appliedSearchTargetRef.current = searchTarget
-    autoScrollRef.current = false
-    isAtBottomRef.current = false
-    setShowJumpButton(true)
-    virtualizer.scrollToIndex(targetIndex, { align: 'center' })
-
-    // Re-align once after dynamic row measurement settles.
-    const frame = requestAnimationFrame(() => {
-      virtualizer.scrollToIndex(targetIndex, { align: 'center' })
-    })
-
-    return () => cancelAnimationFrame(frame)
-  }, [items, searchTarget, virtualizer])
-
   return (
     <section className="relative flex min-h-0 h-full flex-col">
       <TranscriptInlineSearchBar search={inlineSearch} />
@@ -445,11 +340,8 @@ function LiveTranscriptView({
         className="flex-1 overflow-y-auto"
         role="region"
         tabIndex={0}
-        ref={(el) => {
-          scrollAreaRef.current = el
-          if (primaryActionRef) primaryActionRef.current = el
-        }}
-        onScroll={handleScroll}
+        ref={transcriptScroll.setScrollElement}
+        onScroll={transcriptScroll.handleScroll}
       >
         {items.length === 0 ? (
           <div className="flex items-center gap-2 py-8 text-fd-tertiary">
@@ -457,8 +349,11 @@ function LiveTranscriptView({
             <span className="text-sm">Waiting for output...</span>
           </div>
         ) : (
-          <div className="relative w-full" style={{ height: `${estimatedTotalHeight}px` }}>
-            {rowsToRender.map((virtualRow) => {
+          <div
+            className="relative w-full"
+            style={{ height: `${transcriptScroll.estimatedTotalHeight}px` }}
+          >
+            {transcriptScroll.rowsToRender.map((virtualRow) => {
               const renderItem = items[virtualRow.index]
 
               if (!renderItem) {
@@ -468,7 +363,7 @@ function LiveTranscriptView({
               return (
                 <div
                   key={virtualRow.key}
-                  ref={virtualizer.measureElement}
+                  ref={transcriptScroll.virtualizer.measureElement}
                   data-index={virtualRow.index}
                   data-testid="live-transcript-row"
                   className="absolute left-0 top-0 w-full pb-1.5"
@@ -520,8 +415,8 @@ function LiveTranscriptView({
       </div>
 
       <JumpToLatestButton
-        visible={showJumpButton && items.length > 0}
-        onClick={handleScrollToBottom}
+        visible={transcriptScroll.showJumpButton && items.length > 0}
+        onClick={() => transcriptScroll.scrollToLatest('smooth')}
       />
     </section>
   )
@@ -534,8 +429,11 @@ function HistoricalTranscriptView({
   scrollContextKey,
   searchTarget,
   scrollToBottomSignal,
+  scrollPersistenceEnabled,
+  scrollRestoreState,
   primaryActionRef,
   onForkFromMessage,
+  onScrollStateChange,
   onRetry,
 }: {
   items: RenderItem[]
@@ -544,54 +442,44 @@ function HistoricalTranscriptView({
   scrollContextKey: string
   searchTarget: SessionSearchTarget | null
   scrollToBottomSignal: number
+  scrollPersistenceEnabled: boolean
+  scrollRestoreState: SessionTranscriptScrollState | null
   primaryActionRef?: MutableRefObject<HTMLElement | null>
   onForkFromMessage?: (messageId: string) => void
+  onScrollStateChange?: (state: SessionTranscriptScrollState) => void
   onRetry?: () => void
 }) {
-  const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const [expandedToolIds, setExpandedToolIds] = useState<Record<string, boolean>>({})
   const [expandedToolGroupIds, setExpandedToolGroupIds] = useState<Record<string, boolean>>({})
   const [expandedMcpStatusGroupIds, setExpandedMcpStatusGroupIds] = useState<
     Record<string, boolean>
   >({})
-  const [showJumpButton, setShowJumpButton] = useState(false)
-  const autoScrollRef = useRef(true)
-  const isAtBottomRef = useRef(true)
-  const lastScrollContextKeyRef = useRef(scrollContextKey)
-  const jumpButtonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const initialScrollDoneRef = useRef(false)
   const hasTranscript = items.length > 0
 
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getItemKey: (index) => items[index]?.id ?? index,
-    getScrollElement: () => scrollAreaRef.current,
-    initialRect: { height: 640, width: 960 },
-    estimateSize: (index) => estimateRenderItemSize(items[index]),
+  const transcriptScroll = useTranscriptVirtualScroll({
+    estimateSize: estimateRenderItemSize,
+    findSearchTargetIndex: findRenderItemSearchTargetIndex,
+    getItemKey: (item, index) => item?.id ?? index,
+    items,
+    onScrollStateChange,
     overscan: 8,
+    primaryActionRef,
+    scrollContextKey,
+    scrollPersistenceEnabled,
+    scrollRestoreState,
+    scrollToBottomSignal,
+    searchTarget,
   })
   const inlineSearchTexts = useMemo(() => items.map(getRenderItemSearchText), [items])
   const inlineSearch = useTranscriptInlineSearch({
     searchTexts: inlineSearchTexts,
-    onNavigateToRow: (rowIndex) => {
-      autoScrollRef.current = false
-      isAtBottomRef.current = false
-      virtualizer.scrollToIndex(rowIndex, { align: 'center' })
-    },
+    onNavigateToRow: transcriptScroll.navigateToRow,
   })
   useTranscriptInlineSearchHighlights({
-    containerRef: scrollAreaRef,
+    containerRef: transcriptScroll.scrollAreaRef,
     isOpen: inlineSearch.isOpen,
     query: inlineSearch.query,
   })
-
-  const virtualItems = virtualizer.getVirtualItems()
-  const estimatedTotalHeight =
-    virtualizer.getTotalSize() > 0 ? virtualizer.getTotalSize() : estimateTotalHeight(items)
-  const rowsToRender =
-    virtualItems.length > 0
-      ? virtualItems
-      : createFallbackVirtualRows(items, estimateRenderItemSize)
 
   const toggleToolCall = useCallback((toolUseId: string) => {
     setExpandedToolIds((c) => ({ ...c, [toolUseId]: !c[toolUseId] }))
@@ -604,100 +492,6 @@ function HistoricalTranscriptView({
   const toggleMcpStatusGroup = useCallback((groupId: string) => {
     setExpandedMcpStatusGroupIds((c) => ({ ...c, [groupId]: !c[groupId] }))
   }, [])
-
-  const scrollToBottom = useCallback(() => {
-    scrollTo(scrollAreaRef.current, estimatedTotalHeight)
-    virtualizer.scrollToIndex(Math.max(items.length - 1, 0))
-  }, [estimatedTotalHeight, items.length, virtualizer])
-
-  const handleScroll = useCallback(() => {
-    const el = scrollAreaRef.current
-    if (!el) return
-    const atBottom = isScrolledToBottom(el)
-    isAtBottomRef.current = atBottom
-    autoScrollRef.current = atBottom
-
-    if (jumpButtonTimerRef.current) clearTimeout(jumpButtonTimerRef.current)
-    jumpButtonTimerRef.current = setTimeout(() => {
-      setShowJumpButton(!atBottom)
-    }, 150)
-  }, [])
-
-  const handleScrollToLatest = useCallback(() => {
-    scrollTo(scrollAreaRef.current, estimatedTotalHeight, 'smooth')
-    virtualizer.scrollToIndex(Math.max(items.length - 1, 0))
-    isAtBottomRef.current = true
-    autoScrollRef.current = true
-    setShowJumpButton(false)
-  }, [estimatedTotalHeight, items.length, virtualizer])
-
-  useLayoutEffect(() => {
-    if (lastScrollContextKeyRef.current === scrollContextKey) return
-    lastScrollContextKeyRef.current = scrollContextKey
-    isAtBottomRef.current = true
-    autoScrollRef.current = true
-    initialScrollDoneRef.current = false
-    setShowJumpButton(false)
-  }, [scrollContextKey])
-
-  useLayoutEffect(() => {
-    const latestRenderedRow = rowsToRender.at(-1)
-    if (!autoScrollRef.current || !hasTranscript || !latestRenderedRow) return
-
-    // After initial scroll-to-bottom succeeds, stop re-scrolling on
-    // virtualizer re-measurements so the user can scroll freely.
-    if (initialScrollDoneRef.current) return
-
-    const el = scrollAreaRef.current
-    if (!el) return
-
-    const targetTop = Math.max(estimatedTotalHeight, el.scrollHeight)
-    scrollTo(el, targetTop)
-    virtualizer.scrollToIndex(Math.max(items.length - 1, 0))
-    isAtBottomRef.current = isScrolledToBottom(el)
-
-    if (el.scrollHeight > el.clientHeight) {
-      initialScrollDoneRef.current = true
-    }
-  }, [estimatedTotalHeight, hasTranscript, items.length, rowsToRender, virtualizer])
-
-  const lastConsumedScrollSignalRef = useRef(scrollToBottomSignal)
-
-  useLayoutEffect(() => {
-    if (scrollToBottomSignal === lastConsumedScrollSignalRef.current) return
-    lastConsumedScrollSignalRef.current = scrollToBottomSignal
-    scrollToBottom()
-    isAtBottomRef.current = true
-    autoScrollRef.current = true
-    setShowJumpButton(false)
-  }, [scrollToBottom, scrollToBottomSignal])
-
-  const appliedSearchTargetRef = useRef<SessionSearchTarget | null>(null)
-
-  useLayoutEffect(() => {
-    if (!searchTarget || items.length === 0) return
-    if (appliedSearchTargetRef.current === searchTarget) return
-
-    const targetIndex = items.findIndex((item) => renderItemMatchesSearchTarget(item, searchTarget))
-
-    if (targetIndex < 0) {
-      return
-    }
-
-    appliedSearchTargetRef.current = searchTarget
-    autoScrollRef.current = false
-    isAtBottomRef.current = false
-    initialScrollDoneRef.current = true
-    setShowJumpButton(true)
-    virtualizer.scrollToIndex(targetIndex, { align: 'center' })
-
-    // Re-align once after dynamic row measurement settles.
-    const frame = requestAnimationFrame(() => {
-      virtualizer.scrollToIndex(targetIndex, { align: 'center' })
-    })
-
-    return () => cancelAnimationFrame(frame)
-  }, [items, searchTarget, virtualizer])
 
   return (
     <section className="relative flex min-h-0 h-full flex-col">
@@ -722,14 +516,11 @@ function HistoricalTranscriptView({
       ) : null}
 
       <div
-        ref={(el) => {
-          scrollAreaRef.current = el
-          if (primaryActionRef) primaryActionRef.current = el
-        }}
+        ref={transcriptScroll.setScrollElement}
         role="region"
         aria-label="Transcript messages"
         className="flex-1 overflow-y-auto"
-        onScroll={handleScroll}
+        onScroll={transcriptScroll.handleScroll}
       >
         {isLoading && !hasTranscript ? (
           <div className="flex flex-col gap-3 px-3 py-3">
@@ -775,15 +566,18 @@ function HistoricalTranscriptView({
             description="Choose a session with artifact-backed transcript data to inspect its chronological conversation history."
           />
         ) : (
-          <div className="relative w-full" style={{ height: `${estimatedTotalHeight}px` }}>
-            {rowsToRender.map((virtualRow) => {
+          <div
+            className="relative w-full"
+            style={{ height: `${transcriptScroll.estimatedTotalHeight}px` }}
+          >
+            {transcriptScroll.rowsToRender.map((virtualRow) => {
               const entry = items[virtualRow.index]
               if (!entry) return null
 
               return (
                 <div
                   key={virtualRow.key}
-                  ref={virtualizer.measureElement}
+                  ref={transcriptScroll.virtualizer.measureElement}
                   data-index={virtualRow.index}
                   data-search-message-id={getRenderItemMessageId(entry) ?? undefined}
                   data-search-tool-call-id={getRenderItemToolCallId(entry) ?? undefined}
@@ -828,8 +622,8 @@ function HistoricalTranscriptView({
         )}
       </div>
       <JumpToLatestButton
-        visible={showJumpButton && hasTranscript}
-        onClick={handleScrollToLatest}
+        visible={transcriptScroll.showJumpButton && hasTranscript}
+        onClick={() => transcriptScroll.scrollToLatest('smooth')}
       />
     </section>
   )
@@ -1016,19 +810,6 @@ function JumpToLatestButton({ visible, onClick }: { visible: boolean; onClick: (
       </Button>
     </div>
   )
-}
-
-function scrollTo(el: HTMLElement | null, top: number, behavior?: ScrollBehavior) {
-  if (!el) return
-  if (typeof el.scrollTo === 'function') {
-    el.scrollTo({ top, behavior })
-    return
-  }
-  el.scrollTop = top
-}
-
-function isScrolledToBottom(el: HTMLElement): boolean {
-  return el.scrollHeight - el.clientHeight - el.scrollTop <= 32
 }
 
 function getLatestTimelineMarker(items: RenderItem[]): string {

@@ -24,6 +24,7 @@ export interface PersistedSidebarState {
   contentLayout?: ContentLayout
   composerContextUsageDisplayMode?: ComposerContextUsageDisplayMode
   childSessionVisibilityMode?: ChildSessionVisibilityMode
+  persistTranscriptScrollPerSession?: boolean
 }
 
 export interface UIState {
@@ -40,6 +41,7 @@ export interface UIState {
   contentLayout: ContentLayout
   composerContextUsageDisplayMode: ComposerContextUsageDisplayMode
   childSessionVisibilityMode: ChildSessionVisibilityMode
+  persistTranscriptScrollPerSession: boolean
   activeView: AppView
   settingsSection: SettingsSection
 }
@@ -59,6 +61,7 @@ export function createDefaultUIState(): UIState {
     contentLayout: 'fixed',
     composerContextUsageDisplayMode: 'percentage',
     childSessionVisibilityMode: 'selected-parent',
+    persistTranscriptScrollPerSession: false,
     activeView: 'sessions',
     settingsSection: 'general',
   }

@@ -27,6 +27,46 @@ function createSnapshot(overrides: Partial<LiveSessionSnapshot> = {}): LiveSessi
 
 const IMAGE_DATA = 'ZmFrZS1pbWFnZS1ieXRlcw=='
 
+function stubPrototypeScrollMetrics({
+  clientHeight,
+  scrollHeight,
+}: {
+  clientHeight: number
+  scrollHeight: number
+}) {
+  const clientHeightDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'clientHeight',
+  )
+  const scrollHeightDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'scrollHeight',
+  )
+
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+    configurable: true,
+    value: clientHeight,
+  })
+  Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+    configurable: true,
+    value: scrollHeight,
+  })
+
+  return () => {
+    if (clientHeightDescriptor) {
+      Object.defineProperty(HTMLElement.prototype, 'clientHeight', clientHeightDescriptor)
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight')
+    }
+
+    if (scrollHeightDescriptor) {
+      Object.defineProperty(HTMLElement.prototype, 'scrollHeight', scrollHeightDescriptor)
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight')
+    }
+  }
+}
+
 function createTranscript(entryCount = 2): SessionTranscript {
   const entries = [
     {
@@ -1208,11 +1248,6 @@ describe('TranscriptRenderer (live)', () => {
       fireEvent.scroll(scrollRegion)
     })
 
-    // Wait for debounced jump button visibility update
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 200))
-    })
-
     expect(screen.getByRole('button', { name: 'Scroll to latest' })).toBeTruthy()
 
     const callsWhilePaused = scrollToMock.mock.calls.length
@@ -1328,6 +1363,108 @@ describe('TranscriptRenderer (live)', () => {
     })
 
     expect(scrollToMock).toHaveBeenCalled()
+  })
+
+  it('restores saved live transcript position when enabled', async () => {
+    const restoreMetrics = stubPrototypeScrollMetrics({ clientHeight: 300, scrollHeight: 1200 })
+
+    try {
+      render(
+        <TranscriptRenderer
+          items={buildLiveTimeline(
+            createSnapshot({
+              sessionId: 'session-live-restore',
+              events: Array.from({ length: 80 }, (_, index) => ({
+                type: 'message.completed' as const,
+                messageId: `assistant-${index}`,
+                content: `Restored live row ${index}`,
+                role: 'assistant',
+              })),
+            }),
+          )}
+          isLive
+          isLoading={false}
+          scrollContextKey="session-live-restore"
+          scrollPersistenceEnabled
+          scrollRestoreState={{
+            sessionId: 'session-live-restore',
+            scrollTop: 420,
+            scrollHeight: 1200,
+            clientHeight: 300,
+            distanceFromBottom: 480,
+            isAtBottom: false,
+            updatedAt: '2026-06-17T00:00:00.000Z',
+          }}
+        />,
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(scrollToMock).toHaveBeenCalledWith(expect.objectContaining({ top: 420 }))
+      expect(screen.getByRole('button', { name: 'Scroll to latest' })).toBeTruthy()
+    } finally {
+      restoreMetrics()
+    }
+  })
+
+  it('persists live transcript scroll snapshots only after user scrolling when enabled', async () => {
+    const onScrollStateChange = vi.fn()
+    const restoreMetrics = stubPrototypeScrollMetrics({ clientHeight: 300, scrollHeight: 1200 })
+
+    try {
+      render(
+        <TranscriptRenderer
+          items={buildLiveTimeline(
+            createSnapshot({
+              events: [
+                {
+                  type: 'message.completed',
+                  messageId: 'assistant-1',
+                  content: 'Persist this position.',
+                  role: 'assistant',
+                },
+              ],
+            }),
+          )}
+          isLive
+          isLoading={false}
+          scrollContextKey="session-live-save"
+          scrollPersistenceEnabled
+          onScrollStateChange={onScrollStateChange}
+        />,
+      )
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 300))
+      })
+
+      expect(onScrollStateChange).not.toHaveBeenCalled()
+
+      const scrollRegion = screen.getByRole('region', {
+        name: 'Live transcript events',
+      })
+
+      await act(async () => {
+        scrollRegion.scrollTop = 240
+        fireEvent.scroll(scrollRegion)
+      })
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 300))
+      })
+
+      expect(onScrollStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 'session-live-save',
+          scrollTop: 240,
+          distanceFromBottom: 660,
+          isAtBottom: false,
+        }),
+      )
+    } finally {
+      restoreMetrics()
+    }
   })
 
   it('virtualizes large live transcripts instead of mounting every row', async () => {
@@ -1567,6 +1704,40 @@ describe('TranscriptRenderer (historical)', () => {
     ).toBeTruthy()
   })
 
+  it('restores saved historical transcript position when enabled', async () => {
+    const restoreMetrics = stubPrototypeScrollMetrics({ clientHeight: 300, scrollHeight: 1200 })
+
+    try {
+      render(
+        <TranscriptRenderer
+          items={buildHistoricalTimeline(createTranscript(80).entries)}
+          isLive={false}
+          isLoading={false}
+          scrollContextKey="session-history-restore"
+          scrollPersistenceEnabled
+          scrollRestoreState={{
+            sessionId: 'session-history-restore',
+            scrollTop: 420,
+            scrollHeight: 1200,
+            clientHeight: 300,
+            distanceFromBottom: 480,
+            isAtBottom: false,
+            updatedAt: '2026-06-17T00:00:00.000Z',
+          }}
+        />,
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(scrollToMock).toHaveBeenCalledWith(expect.objectContaining({ top: 420 }))
+      expect(screen.getByRole('button', { name: 'Scroll to latest' })).toBeTruthy()
+    } finally {
+      restoreMetrics()
+    }
+  })
+
   it('shows a floating jump-to-latest button when the historical transcript is scrolled away from the bottom', async () => {
     render(
       <TranscriptRenderer
@@ -1593,10 +1764,6 @@ describe('TranscriptRenderer (historical)', () => {
     await act(async () => {
       scrollRegion.scrollTop = 24
       fireEvent.scroll(scrollRegion)
-    })
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 200))
     })
 
     expect(screen.getByRole('button', { name: 'Scroll to latest' })).toBeTruthy()
@@ -1775,10 +1942,6 @@ describe('TranscriptRenderer (historical)', () => {
       fireEvent.scroll(scrollRegion)
     })
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 200))
-    })
-
     expect(screen.getByRole('button', { name: 'Scroll to latest' })).toBeTruthy()
   })
 
@@ -1826,6 +1989,7 @@ describe('TranscriptRenderer (historical)', () => {
     })
 
     expect(scrollToMock).toHaveBeenCalledWith(expect.objectContaining({ top: expect.any(Number) }))
+    expect(screen.getByRole('region', { name: 'Transcript messages' })).toBeTruthy()
   })
 
   it('suspends bottom-pinning and shows the jump button when opening at a search target', async () => {

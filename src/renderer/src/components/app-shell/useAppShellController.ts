@@ -91,6 +91,7 @@ export function useAppShellController({
     pluginHostStore,
     sessionStore,
     transcriptStore,
+    uiStore,
     updateStore,
     onSelectSession: handleSelectSession,
   })

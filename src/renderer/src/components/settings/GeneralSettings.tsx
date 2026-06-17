@@ -10,6 +10,9 @@ export function GeneralSettings() {
   const isContextPanelHidden = useValue(uiStore.state$.isContextPanelHidden)
   const composerContextUsageDisplayMode = useValue(uiStore.state$.composerContextUsageDisplayMode)
   const childSessionVisibilityMode = useValue(uiStore.state$.childSessionVisibilityMode)
+  const persistTranscriptScrollPerSession = useValue(
+    uiStore.state$.persistTranscriptScrollPerSession,
+  )
   const factoryDefaultSettings = useValue(foundationStore.state$.foundation.factoryDefaultSettings)
   const defaultRows = buildFactoryDefaultRows(factoryDefaultSettings)
 
@@ -89,6 +92,19 @@ export function GeneralSettings() {
               { value: 'never', label: 'Never' },
             ]}
             onChange={uiStore.setChildSessionVisibilityMode}
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          label="Remember transcript position"
+          description="Restore each session to the transcript position you last viewed."
+        >
+          <ToggleSwitch
+            checked={persistTranscriptScrollPerSession}
+            onChange={() =>
+              uiStore.setPersistTranscriptScrollPerSession(!persistTranscriptScrollPerSession)
+            }
+            label="Remember transcript position"
           />
         </SettingsRow>
       </div>

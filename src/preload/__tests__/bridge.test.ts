@@ -139,6 +139,33 @@ describe('createOxoxBridge', () => {
     ])
   })
 
+  it('exposes transcript scroll state persistence through the typed bridge', async () => {
+    const invoke = vi.fn().mockResolvedValue(null)
+    const bridge = createOxoxBridge(invoke)
+
+    await bridge.transcript.getScrollState('session-scroll')
+    await bridge.transcript.setScrollState({
+      sessionId: 'session-scroll',
+      scrollTop: 120,
+      scrollHeight: 900,
+      clientHeight: 300,
+      distanceFromBottom: 480,
+      isAtBottom: false,
+      updatedAt: '2026-06-17T00:00:00.000Z',
+    })
+
+    expect(invoke).toHaveBeenNthCalledWith(
+      1,
+      IPC_CHANNELS.transcriptGetScrollState,
+      'session-scroll',
+    )
+    expect(invoke).toHaveBeenNthCalledWith(
+      2,
+      IPC_CHANNELS.transcriptSetScrollState,
+      expect.objectContaining({ sessionId: 'session-scroll', scrollTop: 120 }),
+    )
+  })
+
   it('exposes Factory REST APIs through a typed bridge group', async () => {
     const invoke = vi.fn().mockResolvedValue({})
     const bridge = createOxoxBridge(invoke)

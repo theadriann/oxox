@@ -7,6 +7,7 @@ import {
   useSessionStore,
   useTranscriptStore,
   useTransportStore,
+  useUIStore,
 } from '../../state/root/store-provider'
 import { useOptionalAppShellControllerContext } from './AppShellControllerContext'
 import { buildDetailPanelConnectedProps } from './connectedSelectors'
@@ -38,6 +39,7 @@ export function DetailPanelConnected({
   const sessionStore = useSessionStore()
   const transcriptStore = useTranscriptStore()
   const transportStore = useTransportStore()
+  const uiStore = useUIStore()
   const controller = useOptionalAppShellControllerContext()
   const resolvedNewSessionForm = newSessionForm ?? controller?.newSessionForm
   const resolvedTranscriptScrollSignal =
@@ -71,6 +73,7 @@ export function DetailPanelConnected({
       transcriptScrollSignal: resolvedTranscriptScrollSignal,
       transcriptStore,
       transportStore,
+      uiStore,
     }),
   )
   const handleResolvePermissionRequest = useCallback(
@@ -97,6 +100,16 @@ export function DetailPanelConnected({
     },
     [composerStore],
   )
+  const handleTranscriptScrollStateChange = useCallback(
+    (state: Parameters<typeof transcriptStore.saveScrollState>[0]) => {
+      if (!uiStore.state$.persistTranscriptScrollPerSession.peek()) {
+        return
+      }
+
+      transcriptStore.saveScrollState(state)
+    },
+    [transcriptStore, uiStore],
+  )
 
   return (
     <DetailPanel
@@ -104,6 +117,7 @@ export function DetailPanelConnected({
       onResolvePermissionRequest={handleResolvePermissionRequest}
       onSubmitAskUserResponse={handleSubmitAskUserResponse}
       onForkFromMessage={handleForkFromMessage}
+      onTranscriptScrollStateChange={handleTranscriptScrollStateChange}
     />
   )
 }

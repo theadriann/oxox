@@ -192,6 +192,11 @@ export class UIStore {
     this.persist()
   }
 
+  setPersistTranscriptScrollPerSession = (enabled: boolean): void => {
+    this.state$.persistTranscriptScrollPerSession.set(enabled)
+    this.persist()
+  }
+
   isProjectCollapsed = (projectKey: string): boolean => {
     return this.state$.collapsedProjectKeys.get().includes(projectKey)
   }
@@ -247,6 +252,7 @@ export class UIStore {
         childSessionVisibilityMode: parseChildSessionVisibilityMode(
           nextState.childSessionVisibilityMode,
         ),
+        persistTranscriptScrollPerSession: nextState.persistTranscriptScrollPerSession === true,
       })
     })
   }
@@ -264,6 +270,7 @@ export class UIStore {
       contentLayout: current.contentLayout,
       composerContextUsageDisplayMode: current.composerContextUsageDisplayMode,
       childSessionVisibilityMode: current.childSessionVisibilityMode,
+      persistTranscriptScrollPerSession: current.persistTranscriptScrollPerSession,
     }
 
     this.persistence.set(getSidebarStateStorageKey(), state)
@@ -313,6 +320,10 @@ function readPersistedSidebarState(persistence: PersistencePort): PersistedSideb
       contentLayout: parsed.contentLayout,
       composerContextUsageDisplayMode: parsed.composerContextUsageDisplayMode,
       childSessionVisibilityMode: parsed.childSessionVisibilityMode,
+      persistTranscriptScrollPerSession:
+        typeof parsed.persistTranscriptScrollPerSession === 'boolean'
+          ? parsed.persistTranscriptScrollPerSession
+          : undefined,
       collapsedProjectKeys: Array.isArray(parsed.collapsedProjectKeys)
         ? parsed.collapsedProjectKeys.filter((value): value is string => typeof value === 'string')
         : [],

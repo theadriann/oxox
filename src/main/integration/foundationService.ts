@@ -39,6 +39,7 @@ import type {
   SessionSearchRequest,
   SessionSearchResponse,
   SessionTranscript,
+  SessionTranscriptScrollState,
   SyncMetadataRecord,
   WorkspaceFileContentRequest,
   WorkspaceFileContentResponse,
@@ -191,6 +192,8 @@ export interface FoundationService {
   pushGitBranch: (request: GitPushRequest) => Promise<GitActionResponse>
   createGitPullRequest: (request: CreatePullRequestRequest) => Promise<CreatePullRequestResponse>
   getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
+  getSessionTranscriptScrollState: (sessionId: string) => SessionTranscriptScrollState | null
+  setSessionTranscriptScrollState: (state: SessionTranscriptScrollState) => void
   searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
   getSearchIndexingProgress: () => SessionSearchIndexingProgress
   subscribeToFoundationUpdates: (
@@ -610,6 +613,8 @@ export function createFoundationService(
     pushGitBranch,
     createGitPullRequest,
     getSessionTranscript: queries.getSessionTranscript,
+    getSessionTranscriptScrollState: queries.getSessionTranscriptScrollState,
+    setSessionTranscriptScrollState: queries.setSessionTranscriptScrollState,
     searchSessions: searchService.searchSessions,
     getSearchIndexingProgress: searchHydrator.getIndexingProgress,
     subscribeToFoundationUpdates: (listener) => {

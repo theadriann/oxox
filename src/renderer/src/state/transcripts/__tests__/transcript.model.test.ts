@@ -107,4 +107,42 @@ describe('TranscriptStore', () => {
     expect(store.transcriptForSession('session-3')).toBeNull()
     expect(store.refreshErrorForSession('session-3')).toBe('Transcript bridge unavailable.')
   })
+
+  it('loads and saves persisted scroll state by session', async () => {
+    const loadScrollState = vi.fn().mockResolvedValue({
+      sessionId: 'session-scroll',
+      scrollTop: 120,
+      scrollHeight: 900,
+      clientHeight: 300,
+      distanceFromBottom: 480,
+      isAtBottom: false,
+      updatedAt: '2026-06-17T00:00:00.000Z',
+    })
+    const saveScrollState = vi.fn().mockResolvedValue(undefined)
+    const store = new TranscriptStore(vi.fn(), loadScrollState, saveScrollState)
+
+    await store.loadScrollState('session-scroll')
+
+    expect(loadScrollState).toHaveBeenCalledWith('session-scroll')
+    expect(store.scrollStateForSession('session-scroll')).toMatchObject({
+      scrollTop: 120,
+    })
+
+    store.saveScrollState({
+      sessionId: 'session-scroll',
+      scrollTop: 240,
+      scrollHeight: 900,
+      clientHeight: 300,
+      distanceFromBottom: 360,
+      isAtBottom: false,
+      updatedAt: '2026-06-17T00:00:01.000Z',
+    })
+
+    expect(store.scrollStateForSession('session-scroll')).toMatchObject({
+      scrollTop: 240,
+    })
+    expect(saveScrollState).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-scroll', scrollTop: 240 }),
+    )
+  })
 })

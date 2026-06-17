@@ -146,6 +146,7 @@ describe('useAppShellController', () => {
       rootStore: stores.rootStore,
       sessionStore: stores.sessionStore,
       transcriptStore: stores.transcriptStore,
+      uiStore: stores.uiStore,
       updateStore: stores.updateStore,
     })
     expect(useCommandPaletteMock).toHaveBeenCalledWith(

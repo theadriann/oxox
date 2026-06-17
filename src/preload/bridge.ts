@@ -41,6 +41,7 @@ import type {
   SessionSearchRequest,
   SessionSearchResponse,
   SessionTranscript,
+  SessionTranscriptScrollState,
   SyncMetadataRecord,
   WorkspaceFileContentResponse,
   WorkspaceFilesListResponse,
@@ -257,6 +258,14 @@ export function createOxoxBridge(
           IPC_CHANNELS.transcriptGetSessionTranscript,
           sessionId,
         ),
+      getScrollState: (sessionId) =>
+        invokeTyped<SessionTranscriptScrollState | null>(
+          invoke,
+          IPC_CHANNELS.transcriptGetScrollState,
+          sessionId,
+        ),
+      setScrollState: (state) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.transcriptSetScrollState, state),
     },
     search: {
       sessions: (request: SessionSearchRequest) =>

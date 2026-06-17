@@ -7,6 +7,7 @@ import type {
   LiveSessionSnapshot,
   SessionSearchTarget,
   SessionTranscript,
+  SessionTranscriptScrollState,
 } from '../../../../shared/ipc/contracts'
 import type { SessionPreview } from '../../state/sessions/session.model'
 import { buildHistoricalTimeline } from '../transcript/buildHistoricalTimeline'
@@ -40,6 +41,8 @@ export interface DetailPanelProps {
   newSessionError: string | null
   transcriptScrollSignal: number
   transcriptSearchTarget: SessionSearchTarget | null
+  transcriptScrollPersistenceEnabled: boolean
+  transcriptScrollState: SessionTranscriptScrollState | null | undefined
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
@@ -48,6 +51,7 @@ export interface DetailPanelProps {
   onRefreshFoundation: () => void
   onRetrySelectedTranscript: () => void
   onBrowseSessions: () => void
+  onTranscriptScrollStateChange: (state: SessionTranscriptScrollState) => void
   onResolvePermissionRequest: (payload: { requestId: string; selectedOption: string }) => void
   onSubmitAskUserResponse: (payload: {
     requestId: string
@@ -74,6 +78,8 @@ export function DetailPanel({
   newSessionError,
   transcriptScrollSignal,
   transcriptSearchTarget,
+  transcriptScrollPersistenceEnabled,
+  transcriptScrollState,
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
   transcriptPrimaryActionRef,
@@ -82,6 +88,7 @@ export function DetailPanel({
   onRefreshFoundation,
   onRetrySelectedTranscript,
   onBrowseSessions,
+  onTranscriptScrollStateChange,
   onResolvePermissionRequest,
   onSubmitAskUserResponse,
   onForkFromMessage,
@@ -229,11 +236,14 @@ export function DetailPanel({
         transcriptPrimaryActionRef={transcriptPrimaryActionRef}
         transcriptSearchTarget={transcriptSearchTarget}
         transcriptScrollSignal={transcriptScrollSignal}
+        transcriptScrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
+        transcriptScrollState={transcriptScrollState}
         pendingPermissionRequestIds={pendingPermissionRequestIds}
         pendingAskUserRequestIds={pendingAskUserRequestIds}
         onResolvePermissionRequest={onResolvePermissionRequest}
         onSubmitAskUserResponse={onSubmitAskUserResponse}
         onForkFromMessage={onForkFromMessage}
+        onTranscriptScrollStateChange={onTranscriptScrollStateChange}
       />
     )
   }
@@ -298,10 +308,13 @@ export function DetailPanel({
       transcriptPrimaryActionRef={transcriptPrimaryActionRef}
       transcriptSearchTarget={transcriptSearchTarget}
       transcriptScrollSignal={transcriptScrollSignal}
+      transcriptScrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
+      transcriptScrollState={transcriptScrollState}
       isRefreshing={isRefreshingTranscript}
       refreshError={selectedTranscriptRefreshError}
       onRetry={onRetrySelectedTranscript}
       onForkFromMessage={onForkFromMessage}
+      onTranscriptScrollStateChange={onTranscriptScrollStateChange}
     />
   )
 }
@@ -312,17 +325,22 @@ function LiveSessionTranscriptView({
   transcriptPrimaryActionRef,
   transcriptSearchTarget,
   transcriptScrollSignal,
+  transcriptScrollPersistenceEnabled,
+  transcriptScrollState,
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
   onResolvePermissionRequest,
   onSubmitAskUserResponse,
   onForkFromMessage,
+  onTranscriptScrollStateChange,
 }: {
   sessionId: string
   items: TimelineItem[]
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
   transcriptSearchTarget: SessionSearchTarget | null
   transcriptScrollSignal: number
+  transcriptScrollPersistenceEnabled: boolean
+  transcriptScrollState: SessionTranscriptScrollState | null | undefined
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
   onResolvePermissionRequest: (payload: { requestId: string; selectedOption: string }) => void
@@ -331,6 +349,7 @@ function LiveSessionTranscriptView({
     answers: LiveSessionAskUserAnswerRecord[]
   }) => void
   onForkFromMessage?: (messageId: string) => void
+  onTranscriptScrollStateChange: (state: SessionTranscriptScrollState) => void
 }) {
   return (
     <TranscriptRenderer
@@ -340,12 +359,15 @@ function LiveSessionTranscriptView({
       isLoading={false}
       searchTarget={transcriptSearchTarget}
       scrollToBottomSignal={transcriptScrollSignal}
+      scrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
+      scrollRestoreState={transcriptScrollState}
       primaryActionRef={transcriptPrimaryActionRef}
       pendingPermissionRequestIds={pendingPermissionRequestIds}
       pendingAskUserRequestIds={pendingAskUserRequestIds}
       onResolvePermissionRequest={onResolvePermissionRequest}
       onSubmitAskUserResponse={onSubmitAskUserResponse}
       onForkFromMessage={onForkFromMessage}
+      onScrollStateChange={onTranscriptScrollStateChange}
     />
   )
 }
@@ -356,20 +378,26 @@ function HistoricalTranscriptView({
   transcriptPrimaryActionRef,
   transcriptSearchTarget,
   transcriptScrollSignal,
+  transcriptScrollPersistenceEnabled,
+  transcriptScrollState,
   isRefreshing,
   refreshError,
   onRetry,
   onForkFromMessage,
+  onTranscriptScrollStateChange,
 }: {
   transcript: SessionTranscript | null
   sessionId: string
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
   transcriptSearchTarget: SessionSearchTarget | null
   transcriptScrollSignal: number
+  transcriptScrollPersistenceEnabled: boolean
+  transcriptScrollState: SessionTranscriptScrollState | null | undefined
   isRefreshing: boolean
   refreshError: string | null
   onRetry: () => void
   onForkFromMessage?: (messageId: string) => void
+  onTranscriptScrollStateChange: (state: SessionTranscriptScrollState) => void
 }) {
   const items = useMemo(() => buildHistoricalTimeline(transcript?.entries ?? []), [transcript])
 
@@ -382,8 +410,11 @@ function HistoricalTranscriptView({
       loadingError={refreshError}
       searchTarget={transcriptSearchTarget}
       scrollToBottomSignal={transcriptScrollSignal}
+      scrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
+      scrollRestoreState={transcriptScrollState}
       primaryActionRef={transcriptPrimaryActionRef}
       onForkFromMessage={onForkFromMessage}
+      onScrollStateChange={onTranscriptScrollStateChange}
       onRetry={onRetry}
     />
   )

@@ -223,6 +223,12 @@ export function registerAppIpcHandlers({
     [IPC_CHANNELS.sessionSearchIndexingProgress]: () => service.getSearchIndexingProgress(),
     [IPC_CHANNELS.transcriptGetSessionTranscript]: (_event, sessionId: string) =>
       service.getSessionTranscript(sessionId),
+    [IPC_CHANNELS.transcriptGetScrollState]: (_event, sessionId: string) =>
+      service.getSessionTranscriptScrollState(sessionId),
+    [IPC_CHANNELS.transcriptSetScrollState]: (
+      _event,
+      state: Parameters<FoundationService['setSessionTranscriptScrollState']>[0],
+    ) => service.setSessionTranscriptScrollState(state),
     [IPC_CHANNELS.sessionCreate]: async (
       event: IpcInvokeEventLike,
       request: LiveSessionCreateRequest,
