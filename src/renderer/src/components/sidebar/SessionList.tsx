@@ -693,7 +693,7 @@ const FolderHeader = ({
   if (item.isEditing) {
     return (
       <div
-        className="group/folder ox-sidebar-row flex items-center gap-1 rounded-lg px-2 py-1 text-fd-secondary transition-colors hover:bg-white/[0.03]"
+        className="group/folder ox-sidebar-row flex items-center gap-1 rounded-lg px-2 text-fd-secondary transition-colors hover:bg-white/[0.03]"
         style={{ paddingLeft: 16 + item.depth * 14 }}
       >
         <FolderOpen className="size-3.5 shrink-0 text-fd-tertiary" />
@@ -740,7 +740,7 @@ const FolderHeader = ({
 
   return (
     <div
-      className="group/folder ox-sidebar-row flex items-center rounded-lg px-2 py-1 text-fd-secondary transition-colors hover:bg-white/[0.03]"
+      className="group/folder ox-sidebar-row flex items-center rounded-lg px-2 text-fd-secondary transition-colors hover:bg-white/[0.03]"
       style={{ paddingLeft: 16 + item.depth * 14 }}
     >
       <button
@@ -763,7 +763,6 @@ const FolderHeader = ({
           <FolderOpen className="size-3.5 shrink-0 text-fd-tertiary" />
         )}
         <span className="min-w-0 flex-1 truncate text-[12px]">{item.name}</span>
-        <span className="text-[10px] tabular-nums text-fd-tertiary">{item.sessionCount}</span>
       </button>
       <button
         aria-label={`Create session in ${item.name}`}
@@ -810,6 +809,9 @@ const FolderHeader = ({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      <div className="flex items-center gap-1 group-hover/folder:hidden">
+        <span className="text-[10px] tabular-nums text-fd-tertiary">{item.sessionCount}</span>
+      </div>
     </div>
   )
 }
