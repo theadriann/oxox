@@ -149,7 +149,7 @@ export function ProjectGroup({
           />
           <HugeiconsIcon
             icon={collapsed ? Folder01Icon : Folder02Icon}
-            className="size-3.5 shrink-0 text-fd-ember-300/80"
+            className="size-3.5 shrink-0 text-fd-tertiary"
           />
           <div className="min-w-0 flex-1">
             <Tooltip>
