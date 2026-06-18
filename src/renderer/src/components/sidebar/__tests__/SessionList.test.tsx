@@ -160,6 +160,76 @@ describe('SessionList', () => {
     ])
   })
 
+  it('includes folder-assigned sessions beyond the project overflow limit by default', () => {
+    const store = new SessionSidebarStore()
+    const looseSessions = Array.from({ length: 6 }, (_, index) => ({
+      ...createSession(`session-loose-${index + 1}`),
+      title: `Loose ${index + 1}`,
+      lastActivityTimestamp: Date.parse(`2026-03-24T23:0${5 - index}:00.000Z`),
+    }))
+    const folderedSession = {
+      ...createSession('session-foldered'),
+      title: 'Foldered beyond overflow',
+      lastActivityTimestamp: Date.parse('2026-03-24T22:00:00.000Z'),
+    }
+
+    const flatItems = buildFlatItems({
+      pinnedSessions: [],
+      groups: [
+        {
+          key: 'project-alpha',
+          label: 'project-alpha',
+          workspacePath: '/tmp/project-alpha',
+          latestActivityAt: looseSessions[0]?.lastActivityTimestamp ?? 0,
+          sessions: [...looseSessions, folderedSession],
+        },
+      ],
+      sessionFolders: [
+        {
+          id: 'folder-feature',
+          projectKey: 'project-alpha',
+          name: 'Feature',
+          parentFolderId: null,
+          createdAt: '2026-03-24T00:00:00.000Z',
+          updatedAt: '2026-03-24T00:00:00.000Z',
+          order: 0,
+        },
+      ],
+      sessionFolderAssignments: {
+        'session-foldered': 'folder-feature',
+      },
+      isFiltering: false,
+      isLoading: false,
+      hasError: false,
+      editingProjectKey: null,
+      editingFolderId: null,
+      isProjectCollapsed: () => false,
+      isFolderCollapsed: () => false,
+      store,
+    })
+
+    expect(
+      flatItems.map((item) =>
+        item.kind === 'session'
+          ? item.sessionId
+          : item.kind === 'folder-header'
+            ? `${item.name}:${item.sessionCount}`
+            : item.kind === 'show-more'
+              ? `show-more:${item.remainingCount}`
+              : item.kind,
+      ),
+    ).toEqual([
+      'project-header',
+      'Feature:1',
+      'session-foldered',
+      'session-loose-1',
+      'session-loose-2',
+      'session-loose-3',
+      'session-loose-4',
+      'session-loose-5',
+      'show-more:1',
+    ])
+  })
   it('hides folder descendants when a folder is collapsed', () => {
     const store = new SessionSidebarStore()
     const flatItems = buildFlatItems({

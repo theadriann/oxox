@@ -428,7 +428,11 @@ export function buildFlatItems({
     if (!isFiltering) {
       const revealLimit = store.getRevealLimit(group.key, SESSION_OVERFLOW_LIMIT)
       const remaining =
-        group.sessions.filter((session) => !isNestedChildSession(session)).length - revealLimit
+        countLooseProjectRootSessions({
+          group,
+          sessionFolders,
+          sessionFolderAssignments,
+        }) - revealLimit
       if (remaining > 0) {
         items.push({
           kind: 'show-more',
@@ -520,13 +524,10 @@ function buildProjectTreeRows({
     rootSessions.push(session)
   }
 
-  const visibleRootSessions = isFiltering
-    ? rootSessions
-    : rootSessions.slice(0, store.getRevealLimit(group.key, SESSION_OVERFLOW_LIMIT))
   const rootSessionsByFolderId = new Map<string, SessionPreview[]>()
   const looseRootSessions: SessionPreview[] = []
 
-  for (const session of visibleRootSessions) {
+  for (const session of rootSessions) {
     const folderId = sessionFolderAssignments[session.id]
     if (folderId && projectFolderIds.has(folderId)) {
       rootSessionsByFolderId.set(folderId, [
@@ -538,6 +539,9 @@ function buildProjectTreeRows({
 
     looseRootSessions.push(session)
   }
+  const visibleLooseRootSessions = isFiltering
+    ? looseRootSessions
+    : looseRootSessions.slice(0, store.getRevealLimit(group.key, SESSION_OVERFLOW_LIMIT))
 
   const rows: ProjectTreeRow[] = []
   const appendSession = (session: SessionPreview, depth: number, focusPrefix: string) => {
@@ -577,11 +581,34 @@ function buildProjectTreeRows({
     appendFolder(folder, 0)
   }
 
-  for (const session of looseRootSessions) {
+  for (const session of visibleLooseRootSessions) {
     appendSession(session, 0, `project:${group.key}`)
   }
 
   return rows
+}
+
+function countLooseProjectRootSessions({
+  group,
+  sessionFolders,
+  sessionFolderAssignments,
+}: {
+  group: ProjectSessionGroup
+  sessionFolders: SessionFolder[]
+  sessionFolderAssignments: Record<string, string>
+}): number {
+  const projectFolderIds = new Set(
+    sessionFolders.filter((folder) => folder.projectKey === group.key).map((folder) => folder.id),
+  )
+
+  return group.sessions.filter((session) => {
+    if (isNestedChildSession(session)) {
+      return false
+    }
+
+    const folderId = sessionFolderAssignments[session.id]
+    return !folderId || !projectFolderIds.has(folderId)
+  }).length
 }
 
 function compareFolders(left: SessionFolder, right: SessionFolder): number {
