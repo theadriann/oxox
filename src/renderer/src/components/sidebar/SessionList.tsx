@@ -28,6 +28,8 @@ import {
 import { ProjectGroup, type ProjectGroupHeader } from './ProjectGroup'
 import { SessionItem } from './SessionItem'
 import type { RenderedSessionItem, SessionSidebarStore } from './SessionSidebarStore'
+import { PencilEdit02Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 
 export const SESSION_OVERFLOW_LIMIT = 5
 export const SESSION_REVEAL_BATCH = 10
@@ -764,14 +766,6 @@ const FolderHeader = ({
         )}
         <span className="min-w-0 flex-1 truncate text-[12px]">{item.name}</span>
       </button>
-      <button
-        aria-label={`Create session in ${item.name}`}
-        className="ox-icon-button ml-1 inline-flex size-6 items-center justify-center opacity-0 transition-all group-hover/folder:opacity-100"
-        type="button"
-        onClick={() => onNewSession(item.workspacePath ?? undefined, item.folderId)}
-      >
-        <Plus className="size-3.5" />
-      </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -809,6 +803,14 @@ const FolderHeader = ({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      <button
+        aria-label={`Create session in ${item.name}`}
+        className="ox-icon-button ml-1 inline-flex size-6 items-center justify-center opacity-0 transition-all group-hover/folder:opacity-100"
+        type="button"
+        onClick={() => onNewSession(item.workspacePath ?? undefined, item.folderId)}
+      >
+        <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
+      </button>
       <div className="flex items-center gap-1 group-hover/folder:hidden">
         <span className="text-[10px] tabular-nums text-fd-tertiary">{item.sessionCount}</span>
       </div>
