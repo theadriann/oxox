@@ -34,6 +34,7 @@ import {
   deriveComposerPreferences,
   deriveDefaultComposerPreferences,
   type FactoryDefaults,
+  mergeComposerModelMetadata,
   persistComposerPreferences,
   readPersistedComposerPreferences,
   resolveReasoningEffort,
@@ -259,7 +260,10 @@ export class ComposerStore {
     const selectedSnapshot = this.liveSessionStore.selectedSnapshot
 
     return selectedSnapshot && selectedSnapshot.availableModels.length > 0
-      ? selectedSnapshot.availableModels
+      ? mergeComposerModelMetadata(
+          selectedSnapshot.availableModels,
+          this.foundationStore.factoryModels,
+        )
       : this.foundationStore.factoryModels
   }
 

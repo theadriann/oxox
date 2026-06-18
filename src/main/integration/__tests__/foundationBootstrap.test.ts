@@ -164,11 +164,15 @@ Model details:
           id: 'custom:claude-opus-4-6',
           name: 'Claude 4.6 Opus',
           provider: 'Claude',
+          supportedReasoningEfforts: ['off', 'low', 'medium', 'high', 'max'],
+          defaultReasoningEffort: 'high',
         },
         {
           id: 'custom:gpt-5.4(high)',
           name: 'GPT 5.4 (High)',
           provider: 'OpenAI',
+          supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+          defaultReasoningEffort: 'medium',
         },
       ],
       factoryDefaultSettings: {
@@ -250,7 +254,7 @@ Model details:
     })
   })
 
-  it('uses Droid CLI models and defaults without merging settings.json values', () => {
+  it('uses settings defaults when the settings model exists in Droid CLI models', () => {
     const tempDirectory = mkdtempSync(join(tmpdir(), 'oxox-bootstrap-'))
     const settingsPath = join(tempDirectory, 'settings.json')
     cleanupPaths.push(tempDirectory)
@@ -262,6 +266,7 @@ Model details:
         sessionDefaultSettings: {
           model: 'custom:gpt-5.4(high)',
           interactionMode: 'spec',
+          reasoningEffort: 'high',
         },
       }),
     )
@@ -281,20 +286,30 @@ Custom Models:
   custom:gpt-5.4(high)                    [OpenAI] GPT 5.4 (High)
 
 Model details:
+  - GPT-5.4: supports reasoning: Yes; supported: [low, medium, high, xhigh]; default: medium
 `),
       }),
     ).toEqual({
       factoryModels: [
         { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
-        { id: 'gpt-5.4', name: 'GPT-5.4' },
+        {
+          id: 'gpt-5.4',
+          name: 'GPT-5.4',
+          supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+          defaultReasoningEffort: 'medium',
+        },
         {
           id: 'custom:gpt-5.4(high)',
           name: 'GPT 5.4 (High)',
           provider: 'OpenAI',
+          supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+          defaultReasoningEffort: 'medium',
         },
       ],
       factoryDefaultSettings: {
-        model: 'claude-opus-4-6',
+        model: 'custom:gpt-5.4(high)',
+        interactionMode: 'spec',
+        reasoningEffort: 'high',
       },
     })
   })
@@ -357,6 +372,8 @@ Model details:
             id: 'claude-3.7',
             displayName: 'Claude 3.7 Sonnet',
             provider: 'anthropic',
+            supportedReasoningEfforts: ['low', 'medium', 'high'],
+            defaultReasoningEffort: 'high',
           },
         ],
       }),
@@ -374,6 +391,8 @@ Model details:
           id: 'claude-3.7',
           name: 'Claude 3.7 Sonnet',
           provider: 'anthropic',
+          supportedReasoningEfforts: ['low', 'medium', 'high'],
+          defaultReasoningEffort: 'high',
         },
       ],
       factoryDefaultSettings: {},

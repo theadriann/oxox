@@ -368,6 +368,44 @@ describe('ComposerStore', () => {
       reasoningEffort: 'medium',
     })
   })
+
+  it('enriches snapshot models with foundation reasoning metadata for historical sessions', () => {
+    const { composerStore } = createStores({
+      bootstrap: createBootstrap({
+        factoryModels: [
+          {
+            id: 'custom:[OpenAI]-GPT-5.5-0',
+            name: '[OpenAI] GPT 5.5',
+            supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+            defaultReasoningEffort: 'medium',
+          },
+        ],
+        factoryDefaultSettings: {
+          model: 'custom:[OpenAI]-GPT-5.5-0',
+          interactionMode: 'auto',
+          reasoningEffort: 'high',
+        },
+      }),
+      snapshot: createLiveSnapshot({
+        availableModels: [{ id: 'custom:[OpenAI]-GPT-5.5-0', name: '[OpenAI] GPT 5.5' }],
+        settings: {
+          modelId: 'custom:[OpenAI]-GPT-5.5-0',
+          interactionMode: 'auto',
+        },
+      }),
+    })
+
+    expect(composerStore.selectedPreferences).toMatchObject({
+      modelId: 'custom:[OpenAI]-GPT-5.5-0',
+      reasoningEffort: 'high',
+    })
+    expect(composerStore.selectedAvailableModels[0]).toMatchObject({
+      id: 'custom:[OpenAI]-GPT-5.5-0',
+      supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+      defaultReasoningEffort: 'medium',
+    })
+  })
+
   it('keeps context usage aligned with the live snapshot model until the snapshot updates', () => {
     const { composerStore } = createStores({
       bootstrap: createBootstrap({

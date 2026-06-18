@@ -357,7 +357,8 @@ function enrichModelWithDetails(
     Pick<LiveSessionModel, 'supportedReasoningEfforts' | 'defaultReasoningEffort'>
   >,
 ): LiveSessionModel {
-  const details = detailsByName.get(model.name)
+  const details =
+    detailsByName.get(model.name) ?? findModelDetailsByAlias(model.name, detailsByName)
 
   if (!details) {
     return model
@@ -372,6 +373,41 @@ function enrichModelWithDetails(
       ? { defaultReasoningEffort: details.defaultReasoningEffort }
       : {}),
   }
+}
+
+function findModelDetailsByAlias(
+  modelName: string,
+  detailsByName: Map<
+    string,
+    Pick<LiveSessionModel, 'supportedReasoningEfforts' | 'defaultReasoningEffort'>
+  >,
+): Pick<LiveSessionModel, 'supportedReasoningEfforts' | 'defaultReasoningEffort'> | undefined {
+  const modelSignature = toModelDetailSignature(modelName)
+
+  for (const [detailsName, details] of detailsByName) {
+    if (toModelDetailSignature(detailsName) === modelSignature) {
+      return details
+    }
+  }
+
+  return undefined
+}
+
+function toModelDetailSignature(value: string): string {
+  return value
+    .replace(/^\[[^\]]+\]\s*/, '')
+    .toLowerCase()
+    .replace(/[()]/g, ' ')
+    .split(/[^a-z0-9]+/)
+    .filter(
+      (token) =>
+        token.length > 0 &&
+        !['fast', 'high', 'low', 'max', 'medium', 'mode', 'off', 'thinking', 'verbose'].includes(
+          token,
+        ),
+    )
+    .sort()
+    .join('|')
 }
 
 function parseFactoryModels(value: unknown): LiveSessionModel[] {
@@ -397,9 +433,22 @@ function parseFactoryModels(value: unknown): LiveSessionModel[] {
         name,
         provider: toOptionalString(model.provider),
         maxContextLimit: toOptionalNumber(model.maxContextLimit),
+        ...parseReasoningMetadata(model),
       },
     ]
   })
+}
+
+function parseReasoningMetadata(
+  model: Record<string, unknown>,
+): Pick<LiveSessionModel, 'supportedReasoningEfforts' | 'defaultReasoningEffort'> {
+  const supportedReasoningEfforts = toOptionalStringArray(model.supportedReasoningEfforts)
+  const defaultReasoningEffort = toNonEmptyString(model.defaultReasoningEffort)
+
+  return {
+    ...(supportedReasoningEfforts ? { supportedReasoningEfforts } : {}),
+    ...(defaultReasoningEffort ? { defaultReasoningEffort } : {}),
+  }
 }
 
 function parseFactoryDefaultSettings(
@@ -545,23 +594,25 @@ function mergeSettingsBootstrapIntoCliBootstrap(
   settingsBootstrap: Pick<FoundationBootstrap, 'factoryModels' | 'factoryDefaultSettings'>,
   cliBootstrap: Pick<FoundationBootstrap, 'factoryModels' | 'factoryDefaultSettings'>,
 ): Pick<FoundationBootstrap, 'factoryModels' | 'factoryDefaultSettings'> {
-  const settingsModelsById = new Map(
-    settingsBootstrap.factoryModels.map((model) => [model.id, model] as const),
+  const factoryModels = mergeModelMetadata(
+    cliBootstrap.factoryModels,
+    settingsBootstrap.factoryModels,
   )
+  const settingsModel = settingsBootstrap.factoryDefaultSettings.model
+  const settingsModelExists =
+    typeof settingsModel === 'string' && factoryModels.some((model) => model.id === settingsModel)
 
   return {
-    factoryModels: cliBootstrap.factoryModels.map((model) => {
-      const settingsModel = settingsModelsById.get(model.id)
-
-      return {
-        ...model,
-        ...(typeof settingsModel?.maxContextLimit === 'number'
-          ? { maxContextLimit: settingsModel.maxContextLimit }
-          : {}),
-      }
-    }),
+    factoryModels,
     factoryDefaultSettings: {
       ...cliBootstrap.factoryDefaultSettings,
+      ...(settingsModelExists ? { model: settingsModel } : {}),
+      ...(settingsModelExists &&
+      typeof settingsBootstrap.factoryDefaultSettings.interactionMode === 'string'
+        ? {
+            interactionMode: settingsBootstrap.factoryDefaultSettings.interactionMode,
+          }
+        : {}),
       ...(typeof settingsBootstrap.factoryDefaultSettings.reasoningEffort === 'string'
         ? {
             reasoningEffort: settingsBootstrap.factoryDefaultSettings.reasoningEffort,
@@ -615,6 +666,12 @@ function mergeModelMetadata(
       ...model,
       ...(typeof fallbackModel?.maxContextLimit === 'number'
         ? { maxContextLimit: fallbackModel.maxContextLimit }
+        : {}),
+      ...(fallbackModel?.supportedReasoningEfforts
+        ? { supportedReasoningEfforts: [...fallbackModel.supportedReasoningEfforts] }
+        : {}),
+      ...(fallbackModel?.defaultReasoningEffort
+        ? { defaultReasoningEffort: fallbackModel.defaultReasoningEffort }
         : {}),
     }
   })

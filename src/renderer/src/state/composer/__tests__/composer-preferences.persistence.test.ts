@@ -114,6 +114,35 @@ describe('deriveDefaultComposerPreferences', () => {
     expect(prefs.modelId).toBe('gpt-5.4')
     expect(prefs.reasoningEffort).toBe('medium')
   })
+
+  it('uses settings default model and high reasoning when supported by a custom model', () => {
+    const bootstrap = createBootstrap({
+      factoryDefaultSettings: {
+        model: 'custom:[OpenAI]-GPT-5.5-0',
+        interactionMode: 'auto',
+        reasoningEffort: 'high',
+      },
+      factoryModels: [
+        {
+          id: 'custom:[OpenAI]-GPT-5.5-0',
+          name: '[OpenAI] GPT 5.5',
+          supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+          defaultReasoningEffort: 'medium',
+        },
+      ],
+    })
+    const prefs = deriveDefaultComposerPreferences(
+      bootstrap.factoryDefaultSettings,
+      bootstrap.factoryModels,
+    )
+
+    expect(prefs).toEqual({
+      modelId: 'custom:[OpenAI]-GPT-5.5-0',
+      interactionMode: 'auto',
+      reasoningEffort: 'high',
+      autonomyLevel: 'medium',
+    })
+  })
 })
 
 describe('deriveComposerPreferences', () => {

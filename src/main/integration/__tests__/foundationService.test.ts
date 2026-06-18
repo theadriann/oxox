@@ -136,7 +136,7 @@ Model details:
 })
 
 describe('readFoundationBootstrap', () => {
-  it('uses Droid CLI models and defaults without merging settings.json values', () => {
+  it('uses settings defaults when the settings model exists in Droid CLI models', () => {
     const tempDirectory = mkdtempSync(join(tmpdir(), 'oxox-bootstrap-'))
     const settingsPath = join(tempDirectory, 'settings.json')
     cleanupPaths.push(tempDirectory)
@@ -180,7 +180,8 @@ Model details:
         },
       ],
       factoryDefaultSettings: {
-        model: 'claude-opus-4-6',
+        model: 'custom:gpt-5.4(high)',
+        interactionMode: 'spec',
       },
     })
   })

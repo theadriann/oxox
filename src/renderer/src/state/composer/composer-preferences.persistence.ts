@@ -92,7 +92,7 @@ export function deriveComposerPreferences(
   const defaultPreferences = deriveDefaultComposerPreferences(factoryDefaultSettings, factoryModels)
   const persistedPreferences = sessionId ? persisted[sessionId] : undefined
   const availableModels = snapshot?.availableModels?.length
-    ? mergeModelLists(snapshot.availableModels, factoryModels)
+    ? mergeComposerModelLists(snapshot.availableModels, factoryModels)
     : factoryModels
   const modelId = firstNonEmptyString(
     persistedPreferences?.modelId,
@@ -147,7 +147,7 @@ export function resolveReasoningEffort(
   return firstNonEmptyString(selectedModel?.defaultReasoningEffort, supportedReasoningEfforts[0])
 }
 
-function mergeModelLists(
+export function mergeComposerModelLists(
   primaryModels: LiveSessionModel[],
   fallbackModels: LiveSessionModel[],
 ): LiveSessionModel[] {
@@ -168,6 +168,30 @@ function mergeModelLists(
   }
 
   return [...mergedModels.values()]
+}
+
+export function mergeComposerModelMetadata(
+  primaryModels: LiveSessionModel[],
+  fallbackModels: LiveSessionModel[],
+): LiveSessionModel[] {
+  const fallbackModelsById = new Map(fallbackModels.map((model) => [model.id, model] as const))
+
+  return primaryModels.map((model) => {
+    const fallbackModel = fallbackModelsById.get(model.id)
+
+    return {
+      ...model,
+      ...(fallbackModel?.supportedReasoningEfforts
+        ? { supportedReasoningEfforts: [...fallbackModel.supportedReasoningEfforts] }
+        : {}),
+      ...(fallbackModel?.defaultReasoningEffort
+        ? { defaultReasoningEffort: fallbackModel.defaultReasoningEffort }
+        : {}),
+      ...(typeof fallbackModel?.maxContextLimit === 'number'
+        ? { maxContextLimit: fallbackModel.maxContextLimit }
+        : {}),
+    }
+  })
 }
 
 function firstNonEmptyString(...values: Array<string | null | undefined>): string {
