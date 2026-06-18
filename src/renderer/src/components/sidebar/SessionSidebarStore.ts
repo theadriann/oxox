@@ -205,6 +205,13 @@ export class SessionSidebarStore {
     })
   }
 
+  revealAllSessions = (projectKey: string): void => {
+    batch(() => {
+      this.state$.projectRevealCounts[projectKey].set(Infinity)
+      this.addExpandedProjectKey(projectKey)
+    })
+  }
+
   collapseProjectSessions = (projectKey: string): void => {
     batch(() => {
       this.removeProjectRevealCount(projectKey)

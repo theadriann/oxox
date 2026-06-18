@@ -36,7 +36,7 @@ const VIRTUAL_ITEM_HEIGHT = {
   pinnedHeader: 28,
   projectHeader: 52,
   folderHeader: 30,
-  session: 38,
+  session: 30,
   showMore: 28,
   showLess: 28,
 } as const
@@ -280,6 +280,7 @@ export function SessionList({
                 groupLabel={item.groupLabel}
                 remainingCount={item.remainingCount}
                 onRevealMore={store.revealMoreSessions}
+                onRevealAll={store.revealAllSessions}
               />
             ) : item.kind === 'show-less' ? (
               <ShowLessButton
@@ -693,7 +694,7 @@ const FolderHeader = ({
     return (
       <div
         className="group/folder ox-sidebar-row flex items-center gap-1 rounded-lg px-2 py-1 text-fd-secondary transition-colors hover:bg-white/[0.03]"
-        style={{ paddingLeft: 8 + item.depth * 14 }}
+        style={{ paddingLeft: 16 + item.depth * 14 }}
       >
         <FolderOpen className="size-3.5 shrink-0 text-fd-ember-300/80" />
         <label className="sr-only" htmlFor={`folder-name-${item.folderId}`}>
@@ -740,7 +741,7 @@ const FolderHeader = ({
   return (
     <div
       className="group/folder ox-sidebar-row flex items-center rounded-lg px-2 py-1 text-fd-secondary transition-colors hover:bg-white/[0.03]"
-      style={{ paddingLeft: 8 + item.depth * 14 }}
+      style={{ paddingLeft: 16 + item.depth * 14 }}
     >
       <button
         className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md text-left"
@@ -837,23 +838,35 @@ const ShowMoreButton = ({
   groupLabel,
   remainingCount,
   onRevealMore,
+  onRevealAll,
 }: {
   groupKey: string
   groupLabel: string
   remainingCount: number
   onRevealMore: (key: string, batch: number) => void
+  onRevealAll: (key: string) => void
 }) => {
   return (
-    <button
-      aria-label={`Show more for ${groupLabel}`}
-      className="px-3 py-1.5 text-left text-[11px] text-fd-tertiary transition-colors hover:text-fd-primary"
-      type="button"
-      onClick={() => onRevealMore(groupKey, SESSION_REVEAL_BATCH)}
-    >
-      Show {Math.min(remainingCount, SESSION_REVEAL_BATCH)} more
-      {remainingCount > SESSION_REVEAL_BATCH ? ` of ${remainingCount}` : ''}
-      ...
-    </button>
+    <div className="flex items-center justify-between gap-1">
+      <button
+        aria-label={`Show more for ${groupLabel}`}
+        className="px-3 py-1.5 text-left text-[11px] text-fd-tertiary transition-colors hover:text-fd-primary"
+        type="button"
+        onClick={() => onRevealMore(groupKey, SESSION_REVEAL_BATCH)}
+      >
+        Show {Math.min(remainingCount, SESSION_REVEAL_BATCH)} more
+        {remainingCount > SESSION_REVEAL_BATCH ? ` of ${remainingCount}` : ''}
+        ...
+      </button>
+      <button
+        aria-label={`Show all sessions for ${groupLabel}`}
+        className="px-3 py-1.5 text-left text-[10px] text-fd-tertiary transition-colors hover:text-fd-primary"
+        type="button"
+        onClick={() => onRevealAll(groupKey)}
+      >
+        Show all
+      </button>
+    </div>
   )
 }
 

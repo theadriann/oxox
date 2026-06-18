@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 const STATUS_DOT: Record<string, string> = {
   active: 'bg-fd-session-active',
@@ -119,13 +120,13 @@ export const SessionItem = memo(function SessionItem({
     <ContextMenu>
       <ContextMenuTrigger
         className={`group/row ox-sidebar-row flex items-center rounded-lg transition-colors ${
-          isSelected ? 'bg-white/[0.05]' : 'hover:bg-white/[0.03]'
+          isSelected ? 'bg-white/[0.1]' : 'hover:bg-white/[0.03]'
         }`}
         data-selected={isSelected ? 'true' : 'false'}
       >
         <button
           ref={(element) => setSessionRef(focusKey, element)}
-          className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-1 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas"
+          className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-1 text-left"
           style={{ paddingLeft: indentPx }}
           type="button"
           draggable={!isDerivedChild}
@@ -142,24 +143,24 @@ export const SessionItem = memo(function SessionItem({
           <span className="min-w-0 flex-1 truncate text-[13px] text-fd-primary">{title}</span>
         </button>
 
-        <span className="shrink-0 pr-2 text-[11px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-menu-open=true]]/row:hidden">
-          {formatRelativeSessionTime(lastActivityAt ?? updatedAt, now)}
-        </span>
-
-        {transportLabel ? (
-          <span
-            className="mr-2 hidden shrink-0 rounded border border-fd-border-subtle px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-fd-tertiary group-hover/row:inline-flex group-has-[[data-menu-open=true]]/row:inline-flex"
-            title={`Session transport: ${transportLabel}`}
-          >
-            {transportLabel}
-          </span>
-        ) : null}
+        {/* {transportLabel ? (
+                    <span
+                        className="mr-2 hidden shrink-0 rounded border border-fd-border-subtle px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-fd-tertiary group-hover/row:inline-flex group-has-[[data-menu-open=true]]/row:inline-flex"
+                        title={`Session transport: ${transportLabel}`}
+                    >
+                        {transportLabel}
+                    </span>
+                ) : null} */}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               aria-label={`More actions for ${title}`}
-              className="ox-icon-button pointer-events-none mr-1 inline-flex size-6 shrink-0 items-center justify-center opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 data-[menu-open=true]:pointer-events-auto data-[menu-open=true]:opacity-100"
+              className={cn(
+                'ox-icon-button pointer-events-none mr-1 inline-flex size-6 shrink-0 items-center justify-center opacity-0',
+                'group-hover/row:pointer-events-auto group-hover/row:opacity-100',
+                // "data-[menu-open=true]:pointer-events-auto data-[menu-open=true]:opacity-100",
+              )}
               type="button"
             >
               <Ellipsis className="size-3.5" />
@@ -173,6 +174,10 @@ export const SessionItem = memo(function SessionItem({
             })}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <span className="shrink-0 pr-2 text-[10px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-menu-open=true]]/row:hidden">
+          {formatRelativeSessionTime(lastActivityAt ?? updatedAt, now)}
+        </span>
       </ContextMenuTrigger>
       <ContextMenuContent className="ox-overlay-panel min-w-[170px]">
         {renderSessionActionItems({

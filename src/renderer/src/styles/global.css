@@ -238,6 +238,10 @@
     transform: translateY(1px);
   }
 
+  .oxox-session-list {
+    padding-right: 0 !important;
+  }
+
   .ox-sidebar-row {
     border: 1px solid transparent;
     border-radius: var(--ox-radius-md);
@@ -252,10 +256,7 @@
   }
 
   .ox-sidebar-row[data-selected="true"] {
-    border-color: color-mix(in srgb, var(--ox-accent) 18%, transparent);
-    background:
-      linear-gradient(90deg, var(--ox-accent-soft), transparent 62%),
-      rgba(255, 255, 255, 0.035);
+    /* border-color: color-mix(in srgb, var(--ox-accent) 18%, transparent); */
   }
 
   .ox-user-bubble {

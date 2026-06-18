@@ -316,7 +316,7 @@ export function SessionSidebar({
 
         <div
           ref={scrollAreaRef}
-          className="flex-1 overflow-y-auto px-1 py-1"
+          className="flex-1 overflow-y-auto px-1 py-1 oxox-session-list"
           data-testid="session-sidebar-scroll-area"
         >
           <SidebarEmptyStates

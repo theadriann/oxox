@@ -18,6 +18,13 @@ import {
 } from '../ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import type { SessionSidebarStore } from './SessionSidebarStore'
+import { HugeiconsIcon } from '@hugeicons/react'
+import {
+  FolderOpenIcon,
+  PencilEdit02Icon,
+  Folder01Icon,
+  Folder02Icon,
+} from '@hugeicons/core-free-icons'
 
 export interface ProjectGroupHeader {
   key: string
@@ -128,7 +135,7 @@ export function ProjectGroup({
 
   return (
     <div className="group/header py-0.5" data-project-group={group.key}>
-      <div className="ox-sidebar-row flex w-full items-center gap-1 px-2 py-1.5">
+      <div className="ox-sidebar-row flex w-full items-center gap-1 px-2">
         <button
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fd-canvas"
           type="button"
@@ -140,36 +147,24 @@ export function ProjectGroup({
             className={`size-3.5 shrink-0 text-fd-tertiary transition-transform duration-150 ${collapsed ? '' : 'rotate-90'}`}
             aria-hidden="true"
           />
-          <div className="flex size-6 shrink-0 items-center justify-center rounded-md border border-fd-ember-400/15 bg-fd-ember-500/10 text-[10px] font-semibold text-fd-ember-300">
-            {group.label.charAt(0).toUpperCase()}
-          </div>
+          <HugeiconsIcon
+            icon={collapsed ? Folder01Icon : Folder02Icon}
+            className="size-3.5 shrink-0 text-fd-ember-300/80"
+          />
           <div className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-medium text-fd-secondary">
-              {group.label}
-            </span>
-            {group.workspacePath ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="block truncate text-[10px] text-fd-tertiary/70">
-                    {group.workspacePath}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-xs">
-                  <p className="break-all font-mono text-[11px]">{group.workspacePath}</p>
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="block truncate text-[12px] font-medium text-fd-secondary">
+                  {group.label}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p className="break-all font-mono text-[11px]">{group?.workspacePath || ''}</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </button>
         <span className="flex shrink-0 items-center gap-0.5">
-          <button
-            aria-label={`Create session in ${group.label}`}
-            className="ox-icon-button inline-flex size-6 items-center justify-center opacity-0 transition-all group-hover/header:opacity-100"
-            type="button"
-            onClick={() => onNewSession(group.workspacePath ?? undefined)}
-          >
-            <Plus className="size-3.5" />
-          </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -199,7 +194,15 @@ export function ProjectGroup({
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
-          <span className="min-w-[1.5rem] text-right text-[10px] tabular-nums text-fd-tertiary">
+          <button
+            aria-label={`Create session in ${group.label}`}
+            className="ox-icon-button inline-flex size-6 items-center justify-center opacity-0 transition-all group-hover/header:opacity-100"
+            type="button"
+            onClick={() => onNewSession(group.workspacePath ?? undefined)}
+          >
+            <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
+          </button>
+          <span className="group-hover/header:hidden min-w-[1.5rem] text-right text-[10px] tabular-nums text-fd-tertiary">
             {group.sessionCount}
           </span>
         </span>
