@@ -835,7 +835,7 @@ describe('renderer store providers and sidebar shell', () => {
     const moreBtn = screen.getByRole('button', { name: /More actions for project-alpha/i })
     await userEvent.click(moreBtn)
     await userEvent.click(await screen.findByRole('menuitem', { name: /Rename workspace/i }))
-    fireEvent.change(screen.getByLabelText(/Project display name for project-alpha/i), {
+    fireEvent.change(await screen.findByLabelText(/Project name/i), {
       target: { value: 'Factory Desktop' },
     })
     fireEvent.click(screen.getByRole('button', { name: /Save project name/i }))
@@ -1901,7 +1901,7 @@ describe('renderer store providers and sidebar shell', () => {
       .getAllByTitle('Background completion session')[0]
       ?.closest('div')
 
-    expect(selectedSidebarRow?.className).toContain('bg-white/[0.05]')
+    expect(selectedSidebarRow?.className).toContain('bg-white/[0.1]')
   })
 
   it('lets Tab move out of the sidebar without trapping focus', async () => {

@@ -2,6 +2,7 @@
 
 import { observable } from '@legendapp/state'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import type { SessionPreview } from '../../../state/sessions/session.model'
 import { TooltipProvider } from '../../ui/tooltip'
@@ -43,7 +44,6 @@ describe('SessionList', () => {
         workspacePath: '/tmp/project-alpha',
         sessionCount: 1,
         collapsed: false,
-        isEditing: false,
       },
       {
         kind: 'session',
@@ -66,7 +66,6 @@ describe('SessionList', () => {
           onToggleProject={vi.fn()}
           onToggleFolder={vi.fn()}
           onNewSession={vi.fn()}
-          onSetProjectDisplayName={vi.fn()}
           onSelectSession={vi.fn()}
           onTogglePinnedSession={vi.fn()}
           onSessionKeyDown={vi.fn()}
@@ -291,7 +290,6 @@ describe('SessionList', () => {
               workspacePath: '/tmp/project-alpha',
               sessionCount: 1,
               collapsed: false,
-              isEditing: false,
             },
             {
               kind: 'folder-header',
@@ -302,7 +300,6 @@ describe('SessionList', () => {
               depth: 0,
               collapsed: false,
               sessionCount: 0,
-              isEditing: false,
             },
             {
               kind: 'session',
@@ -320,7 +317,6 @@ describe('SessionList', () => {
           onToggleProject={vi.fn()}
           onToggleFolder={vi.fn()}
           onNewSession={vi.fn()}
-          onSetProjectDisplayName={vi.fn()}
           onSelectSession={vi.fn()}
           onTogglePinnedSession={vi.fn()}
           onMoveSessionToFolder={onMoveSessionToFolder}
@@ -336,13 +332,12 @@ describe('SessionList', () => {
     expect(onMoveSessionToFolder).toHaveBeenCalledWith('session-alpha', 'folder-feature')
   })
 
-  it('renames folders inline without relying on browser prompt', () => {
+  it('opens folder rename from the row menu without relying on browser prompt', async () => {
     const store = new SessionSidebarStore()
     const sessionRefs = new Map<string, HTMLButtonElement>()
     const scrollAreaRef = { current: document.createElement('div') }
     const sessionsById$ = observable<Record<string, SessionPreview>>({})
     const onRenameFolder = vi.fn()
-    store.startEditingFolder({ id: 'folder-feature', name: 'Feature' })
 
     render(
       <TooltipProvider>
@@ -357,7 +352,6 @@ describe('SessionList', () => {
               depth: 0,
               collapsed: false,
               sessionCount: 0,
-              isEditing: true,
             },
           ]}
           sessionsById$={sessionsById$}
@@ -369,7 +363,6 @@ describe('SessionList', () => {
           onToggleProject={vi.fn()}
           onToggleFolder={vi.fn()}
           onNewSession={vi.fn()}
-          onSetProjectDisplayName={vi.fn()}
           onSelectSession={vi.fn()}
           onTogglePinnedSession={vi.fn()}
           onRenameFolder={onRenameFolder}
@@ -379,15 +372,12 @@ describe('SessionList', () => {
       </TooltipProvider>,
     )
 
-    fireEvent.change(screen.getByRole('textbox', { name: /folder name for feature/i }), {
-      target: { value: 'Research' },
-    })
-    fireEvent.keyDown(screen.getByRole('textbox', { name: /folder name for feature/i }), {
-      key: 'Enter',
-    })
+    await userEvent.click(screen.getByRole('button', { name: /more actions for feature/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /rename folder/i }))
 
-    expect(onRenameFolder).toHaveBeenCalledWith('folder-feature', 'Research')
-    expect(store.editingFolderId).toBeNull()
+    expect(onRenameFolder).not.toHaveBeenCalled()
+    expect(store.folderRenameFolderId).toBe('folder-feature')
+    expect(store.folderRenameDraft).toBe('Feature')
   })
 })
 

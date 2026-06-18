@@ -130,7 +130,7 @@ describe('SessionItem', () => {
     expect(screen.getByTitle('Renamed alpha')).toBeTruthy()
   })
 
-  it('surfaces the session transport ownership', () => {
+  it('does not render session transport ownership for now', () => {
     const session$ = observable(
       createSessionPreview({
         transport: 'daemon',
@@ -154,10 +154,10 @@ describe('SessionItem', () => {
       />,
     )
 
-    expect(screen.getByTitle('Session transport: Daemon')).toBeTruthy()
+    expect(screen.queryByTitle('Session transport: Daemon')).toBeNull()
   })
 
-  it('distinguishes remote daemon sessions from local daemon sessions', () => {
+  it('does not render remote daemon transport ownership for now', () => {
     const session$ = observable(
       createSessionPreview({
         transport: 'daemon',
@@ -182,7 +182,7 @@ describe('SessionItem', () => {
       />,
     )
 
-    expect(screen.getByTitle('Session transport: Remote daemon')).toBeTruthy()
+    expect(screen.queryByTitle('Session transport: Remote daemon')).toBeNull()
   })
 
   it('does not indent forked sessions as child rows', () => {

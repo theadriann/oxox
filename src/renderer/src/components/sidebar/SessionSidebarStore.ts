@@ -30,35 +30,127 @@ export class SessionSidebarStore {
   }
 
   get editingProjectKey(): string | null {
-    return this.state$.editingProjectKey.get()
+    return this.projectRenameProjectKey
   }
 
   set editingProjectKey(value: string | null) {
-    this.state$.editingProjectKey.set(value)
+    this.state$.projectRenameProjectKey.set(value)
   }
 
   get draftProjectName(): string {
-    return this.state$.draftProjectName.get()
+    return this.projectRenameDraft
   }
 
   set draftProjectName(value: string) {
-    this.state$.draftProjectName.set(value)
+    this.projectRenameDraft = value
   }
 
   get editingFolderId(): string | null {
-    return this.state$.editingFolderId.get()
+    return this.folderRenameFolderId
   }
 
   set editingFolderId(value: string | null) {
-    this.state$.editingFolderId.set(value)
+    this.state$.folderRenameFolderId.set(value)
   }
 
   get draftFolderName(): string {
-    return this.state$.draftFolderName.get()
+    return this.folderRenameDraft
   }
 
   set draftFolderName(value: string) {
-    this.state$.draftFolderName.set(value)
+    this.folderRenameDraft = value
+  }
+
+  get projectRenameProjectKey(): string | null {
+    return this.state$.projectRenameProjectKey.get()
+  }
+
+  set projectRenameProjectKey(value: string | null) {
+    this.state$.projectRenameProjectKey.set(value)
+  }
+
+  get projectRenameLabel(): string {
+    return this.state$.projectRenameLabel.get()
+  }
+
+  set projectRenameLabel(value: string) {
+    this.state$.projectRenameLabel.set(value)
+  }
+
+  get projectRenameWorkspacePath(): string | null {
+    return this.state$.projectRenameWorkspacePath.get()
+  }
+
+  set projectRenameWorkspacePath(value: string | null) {
+    this.state$.projectRenameWorkspacePath.set(value)
+  }
+
+  get projectRenameDraft(): string {
+    return this.state$.projectRenameDraft.get()
+  }
+
+  set projectRenameDraft(value: string) {
+    this.state$.projectRenameDraft.set(value)
+  }
+
+  get isProjectRenameDialogOpen(): boolean {
+    return this.projectRenameProjectKey !== null
+  }
+
+  get folderCreateProjectKey(): string | null {
+    return this.state$.folderCreateProjectKey.get()
+  }
+
+  set folderCreateProjectKey(value: string | null) {
+    this.state$.folderCreateProjectKey.set(value)
+  }
+
+  get folderCreateParentFolderId(): string | null {
+    return this.state$.folderCreateParentFolderId.get()
+  }
+
+  set folderCreateParentFolderId(value: string | null) {
+    this.state$.folderCreateParentFolderId.set(value)
+  }
+
+  get folderCreateDraft(): string {
+    return this.state$.folderCreateDraft.get()
+  }
+
+  set folderCreateDraft(value: string) {
+    this.state$.folderCreateDraft.set(value)
+  }
+
+  get isFolderCreateDialogOpen(): boolean {
+    return this.folderCreateProjectKey !== null
+  }
+
+  get folderRenameFolderId(): string | null {
+    return this.state$.folderRenameFolderId.get()
+  }
+
+  set folderRenameFolderId(value: string | null) {
+    this.state$.folderRenameFolderId.set(value)
+  }
+
+  get folderRenameName(): string {
+    return this.state$.folderRenameName.get()
+  }
+
+  set folderRenameName(value: string) {
+    this.state$.folderRenameName.set(value)
+  }
+
+  get folderRenameDraft(): string {
+    return this.state$.folderRenameDraft.get()
+  }
+
+  set folderRenameDraft(value: string) {
+    this.state$.folderRenameDraft.set(value)
+  }
+
+  get isFolderRenameDialogOpen(): boolean {
+    return this.folderRenameFolderId !== null
   }
 
   get searchQueryDraft(): string {
@@ -224,15 +316,29 @@ export class SessionSidebarStore {
     return baseLimit + extra
   }
 
-  startEditingProject = (group: Pick<ProjectSessionGroup, 'key' | 'label'>): void => {
+  startEditingProject = (
+    group: Pick<ProjectSessionGroup, 'key' | 'label' | 'workspacePath'>,
+  ): void => {
+    this.openProjectRenameDialog(group)
+  }
+
+  openProjectRenameDialog = (
+    group: Pick<ProjectSessionGroup, 'key' | 'label' | 'workspacePath'>,
+  ): void => {
     batch(() => {
-      this.editingProjectKey = group.key
-      this.draftProjectName = group.label
+      this.projectRenameProjectKey = group.key
+      this.projectRenameLabel = group.label
+      this.projectRenameWorkspacePath = group.workspacePath
+      this.projectRenameDraft = group.label
     })
   }
 
   setDraftProjectName = (value: string): void => {
-    this.draftProjectName = value
+    this.setProjectRenameDraft(value)
+  }
+
+  setProjectRenameDraft = (value: string): void => {
+    this.projectRenameDraft = value
   }
 
   setSearchQueryDraft = (value: string): void => {
@@ -243,40 +349,128 @@ export class SessionSidebarStore {
     projectKey: string,
     onSetProjectDisplayName: (projectKey: string, value: string) => void,
   ): void => {
-    onSetProjectDisplayName(projectKey, this.draftProjectName)
-    this.cancelProjectEditing()
+    this.submitProjectRename(onSetProjectDisplayName, projectKey)
+  }
+
+  submitProjectRename = (
+    onSetProjectDisplayName: (projectKey: string, value: string) => void,
+    fallbackProjectKey?: string,
+  ): void => {
+    const projectKey = this.projectRenameProjectKey ?? fallbackProjectKey
+    const nextName = this.projectRenameDraft.trim()
+
+    if (!projectKey || !nextName) {
+      return
+    }
+
+    onSetProjectDisplayName(projectKey, nextName)
+    this.closeProjectRenameDialog()
   }
 
   cancelProjectEditing = (): void => {
+    this.closeProjectRenameDialog()
+  }
+
+  closeProjectRenameDialog = (): void => {
     batch(() => {
-      this.editingProjectKey = null
-      this.draftProjectName = ''
+      this.projectRenameProjectKey = null
+      this.projectRenameLabel = ''
+      this.projectRenameWorkspacePath = null
+      this.projectRenameDraft = ''
     })
   }
 
   startEditingFolder = (folder: Pick<SessionFolder, 'id' | 'name'>): void => {
+    this.openFolderRenameDialog(folder)
+  }
+
+  openFolderCreateDialog = (projectKey: string, parentFolderId: string | null = null): void => {
     batch(() => {
-      this.editingFolderId = folder.id
-      this.draftFolderName = folder.name
+      this.folderCreateProjectKey = projectKey
+      this.folderCreateParentFolderId = parentFolderId
+      this.folderCreateDraft = 'New folder'
+    })
+  }
+
+  setFolderCreateDraft = (value: string): void => {
+    this.folderCreateDraft = value
+  }
+
+  submitFolderCreate = (
+    onCreateFolder: (
+      projectKey: string,
+      name: string,
+      parentFolderId?: string | null,
+    ) => SessionFolder | undefined,
+  ): SessionFolder | undefined => {
+    const projectKey = this.folderCreateProjectKey
+    const name = this.folderCreateDraft.trim()
+
+    if (!projectKey || !name) {
+      return undefined
+    }
+
+    const folder = onCreateFolder(projectKey, name, this.folderCreateParentFolderId)
+    this.closeFolderCreateDialog()
+
+    return folder
+  }
+
+  closeFolderCreateDialog = (): void => {
+    batch(() => {
+      this.folderCreateProjectKey = null
+      this.folderCreateParentFolderId = null
+      this.folderCreateDraft = 'New folder'
+    })
+  }
+
+  openFolderRenameDialog = (folder: Pick<SessionFolder, 'id' | 'name'>): void => {
+    batch(() => {
+      this.folderRenameFolderId = folder.id
+      this.folderRenameName = folder.name
+      this.folderRenameDraft = folder.name
     })
   }
 
   setDraftFolderName = (value: string): void => {
-    this.draftFolderName = value
+    this.setFolderRenameDraft(value)
+  }
+
+  setFolderRenameDraft = (value: string): void => {
+    this.folderRenameDraft = value
   }
 
   submitFolderName = (
     folderId: string,
     onRenameFolder: (folderId: string, value: string) => void,
   ): void => {
-    onRenameFolder(folderId, this.draftFolderName)
-    this.cancelFolderEditing()
+    this.submitFolderRename(onRenameFolder, folderId)
+  }
+
+  submitFolderRename = (
+    onRenameFolder: (folderId: string, value: string) => void,
+    fallbackFolderId?: string,
+  ): void => {
+    const folderId = this.folderRenameFolderId ?? fallbackFolderId
+    const nextName = this.folderRenameDraft.trim()
+
+    if (!folderId || !nextName) {
+      return
+    }
+
+    onRenameFolder(folderId, nextName)
+    this.closeFolderRenameDialog()
   }
 
   cancelFolderEditing = (): void => {
+    this.closeFolderRenameDialog()
+  }
+
+  closeFolderRenameDialog = (): void => {
     batch(() => {
-      this.editingFolderId = null
-      this.draftFolderName = ''
+      this.folderRenameFolderId = null
+      this.folderRenameName = ''
+      this.folderRenameDraft = ''
     })
   }
 

@@ -23,18 +23,15 @@ describe('ProjectGroup', () => {
   it('supports project-level new-session and rename actions', async () => {
     const store = new SessionSidebarStore()
     const onNewSession = vi.fn()
-    const onSetProjectDisplayName = vi.fn()
 
     render(
       <TooltipProvider>
         <ProjectGroup
           group={createProjectGroup()}
           collapsed={false}
-          isEditing={false}
           store={store}
           onToggleProject={vi.fn()}
           onNewSession={onNewSession}
-          onSetProjectDisplayName={onSetProjectDisplayName}
           onArchiveProject={vi.fn()}
         />
       </TooltipProvider>,
@@ -46,6 +43,6 @@ describe('ProjectGroup', () => {
     await userEvent.click(screen.getByRole('button', { name: /more actions for project-alpha/i }))
     await userEvent.click(screen.getByRole('menuitem', { name: /rename workspace/i }))
 
-    expect(store.editingProjectKey).toBe('project-alpha')
+    expect(store.projectRenameProjectKey).toBe('project-alpha')
   })
 })

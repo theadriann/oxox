@@ -12,7 +12,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { type DragEvent, type KeyboardEvent, memo, type ReactNode } from 'react'
-
+import { cn } from '@/lib/utils'
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
 import type { SessionPreview } from '../../state/sessions/session.model'
 import {
@@ -29,7 +29,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
-import { cn } from '@/lib/utils'
 
 const STATUS_DOT: Record<string, string> = {
   active: 'bg-fd-session-active',
@@ -90,8 +89,6 @@ export const SessionItem = memo(function SessionItem({
   const sessionId = useValue(session$.id)
   const title = useValue(session$.title)
   const status = useValue(session$.status)
-  const transport = useValue(session$.transport)
-  const transportLocation = useValue(session$.transportLocation)
   const parentSessionId = useValue(session$.parentSessionId)
   const derivationType = useValue(session$.derivationType)
   const lastActivityAt = useValue(session$.lastActivityAt)
@@ -101,7 +98,6 @@ export const SessionItem = memo(function SessionItem({
   const isSubagent = derivationType === 'subagent'
   const effectiveStatus = isSubagent ? 'idle' : status
   const statusDot = STATUS_DOT[effectiveStatus] ?? ''
-  const transportLabel = getSessionTransportLabel(transport, transportLocation)
   const indentPx = (isDerivedChild ? 28 : 10) + depth * 14
   const actionItems = {
     isPinned,
@@ -142,15 +138,6 @@ export const SessionItem = memo(function SessionItem({
           {statusDot ? <span className={`size-1.5 shrink-0 rounded-full ${statusDot}`} /> : null}
           <span className="min-w-0 flex-1 truncate text-[13px] text-fd-primary">{title}</span>
         </button>
-
-        {/* {transportLabel ? (
-                    <span
-                        className="mr-2 hidden shrink-0 rounded border border-fd-border-subtle px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-fd-tertiary group-hover/row:inline-flex group-has-[[data-menu-open=true]]/row:inline-flex"
-                        title={`Session transport: ${transportLabel}`}
-                    >
-                        {transportLabel}
-                    </span>
-                ) : null} */}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -304,28 +291,4 @@ function ContextMenuItemAdapter({ children, onClick, variant = 'default' }: Acti
 
 function ContextMenuSeparatorAdapter() {
   return <ContextMenuSeparator />
-}
-
-function getSessionTransportLabel(
-  transport: string | null,
-  transportLocation?: 'local' | 'remote' | null,
-): string | null {
-  switch (transport) {
-    case 'stream-jsonrpc':
-      return 'Local exec'
-    case 'daemon':
-      if (transportLocation === 'local') {
-        return 'Local daemon'
-      }
-
-      if (transportLocation === 'remote') {
-        return 'Remote daemon'
-      }
-
-      return 'Daemon'
-    case 'artifacts':
-      return 'Local history'
-    default:
-      return null
-  }
 }

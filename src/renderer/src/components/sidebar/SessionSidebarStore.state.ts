@@ -6,10 +6,16 @@ export interface SessionSidebarState {
   focusedItemKey: string | null
   expandedProjectKeys: Record<string, true>
   projectRevealCounts: Record<string, number>
-  editingProjectKey: string | null
-  draftProjectName: string
-  editingFolderId: string | null
-  draftFolderName: string
+  projectRenameProjectKey: string | null
+  projectRenameLabel: string
+  projectRenameWorkspacePath: string | null
+  projectRenameDraft: string
+  folderCreateProjectKey: string | null
+  folderCreateParentFolderId: string | null
+  folderCreateDraft: string
+  folderRenameFolderId: string | null
+  folderRenameName: string
+  folderRenameDraft: string
   searchQueryDraft: string
   filters: SidebarFilters
   isFilterPanelOpen: boolean
@@ -22,10 +28,16 @@ export function createDefaultSessionSidebarState(): SessionSidebarState {
     focusedItemKey: null,
     expandedProjectKeys: {},
     projectRevealCounts: {},
-    editingProjectKey: null,
-    draftProjectName: '',
-    editingFolderId: null,
-    draftFolderName: '',
+    projectRenameProjectKey: null,
+    projectRenameLabel: '',
+    projectRenameWorkspacePath: null,
+    projectRenameDraft: '',
+    folderCreateProjectKey: null,
+    folderCreateParentFolderId: null,
+    folderCreateDraft: 'New folder',
+    folderRenameFolderId: null,
+    folderRenameName: '',
+    folderRenameDraft: '',
     searchQueryDraft: DEFAULT_SIDEBAR_FILTERS.query,
     filters: { ...DEFAULT_SIDEBAR_FILTERS },
     isFilterPanelOpen: false,

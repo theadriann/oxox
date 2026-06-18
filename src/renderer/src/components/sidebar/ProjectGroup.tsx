@@ -1,15 +1,7 @@
-import {
-  Archive,
-  Check,
-  ChevronRight,
-  Ellipsis,
-  FolderPlus,
-  PencilLine,
-  Plus,
-  X,
-} from 'lucide-react'
+import { Folder01Icon, Folder02Icon, PencilEdit02Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Archive, ChevronRight, Ellipsis, FolderPlus, PencilLine } from 'lucide-react'
 import type { DragEvent } from 'react'
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,13 +10,6 @@ import {
 } from '../ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import type { SessionSidebarStore } from './SessionSidebarStore'
-import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  FolderOpenIcon,
-  PencilEdit02Icon,
-  Folder01Icon,
-  Folder02Icon,
-} from '@hugeicons/core-free-icons'
 
 export interface ProjectGroupHeader {
   key: string
@@ -36,11 +21,9 @@ export interface ProjectGroupHeader {
 interface ProjectGroupProps {
   group: ProjectGroupHeader
   collapsed: boolean
-  isEditing: boolean
   store: SessionSidebarStore
   onToggleProject: (projectKey: string) => void
   onNewSession: (workspacePath?: string, folderId?: string | null) => void
-  onSetProjectDisplayName: (projectKey: string, value: string) => void
   onArchiveProject?: (projectKey: string) => void
   onCreateFolder?: (projectKey: string, parentFolderId?: string | null) => void
   onDropSessionToProject?: (sessionId: string, projectKey: string) => void
@@ -50,71 +33,14 @@ interface ProjectGroupProps {
 export function ProjectGroup({
   group,
   collapsed,
-  isEditing,
   store,
   onToggleProject,
   onNewSession,
-  onSetProjectDisplayName,
   onArchiveProject,
   onCreateFolder,
   onDropSessionToProject,
   onDropFolderToProject,
 }: ProjectGroupProps) {
-  if (isEditing) {
-    return (
-      <div className="group/header flex items-center gap-1 py-1" data-project-group={group.key}>
-        <div className="ox-elevated flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2.5 py-2">
-          <PencilLine className="size-3.5 shrink-0 text-fd-ember-400" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <label className="sr-only" htmlFor={`project-display-name-${toIdentifier(group.key)}`}>
-              Project display name for {group.label}
-            </label>
-            <input
-              id={`project-display-name-${toIdentifier(group.key)}`}
-              aria-label={`Project display name for ${group.label}`}
-              className="w-full rounded border border-fd-border-default bg-fd-surface px-2 py-1 text-xs text-fd-primary outline-none transition-colors focus:border-fd-ember-400"
-              value={store.draftProjectName}
-              onChange={(event) => store.setDraftProjectName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  store.submitProjectDisplayName(group.key, onSetProjectDisplayName)
-                }
-                if (event.key === 'Escape') {
-                  event.preventDefault()
-                  store.cancelProjectEditing()
-                }
-              }}
-            />
-            {group.workspacePath ? (
-              <span className="mt-0.5 block truncate text-[10px] text-fd-tertiary">
-                {group.workspacePath}
-              </span>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-0.5">
-            <button
-              aria-label="Save project name"
-              className="ox-icon-button inline-flex size-6 items-center justify-center text-fd-primary"
-              type="button"
-              onClick={() => store.submitProjectDisplayName(group.key, onSetProjectDisplayName)}
-            >
-              <Check className="size-3.5" />
-            </button>
-            <button
-              aria-label="Cancel project name edit"
-              className="ox-icon-button inline-flex size-6 items-center justify-center text-fd-secondary"
-              type="button"
-              onClick={store.cancelProjectEditing}
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!onDropSessionToProject && !onDropFolderToProject) return
     event.preventDefault()
@@ -228,13 +154,4 @@ function parseSidebarDragPayload(value: string): SidebarDragPayload | null {
   }
 
   return null
-}
-
-function toIdentifier(value: string): string {
-  return (
-    value
-      .replace(/[^a-z0-9-]+/gi, '-')
-      .replace(/^-+|-+$/g, '')
-      .toLowerCase() || 'item'
-  )
 }

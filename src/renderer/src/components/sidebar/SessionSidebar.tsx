@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import { SessionFilterPanel } from './SessionFilterPanel'
 import { buildFlatItems, buildVisibleItems, SessionList } from './SessionList'
 import type { SessionSidebarStore } from './SessionSidebarStore'
+import { FolderCreateDialog, FolderRenameDialog, ProjectRenameDialog } from './SidebarNameDialogs'
 import { filterSessionGroups, type SidebarFilters } from './sessionFiltering'
 
 const SIDEBAR_SKELETON_IDS = [
@@ -129,6 +130,15 @@ export function SessionSidebar({
     store.isEditingProjectValid(groups) ? store.editingProjectKey : null,
   )
   const editingFolderId = useValue(() => store.editingFolderId)
+  const isProjectRenameDialogOpen = useValue(() => store.isProjectRenameDialogOpen)
+  const projectRenameDraft = useValue(() => store.projectRenameDraft)
+  const projectRenameLabel = useValue(() => store.projectRenameLabel)
+  const projectRenameWorkspacePath = useValue(() => store.projectRenameWorkspacePath)
+  const isFolderCreateDialogOpen = useValue(() => store.isFolderCreateDialogOpen)
+  const folderCreateDraft = useValue(() => store.folderCreateDraft)
+  const isFolderRenameDialogOpen = useValue(() => store.isFolderRenameDialogOpen)
+  const folderRenameDraft = useValue(() => store.folderRenameDraft)
+  const folderRenameName = useValue(() => store.folderRenameName)
   const filters = useValue(() => store.filters)
   const searchQueryDraft = useValue(() => store.searchQueryDraft)
   const isFilterPanelOpen = useValue(() => store.isFilterPanelOpen)
@@ -278,12 +288,53 @@ export function SessionSidebar({
 
   const handleCreateFolder = useCallback(
     (projectKey: string, parentFolderId?: string | null) => {
-      const folder = onCreateFolder?.(projectKey, 'New folder', parentFolderId)
-      if (folder) {
-        store.startEditingFolder(folder)
+      store.openFolderCreateDialog(projectKey, parentFolderId ?? null)
+    },
+    [store],
+  )
+  const handleSubmitProjectRename = useCallback(() => {
+    store.submitProjectRename(onSetProjectDisplayName)
+  }, [onSetProjectDisplayName, store])
+  const handleSubmitFolderCreate = useCallback(() => {
+    if (!onCreateFolder) {
+      store.closeFolderCreateDialog()
+      return
+    }
+
+    store.submitFolderCreate(onCreateFolder)
+  }, [onCreateFolder, store])
+  const handleSubmitFolderRename = useCallback(() => {
+    if (!onRenameFolder) {
+      store.closeFolderRenameDialog()
+      return
+    }
+
+    store.submitFolderRename(onRenameFolder)
+  }, [onRenameFolder, store])
+
+  const handleProjectRenameOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        store.closeProjectRenameDialog()
       }
     },
-    [onCreateFolder, store],
+    [store],
+  )
+  const handleFolderCreateOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        store.closeFolderCreateDialog()
+      }
+    },
+    [store],
+  )
+  const handleFolderRenameOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        store.closeFolderRenameDialog()
+      }
+    },
+    [store],
   )
 
   return (
@@ -340,7 +391,6 @@ export function SessionSidebar({
               onToggleProject={onToggleProject}
               onToggleFolder={onToggleFolder}
               onNewSession={onNewSession}
-              onSetProjectDisplayName={onSetProjectDisplayName}
               onArchiveProject={onArchiveProject}
               onArchiveSession={onArchiveSession}
               onCopySessionId={onCopySessionId}
@@ -374,6 +424,30 @@ export function SessionSidebar({
           <span className="sr-only">Resize sidebar</span>
           <GripVertical className="pointer-events-none size-4 text-fd-tertiary" />
         </div>
+        <ProjectRenameDialog
+          open={isProjectRenameDialogOpen}
+          draft={projectRenameDraft}
+          projectLabel={projectRenameLabel}
+          workspacePath={projectRenameWorkspacePath}
+          onDraftChange={store.setProjectRenameDraft}
+          onOpenChange={handleProjectRenameOpenChange}
+          onSubmit={handleSubmitProjectRename}
+        />
+        <FolderCreateDialog
+          open={isFolderCreateDialogOpen}
+          draft={folderCreateDraft}
+          onDraftChange={store.setFolderCreateDraft}
+          onOpenChange={handleFolderCreateOpenChange}
+          onSubmit={handleSubmitFolderCreate}
+        />
+        <FolderRenameDialog
+          open={isFolderRenameDialogOpen}
+          draft={folderRenameDraft}
+          folderName={folderRenameName}
+          onDraftChange={store.setFolderRenameDraft}
+          onOpenChange={handleFolderRenameOpenChange}
+          onSubmit={handleSubmitFolderRename}
+        />
       </aside>
     </TooltipProvider>
   )

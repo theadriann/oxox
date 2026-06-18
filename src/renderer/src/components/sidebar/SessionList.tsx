@@ -1,17 +1,15 @@
+import { PencilEdit02Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import type { Observable } from '@legendapp/state'
-import { useValue } from '@legendapp/state/react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
-  Check,
   ChevronRight,
   Folder,
   FolderOpen,
   FolderPlus,
   MoreHorizontal,
   Pin,
-  Plus,
   Trash2,
-  X,
 } from 'lucide-react'
 import { type DragEvent, type KeyboardEvent, useCallback } from 'react'
 import type {
@@ -28,8 +26,6 @@ import {
 import { ProjectGroup, type ProjectGroupHeader } from './ProjectGroup'
 import { SessionItem } from './SessionItem'
 import type { RenderedSessionItem, SessionSidebarStore } from './SessionSidebarStore'
-import { PencilEdit02Icon } from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/react'
 
 export const SESSION_OVERFLOW_LIMIT = 5
 export const SESSION_REVEAL_BATCH = 10
@@ -59,7 +55,6 @@ export type VirtualSidebarItem =
       workspacePath: string | null
       sessionCount: number
       collapsed: boolean
-      isEditing: boolean
     }
   | {
       kind: 'folder-header'
@@ -70,7 +65,6 @@ export type VirtualSidebarItem =
       depth: number
       collapsed: boolean
       sessionCount: number
-      isEditing: boolean
     }
   | {
       kind: 'show-more'
@@ -95,7 +89,6 @@ interface SessionListProps {
   onToggleProject: (projectKey: string) => void
   onToggleFolder: (folderId: string) => void
   onNewSession: (workspacePath?: string, folderId?: string | null) => void
-  onSetProjectDisplayName: (projectKey: string, value: string) => void
   onArchiveProject?: (projectKey: string) => void
   onArchiveSession?: (sessionId: string) => void
   onCopySessionId?: (sessionId: string) => void
@@ -131,7 +124,6 @@ export function SessionList({
   onToggleProject,
   onToggleFolder,
   onNewSession,
-  onSetProjectDisplayName,
   onArchiveProject,
   onArchiveSession,
   onCopySessionId,
@@ -229,11 +221,9 @@ export function SessionList({
               <ProjectGroup
                 group={toProjectGroupHeader(item)}
                 collapsed={item.collapsed}
-                isEditing={item.isEditing}
                 store={store}
                 onToggleProject={onToggleProject}
                 onNewSession={onNewSession}
-                onSetProjectDisplayName={onSetProjectDisplayName}
                 onArchiveProject={onArchiveProject}
                 onCreateFolder={onCreateFolder}
                 onDropSessionToProject={onMoveSessionToProject}
@@ -365,6 +355,8 @@ export function buildFlatItems({
 
   const items: VirtualSidebarItem[] = []
   const pinnedSessionIds = new Set(pinnedSessions.map((session) => session.id))
+  void editingProjectKey
+  void editingFolderId
 
   if (pinnedSessions.length > 0) {
     items.push({ kind: 'pinned-header', count: pinnedSessions.length })
@@ -380,7 +372,6 @@ export function buildFlatItems({
 
   for (const group of groups) {
     const collapsed = isProjectCollapsed(group.key)
-    const isEditing = editingProjectKey === group.key
 
     items.push({
       kind: 'project-header',
@@ -389,7 +380,6 @@ export function buildFlatItems({
       workspacePath: group.workspacePath,
       sessionCount: group.sessions.length,
       collapsed,
-      isEditing,
     })
 
     if (collapsed) continue
@@ -414,7 +404,6 @@ export function buildFlatItems({
           depth: row.depth,
           collapsed: isFolderCollapsed(row.folder.id),
           sessionCount: row.sessionCount,
-          isEditing: editingFolderId === row.folder.id,
         })
         continue
       }
@@ -659,10 +648,6 @@ const FolderHeader = ({
   onMoveSessionToFolder?: (sessionId: string, folderId: string) => void
   onMoveFolder?: (folderId: string, projectKey: string, parentFolderId?: string | null) => void
 }) => {
-  const draftFolderName = useValue(() => store.draftFolderName)
-  const focusFolderInput = useCallback((element: HTMLInputElement | null) => {
-    element?.select()
-  }, [])
   const handleDragStart = (event: DragEvent<HTMLDivElement>) => {
     event.dataTransfer.setData('text/plain', `folder:${item.folderId}`)
     event.dataTransfer.effectAllowed = 'move'
@@ -683,63 +668,6 @@ const FolderHeader = ({
 
     onMoveFolder?.(dragPayload.id, item.projectKey, item.folderId)
   }
-  const submitFolderName = () => {
-    if (!onRenameFolder) {
-      store.cancelFolderEditing()
-      return
-    }
-
-    store.submitFolderName(item.folderId, onRenameFolder)
-  }
-
-  if (item.isEditing) {
-    return (
-      <div
-        className="group/folder ox-sidebar-row flex items-center gap-1 rounded-lg px-2 text-fd-secondary transition-colors hover:bg-white/[0.03]"
-        style={{ paddingLeft: 16 + item.depth * 14 }}
-      >
-        <FolderOpen className="size-3.5 shrink-0 text-fd-tertiary" />
-        <label className="sr-only" htmlFor={`folder-name-${item.folderId}`}>
-          Folder name for {item.name}
-        </label>
-        <input
-          id={`folder-name-${item.folderId}`}
-          aria-label={`Folder name for ${item.name}`}
-          ref={focusFolderInput}
-          className="min-w-0 flex-1 rounded border border-fd-border-default bg-fd-surface px-2 py-1 text-xs text-fd-primary outline-none transition-colors focus:border-fd-ember-400"
-          value={draftFolderName}
-          onChange={(event) => store.setDraftFolderName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault()
-              submitFolderName()
-            }
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              store.cancelFolderEditing()
-            }
-          }}
-        />
-        <button
-          aria-label="Save folder name"
-          className="ox-icon-button inline-flex size-6 items-center justify-center text-fd-primary"
-          type="button"
-          onClick={submitFolderName}
-        >
-          <Check className="size-3.5" />
-        </button>
-        <button
-          aria-label="Cancel folder name edit"
-          className="ox-icon-button inline-flex size-6 items-center justify-center text-fd-secondary"
-          type="button"
-          onClick={store.cancelFolderEditing}
-        >
-          <X className="size-3.5" />
-        </button>
-      </div>
-    )
-  }
-
   return (
     <div
       className="group/folder ox-sidebar-row flex items-center rounded-lg px-2 text-fd-secondary transition-colors hover:bg-white/[0.03]"

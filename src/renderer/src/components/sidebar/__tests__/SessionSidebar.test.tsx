@@ -159,8 +159,7 @@ describe('SessionSidebar', () => {
     )
 
     expect(screen.getByText('project-alpha')).toBeTruthy()
-    // Workspace path is shown below the project header
-    expect(screen.getByText('/tmp/project-alpha')).toBeTruthy()
+    expect(screen.queryByText('/tmp/project-alpha')).toBeNull()
     expect(sessionButton).toBeTruthy()
     expect(screen.getByText('Just now')).toBeTruthy()
 
@@ -278,9 +277,94 @@ describe('SessionSidebar', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /more actions for project-alpha/i }))
     await userEvent.click(await screen.findByRole('menuitem', { name: /new folder/i }))
+    expect(await screen.findByRole('dialog')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText(/folder name/i), {
+      target: { value: 'Research' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /create folder/i }))
 
     expect(prompt).not.toHaveBeenCalled()
-    expect(onCreateFolder).toHaveBeenCalledWith('project-alpha', 'New folder', null)
+    expect(onCreateFolder).toHaveBeenCalledWith('project-alpha', 'Research', null)
+  })
+
+  it('renames projects and folders through modal dialogs', async () => {
+    const onSetProjectDisplayName = vi.fn()
+    const onRenameFolder = vi.fn()
+
+    render(
+      <SessionSidebar
+        groups={[
+          {
+            key: 'project-alpha',
+            label: 'project-alpha',
+            workspacePath: '/tmp/project-alpha',
+            latestActivityAt: Date.parse('2026-03-25T00:00:00.000Z'),
+            sessions: [
+              {
+                id: 'session-alpha',
+                title: 'Alpha',
+                projectKey: 'project-alpha',
+                projectLabel: 'project-alpha',
+                projectWorkspacePath: '/tmp/project-alpha',
+                parentSessionId: null,
+                derivationType: null,
+                hasUserMessage: true,
+                status: 'idle',
+                createdAt: '2026-03-24T23:40:00.000Z',
+                updatedAt: '2026-03-25T00:00:00.000Z',
+                lastActivityAt: '2026-03-25T00:00:00.000Z',
+                lastActivityTimestamp: Date.parse('2026-03-25T00:00:00.000Z'),
+              },
+            ],
+          },
+        ]}
+        sessionFolders={[
+          {
+            id: 'folder-feature',
+            projectKey: 'project-alpha',
+            name: 'Feature',
+            parentFolderId: null,
+            createdAt: '2026-03-25T00:00:00.000Z',
+            updatedAt: '2026-03-25T00:00:00.000Z',
+            order: 0,
+          },
+        ]}
+        selectedSessionId=""
+        activeCount={0}
+        isProjectCollapsed={() => false}
+        onToggleProject={() => undefined}
+        onSelectSession={() => undefined}
+        onTogglePinnedSession={() => undefined}
+        onSetProjectDisplayName={onSetProjectDisplayName}
+        onRenameFolder={onRenameFolder}
+        pinnedSessions={[]}
+        onNewSession={() => undefined}
+        onResizeStart={() => undefined}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /more actions for project-alpha/i }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /rename workspace/i }))
+    expect(await screen.findByText('Rename Project')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText(/project name/i), {
+      target: { value: 'Alpha Project' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save project name/i }))
+
+    expect(onSetProjectDisplayName).toHaveBeenCalledWith('project-alpha', 'Alpha Project')
+
+    await userEvent.click(screen.getByRole('button', { name: /more actions for feature/i }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /rename folder/i }))
+    expect(await screen.findByText('Rename Folder')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText(/folder name/i), {
+      target: { value: 'Research' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save folder name/i }))
+
+    expect(onRenameFolder).toHaveBeenCalledWith('folder-feature', 'Research')
   })
 
   it('notifies the main-process search controller when the query changes', () => {
