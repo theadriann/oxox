@@ -139,11 +139,11 @@
   }
 
   .ox-topbar {
-    border-bottom: 1px solid var(--ox-border-subtle);
+    /* border-bottom: 1px solid var(--ox-border-subtle);
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent),
       color-mix(in srgb, var(--ox-canvas) 88%, transparent);
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px); */
   }
 
   .ox-panel {

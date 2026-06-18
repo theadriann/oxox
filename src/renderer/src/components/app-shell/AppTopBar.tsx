@@ -41,7 +41,7 @@ export function AppTopBar({
       />
 
       {onToggleSidebar ? (
-        <div style={NO_DRAG_STYLE}>
+        <div style={NO_DRAG_STYLE} className="ml-2">
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
