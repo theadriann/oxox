@@ -151,6 +151,15 @@ class FakeDaemonClient {
   }
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs = 100): Promise<T | '__timeout__'> {
+  return Promise.race([
+    promise,
+    new Promise<'__timeout__'>((resolve) => {
+      setTimeout(() => resolve('__timeout__'), timeoutMs)
+    }),
+  ])
+}
+
 describe('DroidSdkDaemonSessionTransport', () => {
   it('connects through SDK daemon primitives and initializes a daemon session', async () => {
     const socketTransport = new FakeDaemonWebSocketTransport()
@@ -305,6 +314,49 @@ describe('DroidSdkDaemonSessionTransport', () => {
     await transport.resolvePermissionRequest('daemon-permission-1', 'allow')
 
     await expect(permission).resolves.toBe('allow')
+  })
+
+  it('keeps daemon permission handlers pending when emitting the request event fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const socketTransport = new FakeDaemonWebSocketTransport()
+    const daemonClient = new FakeDaemonClient()
+    const transport = new DroidSdkDaemonSessionTransport({
+      authProvider: { getApiKey: () => 'factory-key' },
+      createDaemonClient: () => daemonClient,
+      createWebSocketTransport: () => socketTransport,
+      authenticateConnection: async () => undefined,
+    })
+
+    transport.subscribe((event) => {
+      if (event.type === 'permission.requested') {
+        throw new Error('renderer bridge failed')
+      }
+    })
+
+    try {
+      await transport.loadSession('request-1', 'daemon-session-1')
+      socketTransport.emitMessage({
+        type: 'request',
+        id: 'daemon-permission-1',
+        method: 'daemon.request_permission',
+        params: {},
+      })
+      const permission = daemonClient.requestPermission({
+        options: [{ value: 'proceed_once', label: 'Allow' }],
+        toolUses: [{ toolUse: { id: 'tool-use-1' } }],
+      })
+
+      await vi.waitFor(() => {
+        expect(consoleError).toHaveBeenCalled()
+      })
+      await expect(withTimeout(permission)).resolves.toBe('__timeout__')
+
+      await transport.resolvePermissionRequest('daemon-permission-1', 'proceed_once')
+
+      await expect(permission).resolves.toBe('proceed_once')
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('uses SDK daemon protocol methods for MCP registry, auth, tools, workers, and bug reports', async () => {

@@ -4,7 +4,7 @@ import {
   ProcessExitError,
   SDK_TAG,
 } from '@factory/droid-sdk'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { DroidSdkSessionFactory } from '../droidSdk/factory'
 import { DroidSdkSessionTransport } from '../droidSdk/transport'
@@ -699,7 +699,6 @@ describe('DroidSdkSessionTransport', () => {
       },
       createSessionFactory(transport, client),
     )
-
     const events: Array<{ type: string }> = []
     sessionTransport.subscribe((event) => {
       events.push(event as { type: string })
@@ -747,6 +746,56 @@ describe('DroidSdkSessionTransport', () => {
         }),
       ]),
     )
+  })
+
+  it('keeps SDK permission handlers pending when emitting the request event fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const transport = new FakeDroidClientTransport()
+    const client = new FakeDroidClient()
+    const sessionTransport = new DroidSdkSessionTransport(
+      {
+        cwd: '/tmp/session-1',
+      },
+      createSessionFactory(transport, client),
+    )
+
+    sessionTransport.subscribe((event) => {
+      if (event.type === 'permission.requested') {
+        throw new Error('renderer bridge failed')
+      }
+    })
+
+    try {
+      const resolutionPromise = client.requestPermission(
+        'permission-1',
+        {
+          toolUses: [
+            {
+              toolUse: {
+                id: 'tool-1',
+                name: 'Execute',
+                input: { command: 'pnpm test' },
+              },
+              riskLevel: 'medium',
+            },
+          ],
+          options: [
+            { label: 'Approve', value: 'proceed_once' },
+            { label: 'Deny', value: 'cancel' },
+          ],
+        },
+        transport,
+      )
+
+      await waitFor(() => consoleError.mock.calls.length > 0)
+      await expect(withTimeout(resolutionPromise)).resolves.toBe('__timeout__')
+
+      await sessionTransport.resolvePermissionRequest('permission-1', 'proceed_once')
+
+      await expect(resolutionPromise).resolves.toBe('proceed_once')
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('holds SDK ask-user handlers open until OXOX submits an answer', async () => {

@@ -1060,7 +1060,7 @@ export class DroidSdkDaemonSessionTransport implements StreamJsonRpcProcessTrans
       deferred,
       toolUseIds,
     })
-    await this.emit(
+    this.emitPendingRequest(
       createPermissionRequestedEvent(
         requestId,
         params as RequestPermissionRequestParams,
@@ -1081,7 +1081,7 @@ export class DroidSdkDaemonSessionTransport implements StreamJsonRpcProcessTrans
       deferred,
       questions,
     })
-    await this.emit(
+    this.emitPendingRequest(
       createAskUserRequestedEvent(
         requestId,
         params as AskUserRequestParams,
@@ -1109,6 +1109,12 @@ export class DroidSdkDaemonSessionTransport implements StreamJsonRpcProcessTrans
     for (const sink of this.sinks) {
       await sink(event)
     }
+  }
+
+  private emitPendingRequest(event: import('../protocol/sessionEvents').SessionEvent): void {
+    void this.emit(event).catch((error) => {
+      console.error('Failed to emit pending Droid request event', error)
+    })
   }
 
   private reconcileToolEvent(
