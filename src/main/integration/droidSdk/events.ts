@@ -412,7 +412,10 @@ export function createPermissionRequestedEvent(
     type: 'permission.requested',
     sessionId,
     requestId,
-    options: params.options.map((option) => option.value),
+    options: params.options.map((option) => ({
+      label: option.label,
+      value: option.value,
+    })),
     toolUseIds: params.toolUses.map((toolUse) => toolUse.toolUse.id),
     reason: describePermissionRequest(params),
     riskLevel: extractPermissionRiskLevel(params),

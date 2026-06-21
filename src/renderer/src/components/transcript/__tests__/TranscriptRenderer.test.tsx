@@ -772,7 +772,10 @@ describe('TranscriptRenderer (live)', () => {
               {
                 type: 'permission.requested',
                 requestId: 'permission-1',
-                options: ['approve', 'deny'],
+                options: [
+                  { label: 'Approve', value: 'approve' },
+                  { label: 'Deny', value: 'deny' },
+                ],
                 toolUseIds: ['tool-1'],
                 reason: 'Needs permission to open the workspace.',
               },
@@ -987,14 +990,20 @@ describe('TranscriptRenderer (live)', () => {
                 requestId: 'permission-1',
                 reason: 'Run npm publish',
                 riskLevel: 'high',
-                options: ['proceed_once', 'cancel'],
+                options: [
+                  { label: 'Proceed once', value: 'proceed_once' },
+                  { label: 'Cancel', value: 'cancel' },
+                ],
               },
               {
                 type: 'permission.requested',
                 requestId: 'permission-2',
                 reason: 'Read README.md',
                 riskLevel: 'low',
-                options: ['proceed_once', 'cancel'],
+                options: [
+                  { label: 'Proceed once', value: 'proceed_once' },
+                  { label: 'Cancel', value: 'cancel' },
+                ],
               },
             ],
           }),
@@ -1013,7 +1022,7 @@ describe('TranscriptRenderer (live)', () => {
     expect(within(second).getByText('Read README.md')).toBeTruthy()
     expect(within(second).getByText(/low risk/i)).toBeTruthy()
 
-    fireEvent.click(within(first).getByRole('button', { name: /approve/i }))
+    fireEvent.click(within(first).getByRole('button', { name: /proceed once/i }))
 
     expect(onResolvePermissionRequest).toHaveBeenCalledTimes(1)
     expect(onResolvePermissionRequest).toHaveBeenCalledWith({
@@ -1022,9 +1031,46 @@ describe('TranscriptRenderer (live)', () => {
     })
     expect(
       within(second)
-        .getByRole('button', { name: /approve/i })
+        .getByRole('button', { name: /proceed once/i })
         .getAttribute('disabled'),
     ).toBeNull()
+  })
+
+  it('renders every labeled permission option and returns the selected value', () => {
+    const onResolvePermissionRequest = vi.fn()
+
+    render(
+      <TranscriptRenderer
+        items={buildLiveTimeline(
+          createSnapshot({
+            events: [
+              {
+                type: 'permission.requested',
+                requestId: 'permission-custom-option',
+                reason: 'Run a known safe tool',
+                riskLevel: 'low',
+                options: [
+                  { label: 'Proceed once', value: 'proceed_once' },
+                  { label: 'Always allow tool', value: 'proceed_always_tools' },
+                  { label: 'Cancel', value: 'cancel' },
+                ],
+              },
+            ],
+          }),
+        )}
+        isLive
+        isLoading={false}
+        onResolvePermissionRequest={onResolvePermissionRequest}
+      />,
+    )
+
+    const card = screen.getByTestId('permission-card-permission-custom-option')
+    fireEvent.click(within(card).getByRole('button', { name: /always allow tool/i }))
+
+    expect(onResolvePermissionRequest).toHaveBeenCalledWith({
+      requestId: 'permission-custom-option',
+      selectedOption: 'proceed_always_tools',
+    })
   })
 
   it('submits ask-user answers and shows resolved states as read-only', () => {
@@ -1036,7 +1082,10 @@ describe('TranscriptRenderer (live)', () => {
           requestId: 'permission-3',
           reason: 'Apply patch to session store',
           riskLevel: 'medium',
-          options: ['proceed_once', 'cancel'],
+          options: [
+            { label: 'Proceed once', value: 'proceed_once' },
+            { label: 'Cancel', value: 'cancel' },
+          ],
         },
         {
           type: 'askUser.requested',
@@ -1104,7 +1153,10 @@ describe('TranscriptRenderer (live)', () => {
                 requestId: 'permission-3',
                 reason: 'Apply patch to session store',
                 riskLevel: 'medium',
-                options: ['proceed_once', 'cancel'],
+                options: [
+                  { label: 'Proceed once', value: 'proceed_once' },
+                  { label: 'Cancel', value: 'cancel' },
+                ],
               },
               {
                 type: 'permission.resolved',
@@ -1162,7 +1214,7 @@ describe('TranscriptRenderer (live)', () => {
     expect(within(resolvedPerm).getByText(/approved/i)).toBeTruthy()
     expect(
       within(resolvedPerm)
-        .getByRole('button', { name: /approve/i })
+        .getByRole('button', { name: /proceed once/i })
         .getAttribute('disabled'),
     ).not.toBeNull()
 

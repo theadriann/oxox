@@ -221,4 +221,34 @@ describe('deriveComposerPreferences', () => {
     expect(prefs.interactionMode).toBe('spec')
     expect(prefs.reasoningEffort).toBe('low')
   })
+
+  it('uses the selected session model for detached sessions without live snapshots', () => {
+    const prefs = deriveComposerPreferences(
+      'session-1',
+      null,
+      {},
+      {
+        model: 'claude-opus-4.6',
+        interactionMode: 'auto',
+        reasoningEffort: 'high',
+      },
+      [
+        { id: 'claude-opus-4.6', name: 'Claude Opus 4.6' },
+        {
+          id: 'custom:[OpenAI]-GPT-5.5-0',
+          name: '[OpenAI] GPT 5.5',
+          supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+          defaultReasoningEffort: 'medium',
+        },
+      ],
+      'custom:[OpenAI]-GPT-5.5-0',
+    )
+
+    expect(prefs).toEqual({
+      modelId: 'custom:[OpenAI]-GPT-5.5-0',
+      interactionMode: 'auto',
+      reasoningEffort: 'high',
+      autonomyLevel: 'high',
+    })
+  })
 })

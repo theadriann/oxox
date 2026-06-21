@@ -11,7 +11,7 @@ describe('buildSessionRuntimeCatalogRefreshKey', () => {
       settings: {
         modelId: 'gpt-5.4',
         interactionMode: 'spec',
-        enabledToolIds: ['Read'],
+        enabledToolIds: ['read-cli'],
         disabledToolIds: [],
       },
     }

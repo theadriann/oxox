@@ -292,7 +292,7 @@ describe('ComposerStore', () => {
     })
 
     expect(composerStore.selectedPreferences).toEqual({
-      modelId: 'claude-3.7',
+      modelId: 'gpt-5.4',
       interactionMode: 'spec',
       reasoningEffort: '',
       autonomyLevel: 'high',
@@ -403,6 +403,88 @@ describe('ComposerStore', () => {
       id: 'custom:[OpenAI]-GPT-5.5-0',
       supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
       defaultReasoningEffort: 'medium',
+    })
+  })
+
+  it('uses detached session model metadata for disconnected historical sessions', () => {
+    const { composerStore } = createStores({
+      selectedSessionId: 'session-alpha',
+      sessions: [
+        createSessionRecord({
+          modelId: 'custom:[OpenAI]-GPT-5.5-0',
+          status: 'disconnected',
+        }),
+      ],
+      bootstrap: createBootstrap({
+        factoryModels: [
+          { id: 'claude-opus-4.6', name: 'Claude Opus 4.6' },
+          {
+            id: 'custom:[OpenAI]-GPT-5.5-0',
+            name: '[OpenAI] GPT 5.5',
+            supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+            defaultReasoningEffort: 'medium',
+          },
+        ],
+        factoryDefaultSettings: {
+          model: 'claude-opus-4.6',
+          interactionMode: 'auto',
+          reasoningEffort: 'high',
+        },
+      }),
+      snapshot: null,
+    })
+
+    expect(composerStore.selectedPreferences).toEqual({
+      modelId: 'custom:[OpenAI]-GPT-5.5-0',
+      interactionMode: 'auto',
+      reasoningEffort: 'high',
+      autonomyLevel: 'high',
+    })
+    expect(
+      composerStore.selectedAvailableModels.find(
+        (model) => model.id === 'custom:[OpenAI]-GPT-5.5-0',
+      ),
+    ).toMatchObject({
+      supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+      defaultReasoningEffort: 'medium',
+    })
+  })
+
+  it('keeps foundation reasoning metadata when updating snapshot model preferences', () => {
+    const { composerStore } = createStores({
+      selectedSessionId: 'session-alpha',
+      bootstrap: createBootstrap({
+        factoryModels: [
+          {
+            id: 'custom:[OpenAI]-GPT-5.5-0',
+            name: '[OpenAI] GPT 5.5',
+            supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+            defaultReasoningEffort: 'medium',
+          },
+        ],
+        factoryDefaultSettings: {
+          model: 'custom:[OpenAI]-GPT-5.5-0',
+          interactionMode: 'auto',
+          reasoningEffort: 'high',
+        },
+      }),
+      snapshot: createLiveSnapshot({
+        availableModels: [{ id: 'custom:[OpenAI]-GPT-5.5-0', name: '[OpenAI] GPT 5.5' }],
+        settings: {
+          modelId: 'custom:[OpenAI]-GPT-5.5-0',
+          interactionMode: 'auto',
+        },
+      }),
+    })
+
+    composerStore.updatePreferences('session-alpha', {
+      modelId: 'custom:[OpenAI]-GPT-5.5-0',
+      reasoningEffort: 'high',
+    })
+
+    expect(composerStore.selectedPreferences).toMatchObject({
+      modelId: 'custom:[OpenAI]-GPT-5.5-0',
+      reasoningEffort: 'high',
     })
   })
 

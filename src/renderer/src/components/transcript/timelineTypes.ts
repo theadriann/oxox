@@ -50,9 +50,14 @@ export interface PermissionTimelineItem {
   requestId: string
   description: string
   riskLevel: RiskLevel
-  options: string[]
+  options: PermissionOptionTimelineItem[]
   toolUseIds: string[]
   selectedOption: string | null
+}
+
+export interface PermissionOptionTimelineItem {
+  label: string
+  value: string
 }
 
 export interface AskUserTimelineItem {

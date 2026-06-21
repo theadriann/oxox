@@ -1,26 +1,39 @@
 import { Button } from '../ui/button'
-import type { PermissionTimelineItem, RiskLevel } from './timelineTypes'
+import type {
+  PermissionOptionTimelineItem,
+  PermissionTimelineItem,
+  RiskLevel,
+} from './timelineTypes'
 
 function formatRiskLevel(riskLevel: RiskLevel): string {
   if (riskLevel === 'unknown') return 'Risk pending'
   return `${riskLevel} risk`
 }
 
-function isDenyOption(option: string): boolean {
-  return option === 'cancel' || option.includes('deny')
+function isDenyOption(option: PermissionOptionTimelineItem): boolean {
+  const value = option.value.toLowerCase()
+  const label = option.label.toLowerCase()
+  return value === 'cancel' || value.includes('deny') || label.includes('deny')
 }
 
-function selectApproveOption(options: string[]): string | null {
-  return options.find((option) => !isDenyOption(option)) ?? options[0] ?? null
+function getOptionTone(option: PermissionOptionTimelineItem): 'approve' | 'deny' {
+  return isDenyOption(option) ? 'deny' : 'approve'
 }
 
-function selectDenyOption(options: string[]): string | null {
-  return options.find((option) => isDenyOption(option)) ?? options.at(-1) ?? null
+function findSelectedOption(
+  options: PermissionOptionTimelineItem[],
+  selectedOption: string | null,
+): PermissionOptionTimelineItem | null {
+  if (!selectedOption) return null
+  return options.find((option) => option.value === selectedOption) ?? null
 }
 
-function getDecisionLabel(selectedOption: string | null): string {
+function getDecisionLabel(
+  selectedOption: string | null,
+  option: PermissionOptionTimelineItem | null,
+): string {
   if (!selectedOption) return 'Decision recorded'
-  return isDenyOption(selectedOption) ? 'Denied' : 'Approved'
+  return option && isDenyOption(option) ? 'Denied' : 'Approved'
 }
 
 export function PermissionCard({
@@ -32,11 +45,10 @@ export function PermissionCard({
   isPending: boolean
   onResolve?: (payload: { requestId: string; selectedOption: string }) => void
 }) {
-  const approveOption = selectApproveOption(item.options)
-  const denyOption = selectDenyOption(item.options)
-  const decisionLabel = getDecisionLabel(item.selectedOption)
+  const selectedOption = findSelectedOption(item.options, item.selectedOption)
+  const decisionLabel = getDecisionLabel(item.selectedOption, selectedOption)
   const isResolved = item.selectedOption !== null
-  const areActionsDisabled = isPending || isResolved || !onResolve || !approveOption || !denyOption
+  const areActionsDisabled = isPending || isResolved || !onResolve || item.options.length === 0
 
   return (
     <article
@@ -69,35 +81,29 @@ export function PermissionCard({
         <div className="mt-2 flex items-center gap-1.5 text-[13px]">
           <span className="font-medium text-fd-ready">{decisionLabel}</span>
           {item.selectedOption ? (
-            <span className="text-fd-tertiary">({item.selectedOption})</span>
+            <span className="text-fd-tertiary">
+              ({selectedOption?.label ?? item.selectedOption})
+            </span>
           ) : null}
         </div>
       ) : null}
 
-      <div className="mt-2 flex items-center gap-1.5">
-        <Button
-          type="button"
-          size="xs"
-          disabled={areActionsDisabled}
-          onClick={() => {
-            if (!approveOption || !onResolve) return
-            onResolve({ requestId: item.requestId, selectedOption: approveOption })
-          }}
-        >
-          Approve
-        </Button>
-        <Button
-          type="button"
-          size="xs"
-          variant="secondary"
-          disabled={areActionsDisabled}
-          onClick={() => {
-            if (!denyOption || !onResolve) return
-            onResolve({ requestId: item.requestId, selectedOption: denyOption })
-          }}
-        >
-          Deny
-        </Button>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {item.options.map((option) => (
+          <Button
+            key={option.value}
+            type="button"
+            size="xs"
+            variant={getOptionTone(option) === 'deny' ? 'secondary' : 'default'}
+            disabled={areActionsDisabled}
+            onClick={() => {
+              if (!onResolve) return
+              onResolve({ requestId: item.requestId, selectedOption: option.value })
+            }}
+          >
+            {option.label}
+          </Button>
+        ))}
       </div>
     </article>
   )

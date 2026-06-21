@@ -368,20 +368,20 @@ export class SessionRuntimeCatalogStore {
 
 export function buildToolSelectionSettingsPatch(
   settings: Partial<LiveSessionSettings>,
-  tool: Pick<LiveSessionToolInfo, 'defaultAllowed' | 'llmId'>,
+  tool: Pick<LiveSessionToolInfo, 'defaultAllowed' | 'id'>,
   allowed: boolean,
 ): Partial<LiveSessionSettings> {
   const enabledToolIds = new Set(settings.enabledToolIds ?? [])
   const disabledToolIds = new Set(settings.disabledToolIds ?? [])
 
-  enabledToolIds.delete(tool.llmId)
-  disabledToolIds.delete(tool.llmId)
+  enabledToolIds.delete(tool.id)
+  disabledToolIds.delete(tool.id)
 
   if (allowed !== tool.defaultAllowed) {
     if (allowed) {
-      enabledToolIds.add(tool.llmId)
+      enabledToolIds.add(tool.id)
     } else {
-      disabledToolIds.add(tool.llmId)
+      disabledToolIds.add(tool.id)
     }
   }
 

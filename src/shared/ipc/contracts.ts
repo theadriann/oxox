@@ -875,10 +875,15 @@ export interface LiveSessionToolResultEventRecord extends BaseLiveSessionEventRe
   isError?: boolean
 }
 
+export interface LiveSessionPermissionOptionRecord {
+  label: string
+  value: string
+}
+
 export interface LiveSessionPermissionRequestedEventRecord extends BaseLiveSessionEventRecord {
   type: 'permission.requested'
   requestId: string
-  options: readonly string[]
+  options: readonly LiveSessionPermissionOptionRecord[]
   toolUseIds?: readonly string[]
   reason?: string
   riskLevel?: string

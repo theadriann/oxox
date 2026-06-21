@@ -93,6 +93,7 @@ export function deriveComposerPreferences(
   persisted: Record<string, ComposerPreferences>,
   factoryDefaultSettings: FactoryDefaults,
   factoryModels: LiveSessionModel[],
+  sessionModelId?: string | null,
 ): ComposerPreferences {
   const defaultPreferences = deriveDefaultComposerPreferences(factoryDefaultSettings, factoryModels)
   const persistedPreferences = sessionId ? persisted[sessionId] : undefined
@@ -102,6 +103,7 @@ export function deriveComposerPreferences(
   const modelId = firstNonEmptyString(
     persistedPreferences?.modelId,
     snapshot?.settings.modelId,
+    sessionModelId,
     factoryDefaultSettings.model,
     snapshot?.availableModels[0]?.id,
     defaultPreferences.modelId,

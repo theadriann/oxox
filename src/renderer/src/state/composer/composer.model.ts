@@ -34,6 +34,7 @@ import {
   deriveComposerPreferences,
   deriveDefaultComposerPreferences,
   type FactoryDefaults,
+  mergeComposerModelLists,
   mergeComposerModelMetadata,
   persistComposerPreferences,
   readPersistedComposerPreferences,
@@ -239,6 +240,7 @@ export class ComposerStore {
       this.preferencesBySessionId,
       this.foundationStore.factoryDefaultSettings as FactoryDefaults,
       this.foundationStore.factoryModels,
+      this.sessionStore.selectedSession?.modelId,
     )
   }
 
@@ -377,9 +379,13 @@ export class ComposerStore {
         this.preferencesBySessionId,
         this.foundationStore.factoryDefaultSettings as FactoryDefaults,
         this.foundationStore.factoryModels,
+        this.sessionStore.sessionsById[sessionId]?.modelId,
       ),
       ...partial,
     }
+    const availableModels = snapshot?.availableModels?.length
+      ? mergeComposerModelLists(snapshot.availableModels, this.foundationStore.factoryModels)
+      : this.foundationStore.factoryModels
 
     this.preferencesBySessionId = {
       ...this.preferencesBySessionId,
@@ -388,9 +394,7 @@ export class ComposerStore {
         reasoningEffort: resolveReasoningEffort(
           nextPreferences.modelId,
           nextPreferences.reasoningEffort,
-          snapshot?.availableModels?.length
-            ? snapshot.availableModels
-            : this.foundationStore.factoryModels,
+          availableModels,
         ),
       },
     }

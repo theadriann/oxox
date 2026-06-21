@@ -96,14 +96,14 @@ describe('buildToolSelectionSettingsPatch', () => {
     expect(
       buildToolSelectionSettingsPatch(
         {
-          enabledToolIds: ['Glob'],
+          enabledToolIds: ['glob-cli'],
         },
         createTool(),
         false,
       ),
     ).toEqual({
-      enabledToolIds: ['Glob'],
-      disabledToolIds: ['Read'],
+      enabledToolIds: ['glob-cli'],
+      disabledToolIds: ['tool-read'],
     } satisfies Partial<LiveSessionSettings>)
   })
 
@@ -111,8 +111,8 @@ describe('buildToolSelectionSettingsPatch', () => {
     expect(
       buildToolSelectionSettingsPatch(
         {
-          enabledToolIds: ['Read'],
-          disabledToolIds: ['Execute'],
+          enabledToolIds: ['tool-read'],
+          disabledToolIds: ['execute-cli'],
         },
         createTool({
           llmId: 'Read',
@@ -123,7 +123,7 @@ describe('buildToolSelectionSettingsPatch', () => {
       ),
     ).toEqual({
       enabledToolIds: [],
-      disabledToolIds: ['Execute'],
+      disabledToolIds: ['execute-cli'],
     } satisfies Partial<LiveSessionSettings>)
   })
 })
@@ -269,11 +269,11 @@ describe('SessionRuntimeCatalogStore', () => {
     })
 
     await store.refresh('session-1')
-    await store.setToolAllowed('session-1', { disabledToolIds: ['Execute'] }, 'Read', false)
+    await store.setToolAllowed('session-1', { disabledToolIds: ['execute-cli'] }, 'Read', false)
 
     expect(updateSettings).toHaveBeenCalledWith('session-1', {
       enabledToolIds: [],
-      disabledToolIds: ['Execute', 'Read'],
+      disabledToolIds: ['execute-cli', 'tool-read'],
     })
     expect(store.tools).toEqual([createTool({ currentlyAllowed: false })])
     expect(store.updatingToolLlmId).toBeNull()

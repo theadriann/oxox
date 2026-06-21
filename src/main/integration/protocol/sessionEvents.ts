@@ -3,13 +3,15 @@ import type {
   LiveSessionAskUserQuestionRecord,
   LiveSessionMcpServerInfo,
   LiveSessionMcpStatusSummary,
+  LiveSessionPermissionOptionRecord,
   LiveSessionTokenUsageRecord,
   TranscriptMessageContentBlock,
 } from '../../../shared/ipc/contracts'
 
 export type SessionEventRole = 'assistant' | 'user' | 'system' | (string & {})
 export type MessageChannel = 'assistant' | 'thinking' | 'system' | (string & {})
-export type PermissionOption = string
+export type PermissionOption = LiveSessionPermissionOptionRecord
+export type PermissionSelection = string
 export type SessionStatus = string
 export type StreamCompletionReason =
   | 'completed'
@@ -83,7 +85,7 @@ export interface PermissionResolvedEvent extends BaseSessionEvent {
   readonly type: 'permission.resolved'
   readonly requestId: string
   readonly toolUseIds: readonly string[]
-  readonly selectedOption: PermissionOption
+  readonly selectedOption: PermissionSelection
 }
 
 export interface AskUserRequestedEvent extends BaseSessionEvent {

@@ -13,6 +13,7 @@ import type {
   EventTone,
   MessageRole,
   MessageStatus,
+  PermissionOptionTimelineItem,
   PermissionTimelineItem,
   RiskLevel,
   SystemEventTimelineItem,
@@ -820,7 +821,7 @@ function buildPermissionItem(
       'The session is requesting approval to continue.',
     riskLevel:
       prev && prev.riskLevel !== 'unknown' ? prev.riskLevel : normalizeRiskLevel(event.riskLevel),
-    options: prev && prev.options.length > 0 ? prev.options : toStringArray(event.options),
+    options: prev && prev.options.length > 0 ? prev.options : toPermissionOptions(event.options),
     toolUseIds:
       prev && prev.toolUseIds.length > 0 ? prev.toolUseIds : toStringArray(event.toolUseIds),
     selectedOption: prev?.selectedOption ?? null,
@@ -1123,6 +1124,39 @@ function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
     : []
+}
+
+function toPermissionOptions(value: unknown): PermissionOptionTimelineItem[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.flatMap((entry) => {
+    if (typeof entry === 'string' && entry.length > 0) {
+      return [{ label: formatPermissionOptionLabel(entry), value: entry }]
+    }
+
+    if (!isRecord(entry) || typeof entry.value !== 'string' || entry.value.length === 0) {
+      return []
+    }
+
+    return [
+      {
+        label:
+          typeof entry.label === 'string' && entry.label.length > 0
+            ? entry.label
+            : formatPermissionOptionLabel(entry.value),
+        value: entry.value,
+      },
+    ]
+  })
+}
+
+function formatPermissionOptionLabel(value: string): string {
+  return value
+    .replace(/^proceed_/, '')
+    .replaceAll('_', ' ')
+    .replace(/^\w/, (match) => match.toUpperCase())
 }
 
 function toContentBlocks(value: unknown): TranscriptMessageContentBlock[] {

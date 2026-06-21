@@ -305,8 +305,8 @@ describe('mapDroidMessageToSessionEvent', () => {
           autonomyMode: 'full-auto',
           specModeModelId: 'claude-opus-4.1',
           specModeReasoningEffort: 'high',
-          enabledToolIds: ['Read', 'Glob'],
-          disabledToolIds: ['Execute'],
+          enabledToolIds: ['read-cli', 'glob-cli'],
+          disabledToolIds: ['execute-cli'],
         },
       } satisfies DroidMessage,
       'session-1',
@@ -339,8 +339,8 @@ describe('mapDroidMessageToSessionEvent', () => {
         autonomyMode: 'full-auto',
         specModeModelId: 'claude-opus-4.1',
         specModeReasoningEffort: 'high',
-        enabledToolIds: ['Read', 'Glob'],
-        disabledToolIds: ['Execute'],
+        enabledToolIds: ['read-cli', 'glob-cli'],
+        disabledToolIds: ['execute-cli'],
       },
     })
     expect(processError).toEqual({
@@ -711,11 +711,32 @@ describe('createPermissionRequestedEvent', () => {
       type: 'permission.requested',
       sessionId: 'session-1',
       requestId: 'request-1',
-      options: [ToolConfirmationOutcome.ProceedOnce],
+      options: [{ label: 'Proceed once', value: ToolConfirmationOutcome.ProceedOnce }],
       toolUseIds: ['tool-use-1'],
       reason: 'rm -rf /tmp/demo',
       riskLevel: 'high',
     })
+  })
+
+  it('preserves permission labels for unknown SDK option values', () => {
+    const params: RequestPermissionRequestParams = {
+      toolUses: [],
+      options: [
+        {
+          label: 'Always allow tool',
+          value: 'proceed_always_tools',
+        },
+        {
+          label: 'Cancel',
+          value: ToolConfirmationOutcome.Cancel,
+        },
+      ],
+    }
+
+    expect(createPermissionRequestedEvent('request-1', params).options).toEqual([
+      { label: 'Always allow tool', value: 'proceed_always_tools' },
+      { label: 'Cancel', value: ToolConfirmationOutcome.Cancel },
+    ])
   })
 })
 

@@ -247,8 +247,8 @@ describe('LiveSessionStore', () => {
         settings: {
           modelId: 'gpt-5.4',
           interactionMode: 'auto',
-          enabledToolIds: ['Read'],
-          disabledToolIds: ['Execute'],
+          enabledToolIds: ['read-cli'],
+          disabledToolIds: ['execute-cli'],
         },
       }),
     )
@@ -264,8 +264,8 @@ describe('LiveSessionStore', () => {
 
     await store.refreshSnapshot('session-live-1')
 
-    expect(store.selectedSnapshot?.settings.enabledToolIds).toEqual(['Read'])
-    expect(store.selectedSnapshot?.settings.disabledToolIds).toEqual(['Execute'])
+    expect(store.selectedSnapshot?.settings.enabledToolIds).toEqual(['read-cli'])
+    expect(store.selectedSnapshot?.settings.disabledToolIds).toEqual(['execute-cli'])
   })
 
   it('preserves existing activity timestamps when syncing live snapshot metadata', () => {
