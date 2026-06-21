@@ -18,7 +18,9 @@ import { Button } from '../ui/button'
 import { SkeletonBlock } from '../ui/skeleton'
 import { StateCard } from '../ui/state-card'
 import { AskUserCard } from './AskUserCard'
+import { LiveSessionStatusPill } from './LiveSessionStatusPill'
 import { LiveToolRow } from './LiveToolRow'
+import type { LiveSessionStatusIndicator } from './liveSessionStatusIndicator'
 import { MessageCard } from './MessageCard'
 import { PermissionCard } from './PermissionCard'
 import { SystemEventCard } from './SystemEventCard'
@@ -40,6 +42,7 @@ const TRANSCRIPT_LOADING_ROW_IDS = [
   'transcript-loading-b',
   'transcript-loading-c',
 ]
+const LIVE_STATUS_RESERVED_SPACE_PX = 56
 
 export interface TranscriptRendererProps {
   items: TimelineItem[]
@@ -54,6 +57,7 @@ export interface TranscriptRendererProps {
   primaryActionRef?: MutableRefObject<HTMLElement | null>
   pendingPermissionRequestIds?: string[]
   pendingAskUserRequestIds?: string[]
+  statusIndicator?: LiveSessionStatusIndicator | null
   onResolvePermissionRequest?: (payload: { requestId: string; selectedOption: string }) => void
   onSubmitAskUserResponse?: (payload: {
     requestId: string
@@ -77,6 +81,7 @@ export function TranscriptRenderer({
   primaryActionRef,
   pendingPermissionRequestIds = [],
   pendingAskUserRequestIds = [],
+  statusIndicator = null,
   onResolvePermissionRequest,
   onSubmitAskUserResponse,
   onForkFromMessage,
@@ -101,6 +106,7 @@ export function TranscriptRenderer({
         primaryActionRef={primaryActionRef}
         pendingPermissionRequestIds={pendingPermissionRequestIds}
         pendingAskUserRequestIds={pendingAskUserRequestIds}
+        statusIndicator={statusIndicator}
         onResolvePermissionRequest={onResolvePermissionRequest}
         onSubmitAskUserResponse={onSubmitAskUserResponse}
         onForkFromMessage={onForkFromMessage}
@@ -257,6 +263,7 @@ function LiveTranscriptView({
   primaryActionRef,
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
+  statusIndicator,
   onResolvePermissionRequest,
   onSubmitAskUserResponse,
   onForkFromMessage,
@@ -271,6 +278,7 @@ function LiveTranscriptView({
   primaryActionRef?: MutableRefObject<HTMLElement | null>
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
+  statusIndicator: LiveSessionStatusIndicator | null
   onResolvePermissionRequest?: (payload: { requestId: string; selectedOption: string }) => void
   onSubmitAskUserResponse?: (payload: {
     requestId: string
@@ -314,6 +322,7 @@ function LiveTranscriptView({
     searchTexts: inlineSearchTexts,
     onNavigateToRow: transcriptScroll.navigateToRow,
   })
+  const statusReservedSpace = statusIndicator ? LIVE_STATUS_RESERVED_SPACE_PX : 0
   useTranscriptInlineSearchHighlights({
     containerRef: transcriptScroll.scrollAreaRef,
     isOpen: inlineSearch.isOpen,
@@ -351,7 +360,8 @@ function LiveTranscriptView({
         ) : (
           <div
             className="relative w-full"
-            style={{ height: `${transcriptScroll.estimatedTotalHeight}px` }}
+            data-testid="live-transcript-virtual-spacer"
+            style={{ height: `${transcriptScroll.estimatedTotalHeight + statusReservedSpace}px` }}
           >
             {transcriptScroll.rowsToRender.map((virtualRow) => {
               const renderItem = items[virtualRow.index]
@@ -418,6 +428,11 @@ function LiveTranscriptView({
         visible={transcriptScroll.showJumpButton && items.length > 0}
         onClick={() => transcriptScroll.scrollToLatest('smooth')}
       />
+      {statusIndicator ? (
+        <div className="pointer-events-none absolute bottom-2 left-2 z-10">
+          <LiveSessionStatusPill status={statusIndicator} className="pointer-events-auto" />
+        </div>
+      ) : null}
     </section>
   )
 }

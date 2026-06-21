@@ -141,6 +141,13 @@ export interface SessionTokenUsageChangedEvent extends BaseSessionEvent {
   readonly previousTokenUsage?: TokenUsageSnapshot
 }
 
+export interface SessionCompactedEvent extends BaseSessionEvent {
+  readonly type: 'session.compacted'
+  readonly summaryId: string
+  readonly removedCount: number
+  readonly visibleBoundaryMessageId: string | null
+}
+
 export interface StreamWarningEvent extends BaseSessionEvent {
   readonly type: 'stream.warning'
   readonly warning: string
@@ -249,6 +256,7 @@ export type SessionEvent =
   | SessionSettingsChangedEvent
   | SessionTitleChangedEvent
   | SessionTokenUsageChangedEvent
+  | SessionCompactedEvent
   | StreamWarningEvent
   | StreamErrorEvent
   | StreamCompletedEvent

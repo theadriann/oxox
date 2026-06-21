@@ -6,6 +6,7 @@ export type ComposerStatus =
   | 'idle'
   | 'active'
   | 'waiting'
+  | 'compacting_conversation'
   | 'completed'
   | 'reconnecting'
   | 'orphaned'

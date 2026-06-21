@@ -76,7 +76,15 @@ export interface SessionComposerProps {
   selectedAutonomyLevel: string
   imageAttachments: ComposerImageAttachment[]
   availableModels: LiveSessionModel[]
-  status: 'idle' | 'active' | 'waiting' | 'completed' | 'reconnecting' | 'orphaned' | 'error'
+  status:
+    | 'idle'
+    | 'active'
+    | 'waiting'
+    | 'compacting_conversation'
+    | 'completed'
+    | 'reconnecting'
+    | 'orphaned'
+    | 'error'
   isAttached: boolean
   canAttach: boolean
   canComposeDetached?: boolean
@@ -149,7 +157,9 @@ export function SessionComposer({
     useState<ActiveWorkspaceFileMention | null>(null)
   const trimmedDraft = draft.trim()
   const isRecovering = status === 'reconnecting' || status === 'orphaned' || status === 'error'
-  const isWorking = isAttached && (status === 'active' || status === 'waiting')
+  const isWorking =
+    isAttached &&
+    (status === 'active' || status === 'waiting' || status === 'compacting_conversation')
   const isCompleted = status === 'completed'
   const isConnected = isAttached && !isRecovering && !isCompleted
   const canUseComposer = isConnected || canComposeDetached
@@ -330,9 +340,11 @@ export function SessionComposer({
             ? 'Detached'
             : !isAttached
               ? 'Ended'
-              : isWorking
-                ? 'Generating...'
-                : 'Ready'
+              : status === 'compacting_conversation'
+                ? 'Compressing...'
+                : isWorking
+                  ? 'Generating...'
+                  : 'Ready'
 
   return (
     <>

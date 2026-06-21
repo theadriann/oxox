@@ -369,6 +369,7 @@ export function buildLiveTimeline(snapshot: LiveSessionSnapshot): TimelineItem[]
         break
 
       case 'session.result':
+      case 'session.compacted':
         sealMessageSegments()
         {
           const presentation = presentRuntimeEvent(event)

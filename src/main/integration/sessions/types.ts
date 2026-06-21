@@ -204,6 +204,7 @@ export type SessionEventSink = (event: SessionEvent) => void
 export type ManagedSessionStatus =
   | 'active'
   | 'waiting'
+  | 'compacting_conversation'
   | 'idle'
   | 'completed'
   | 'disconnected'

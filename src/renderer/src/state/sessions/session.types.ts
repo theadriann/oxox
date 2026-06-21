@@ -5,6 +5,7 @@ export type ExtendedSessionStatus =
   | 'idle'
   | 'disconnected'
   | 'reconnecting'
+  | 'compacting_conversation'
   | 'orphaned'
   | 'error'
 

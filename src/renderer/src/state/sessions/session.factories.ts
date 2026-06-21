@@ -7,6 +7,7 @@ function toSessionStatus(status: string): ExtendedSessionStatus {
     case 'disconnected':
     case 'idle':
     case 'reconnecting':
+    case 'compacting_conversation':
     case 'orphaned':
     case 'error':
     case 'waiting':

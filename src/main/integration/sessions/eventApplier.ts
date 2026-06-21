@@ -107,7 +107,12 @@ export function normalizeWorkingStatus(
     return 'active'
   }
 
-  if (event.status === 'idle' || event.status === 'completed' || event.status === 'waiting') {
+  if (
+    event.status === 'idle' ||
+    event.status === 'completed' ||
+    event.status === 'waiting' ||
+    event.status === 'compacting_conversation'
+  ) {
     return event.status as ManagedSessionStatus
   }
 

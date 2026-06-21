@@ -88,6 +88,22 @@ export function presentRuntimeEvent(
         toastId: runtimeToastId(event),
       }
 
+    case 'session.compacted':
+      return {
+        title: 'Conversation compressed',
+        body: `Removed ${event.removedCount.toLocaleString()} transcript ${event.removedCount === 1 ? 'item' : 'items'} from active context.`,
+        details: [
+          `Summary: ${event.summaryId}`,
+          event.visibleBoundaryMessageId
+            ? `Visible boundary: ${event.visibleBoundaryMessageId}`
+            : null,
+        ].filter((detail): detail is string => Boolean(detail)),
+        tone: 'success',
+        layout: 'compact',
+        detailsLayout: 'disclosure',
+        toastId: runtimeToastId(event),
+      }
+
     default:
       return null
   }

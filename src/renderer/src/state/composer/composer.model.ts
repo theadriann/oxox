@@ -807,13 +807,16 @@ function buildUserMessagePayload(
 function getQueuePlacementForStatus(
   status: LiveSessionSnapshot['status'],
 ): LiveSessionAddUserMessageRequest['queuePlacement'] | undefined {
-  return status === 'active' || status === 'waiting' ? 'end_of_turn' : undefined
+  return status === 'active' || status === 'waiting' || status === 'compacting_conversation'
+    ? 'end_of_turn'
+    : undefined
 }
 
 function toComposerStatus(status: string | undefined): ComposerStatus {
   if (
     status === 'active' ||
     status === 'waiting' ||
+    status === 'compacting_conversation' ||
     status === 'completed' ||
     status === 'reconnecting' ||
     status === 'orphaned' ||

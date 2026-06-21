@@ -11,6 +11,7 @@ import type {
 } from '../../../../shared/ipc/contracts'
 import type { SessionPreview } from '../../state/sessions/session.model'
 import { buildHistoricalTimeline } from '../transcript/buildHistoricalTimeline'
+import { deriveLiveSessionStatusIndicator } from '../transcript/liveSessionStatusIndicator'
 import { TranscriptRenderer } from '../transcript/TranscriptRenderer'
 import type { TimelineItem } from '../transcript/timelineTypes'
 import { Button } from '../ui/button'
@@ -231,6 +232,7 @@ export function DetailPanel({
   if (selectedLiveSession) {
     return (
       <LiveSessionTranscriptView
+        session={selectedLiveSession}
         sessionId={selectedLiveSession.sessionId}
         items={selectedLiveTimeline}
         transcriptPrimaryActionRef={transcriptPrimaryActionRef}
@@ -320,6 +322,7 @@ export function DetailPanel({
 }
 
 function LiveSessionTranscriptView({
+  session,
   sessionId,
   items,
   transcriptPrimaryActionRef,
@@ -334,6 +337,7 @@ function LiveSessionTranscriptView({
   onForkFromMessage,
   onTranscriptScrollStateChange,
 }: {
+  session: LiveSessionSnapshot
   sessionId: string
   items: TimelineItem[]
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
@@ -351,11 +355,17 @@ function LiveSessionTranscriptView({
   onForkFromMessage?: (messageId: string) => void
   onTranscriptScrollStateChange: (state: SessionTranscriptScrollState) => void
 }) {
+  const statusIndicator = useMemo(
+    () => deriveLiveSessionStatusIndicator(session, items),
+    [session, items],
+  )
+
   return (
     <TranscriptRenderer
       scrollContextKey={sessionId}
       items={items}
       isLive
+      statusIndicator={statusIndicator}
       isLoading={false}
       searchTarget={transcriptSearchTarget}
       scrollToBottomSignal={transcriptScrollSignal}

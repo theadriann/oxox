@@ -573,6 +573,28 @@ describe('mapDroidNotificationPayloadToSessionEvents', () => {
       },
     ])
   })
+
+  it('maps raw session compaction notifications into transcript events', () => {
+    expect(
+      mapDroidNotificationPayloadToSessionEvents(
+        {
+          type: 'session_compacted',
+          summaryId: 'summary-1',
+          removedCount: 42,
+          visibleBoundaryMessageId: 'message-5',
+        },
+        'session-1',
+      ),
+    ).toEqual([
+      {
+        type: 'session.compacted',
+        sessionId: 'session-1',
+        summaryId: 'summary-1',
+        removedCount: 42,
+        visibleBoundaryMessageId: 'message-5',
+      },
+    ])
+  })
 })
 
 describe('mapDroidNotificationPayloadToSessionEvents', () => {

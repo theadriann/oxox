@@ -489,6 +489,7 @@ function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEven
       break
 
     case 'session.result':
+    case 'session.compacted':
       sealMessageSegments(accumulator)
       {
         const presentation = presentRuntimeEvent(event)

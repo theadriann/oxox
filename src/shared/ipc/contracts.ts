@@ -950,6 +950,13 @@ export interface LiveSessionTokenUsageChangedEventRecord extends BaseLiveSession
   previousTokenUsage?: LiveSessionTokenUsageRecord
 }
 
+export interface LiveSessionCompactedEventRecord extends BaseLiveSessionEventRecord {
+  type: 'session.compacted'
+  summaryId: string
+  removedCount: number
+  visibleBoundaryMessageId: string | null
+}
+
 export interface LiveSessionStreamWarningEventRecord extends BaseLiveSessionEventRecord {
   type: 'stream.warning'
   warning: string
@@ -1058,6 +1065,7 @@ export type LiveSessionEventRecord =
   | LiveSessionSettingsChangedEventRecord
   | LiveSessionTitleChangedEventRecord
   | LiveSessionTokenUsageChangedEventRecord
+  | LiveSessionCompactedEventRecord
   | LiveSessionStreamWarningEventRecord
   | LiveSessionStreamErrorEventRecord
   | LiveSessionStreamCompletedEventRecord

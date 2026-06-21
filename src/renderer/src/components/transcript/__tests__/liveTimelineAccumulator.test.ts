@@ -124,6 +124,33 @@ describe('liveTimelineAccumulator', () => {
     expect(item.details).toEqual([])
   })
 
+  it('renders session compaction as a compact transcript event', () => {
+    const accumulator = createLiveTimelineAccumulator(createSnapshot())
+
+    const result = appendLiveTimelineEvents(accumulator, createSnapshot(), [
+      {
+        type: 'session.compacted',
+        summaryId: 'summary-1',
+        removedCount: 42,
+        visibleBoundaryMessageId: 'message-5',
+      },
+    ])
+
+    expect(result.items).toHaveLength(1)
+    const [item] = result.items
+    expect(item?.kind).toBe('event')
+    if (item?.kind !== 'event') return
+
+    expect(item).toMatchObject({
+      title: 'Conversation compressed',
+      body: 'Removed 42 transcript items from active context.',
+      typeLabel: 'session.compacted',
+      tone: 'success',
+      layout: 'compact',
+    })
+    expect(item.details).toEqual(['Summary: summary-1', 'Visible boundary: message-5'])
+  })
+
   it('replaces empty live tool input with later structured input updates', () => {
     const accumulator = createLiveTimelineAccumulator(createSnapshot())
 

@@ -181,6 +181,38 @@ describe('TranscriptRenderer (live)', () => {
     expect(onForkFromMessage).toHaveBeenCalledWith('live-rewind-1')
   })
 
+  it('renders the live session status pill when provided', () => {
+    render(
+      <TranscriptRenderer
+        items={[
+          {
+            kind: 'message',
+            id: 'assistant-1',
+            messageId: 'assistant-1',
+            role: 'assistant',
+            content: 'Latest output.',
+            status: 'completed',
+            occurredAt: null,
+          },
+        ]}
+        isLive
+        isLoading={false}
+        statusIndicator={{
+          kind: 'compressing',
+          label: 'Compressing context',
+          detail: 'Droid is compacting the conversation.',
+          isActive: true,
+        }}
+      />,
+    )
+
+    expect(screen.getByLabelText('Session status: Compressing context')).toBeTruthy()
+    expect(screen.getByText('Compressing context')).toBeTruthy()
+    expect(
+      Number.parseFloat(screen.getByTestId('live-transcript-virtual-spacer').style.height),
+    ).toBeGreaterThan(56)
+  })
+
   it('keeps thinking as a collapsible row and renders resumed assistant text after tool rows', () => {
     render(
       <TranscriptRenderer

@@ -107,6 +107,17 @@ export function mapDroidNotificationPayloadToSessionEvents(
       ]
     }
 
+    case 'session_compacted':
+      return [
+        {
+          type: 'session.compacted',
+          sessionId,
+          summaryId: toStringValue(notification.summaryId, 'compaction-summary'),
+          removedCount: toNumberValue(notification.removedCount),
+          visibleBoundaryMessageId: toOptionalString(notification.visibleBoundaryMessageId),
+        },
+      ]
+
     default:
       return null
   }
