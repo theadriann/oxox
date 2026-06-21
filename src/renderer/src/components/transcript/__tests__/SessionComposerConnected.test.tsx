@@ -104,7 +104,7 @@ describe('SessionComposerConnected', () => {
         modelId: 'gpt-5.4',
         interactionMode: 'auto',
         reasoningEffort: 'medium',
-        autonomyLevel: 'medium',
+        autonomyLevel: 'high',
       })
     })
 

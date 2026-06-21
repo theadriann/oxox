@@ -471,6 +471,9 @@ function parseFactoryDefaultSettings(
   const autonomyMode = sessionDefaultSettings
     ? toNonEmptyString(sessionDefaultSettings.autonomyMode)
     : undefined
+  const autonomyLevel = sessionDefaultSettings
+    ? toNonEmptyString(sessionDefaultSettings.autonomyLevel)
+    : undefined
   const specModeModelId = sessionDefaultSettings
     ? toNonEmptyString(sessionDefaultSettings.specModeModelId)
     : undefined
@@ -486,6 +489,7 @@ function parseFactoryDefaultSettings(
     ...(interactionMode ? { interactionMode } : {}),
     ...(reasoningEffort ? { reasoningEffort } : {}),
     ...(autonomyMode ? { autonomyMode } : {}),
+    ...(autonomyLevel ? { autonomyLevel } : {}),
     ...(specModeModelId ? { specModeModelId } : {}),
     ...(specModeReasoningEffort ? { specModeReasoningEffort } : {}),
     ...(enabledToolIds ? { enabledToolIds } : {}),
@@ -621,6 +625,11 @@ function mergeSettingsBootstrapIntoCliBootstrap(
       ...(typeof settingsBootstrap.factoryDefaultSettings.autonomyMode === 'string'
         ? {
             autonomyMode: settingsBootstrap.factoryDefaultSettings.autonomyMode,
+          }
+        : {}),
+      ...(typeof settingsBootstrap.factoryDefaultSettings.autonomyLevel === 'string'
+        ? {
+            autonomyLevel: settingsBootstrap.factoryDefaultSettings.autonomyLevel,
           }
         : {}),
       ...(typeof settingsBootstrap.factoryDefaultSettings.specModeModelId === 'string'

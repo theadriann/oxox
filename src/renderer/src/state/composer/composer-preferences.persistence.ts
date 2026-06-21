@@ -14,9 +14,12 @@ export interface FactoryDefaults {
   model?: string
   interactionMode?: string
   reasoningEffort?: string
+  autonomyMode?: string
   autonomyLevel?: string
   [key: string]: unknown
 }
+
+const DEFAULT_AUTONOMY_LEVEL = 'high'
 
 export function readPersistedComposerPreferences(
   persistence: PersistencePort,
@@ -46,7 +49,9 @@ export function readPersistedComposerPreferences(
               reasoningEffort:
                 typeof value.reasoningEffort === 'string' ? value.reasoningEffort : '',
               autonomyLevel:
-                typeof value.autonomyLevel === 'string' ? value.autonomyLevel : 'medium',
+                typeof value.autonomyLevel === 'string'
+                  ? value.autonomyLevel
+                  : DEFAULT_AUTONOMY_LEVEL,
             },
           ],
         ]
@@ -78,7 +83,7 @@ export function deriveDefaultComposerPreferences(
       firstNonEmptyString(factoryDefaultSettings.reasoningEffort),
       factoryModels,
     ),
-    autonomyLevel: firstNonEmptyString(factoryDefaultSettings.autonomyLevel, 'medium'),
+    autonomyLevel: resolveAutonomyLevel(factoryDefaultSettings),
   }
 }
 
@@ -145,6 +150,22 @@ export function resolveReasoningEffort(
   }
 
   return firstNonEmptyString(selectedModel?.defaultReasoningEffort, supportedReasoningEfforts[0])
+}
+
+function resolveAutonomyLevel(factoryDefaultSettings: FactoryDefaults): string {
+  return firstNonEmptyString(
+    factoryDefaultSettings.autonomyLevel,
+    autonomyLevelFromMode(factoryDefaultSettings.autonomyMode),
+    DEFAULT_AUTONOMY_LEVEL,
+  )
+}
+
+function autonomyLevelFromMode(value: string | undefined): string | undefined {
+  if (value === 'auto-low') return 'low'
+  if (value === 'auto-medium') return 'medium'
+  if (value === 'auto-high') return 'high'
+  if (value === 'normal') return 'off'
+  return undefined
 }
 
 export function mergeComposerModelLists(

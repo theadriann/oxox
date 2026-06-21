@@ -74,7 +74,7 @@ describe('deriveDefaultComposerPreferences', () => {
       modelId: 'gpt-5.4',
       interactionMode: 'auto',
       reasoningEffort: '',
-      autonomyLevel: 'medium',
+      autonomyLevel: 'high',
     })
   })
 
@@ -84,6 +84,22 @@ describe('deriveDefaultComposerPreferences', () => {
         model: 'gpt-5.4',
         interactionMode: 'auto',
         autonomyLevel: 'high',
+      },
+    })
+    const prefs = deriveDefaultComposerPreferences(
+      bootstrap.factoryDefaultSettings,
+      bootstrap.factoryModels,
+    )
+
+    expect(prefs.autonomyLevel).toBe('high')
+  })
+
+  it('derives high autonomy from legacy auto-high autonomy mode', () => {
+    const bootstrap = createBootstrap({
+      factoryDefaultSettings: {
+        model: 'gpt-5.4',
+        interactionMode: 'auto',
+        autonomyMode: 'auto-high',
       },
     })
     const prefs = deriveDefaultComposerPreferences(
@@ -140,7 +156,7 @@ describe('deriveDefaultComposerPreferences', () => {
       modelId: 'custom:[OpenAI]-GPT-5.5-0',
       interactionMode: 'auto',
       reasoningEffort: 'high',
-      autonomyLevel: 'medium',
+      autonomyLevel: 'high',
     })
   })
 })

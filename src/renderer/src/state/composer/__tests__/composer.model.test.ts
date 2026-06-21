@@ -295,7 +295,7 @@ describe('ComposerStore', () => {
       modelId: 'claude-3.7',
       interactionMode: 'spec',
       reasoningEffort: '',
-      autonomyLevel: 'medium',
+      autonomyLevel: 'high',
     })
     expect(composerStore.selectedAvailableModels.map((model) => model.id)).toEqual([
       'claude-3.7',
@@ -322,7 +322,7 @@ describe('ComposerStore', () => {
       modelId: 'gpt-5.4-mini',
       interactionMode: 'auto',
       reasoningEffort: '',
-      autonomyLevel: 'medium',
+      autonomyLevel: 'high',
     })
     expect(composerStore.selectedAvailableModels.map((model) => model.id)).toEqual([
       'gpt-5.4',
@@ -522,7 +522,7 @@ describe('ComposerStore', () => {
         modelId: 'claude-3.7',
         interactionMode: 'spec',
         reasoningEffort: '',
-        autonomyLevel: 'medium',
+        autonomyLevel: 'high',
       },
     })
 
@@ -533,7 +533,7 @@ describe('ComposerStore', () => {
         modelId: 'claude-3.7',
         interactionMode: 'auto',
         reasoningEffort: '',
-        autonomyLevel: 'medium',
+        autonomyLevel: 'high',
       },
     })
   })
@@ -555,7 +555,7 @@ describe('ComposerStore', () => {
         modelId: 'claude-3.7',
         interactionMode: 'spec',
         reasoningEffort: '',
-        autonomyLevel: 'medium',
+        autonomyLevel: 'high',
       },
     })
 
@@ -566,7 +566,7 @@ describe('ComposerStore', () => {
         modelId: 'claude-3.7',
         interactionMode: 'auto',
         reasoningEffort: '',
-        autonomyLevel: 'medium',
+        autonomyLevel: 'high',
       },
     })
   })

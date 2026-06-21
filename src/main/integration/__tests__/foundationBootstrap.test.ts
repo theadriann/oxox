@@ -51,6 +51,8 @@ describe('foundation bootstrap', () => {
         sessionDefaultSettings: {
           model: 'claude-3.7',
           interactionMode: 'spec',
+          autonomyMode: 'auto-high',
+          autonomyLevel: 'high',
           specModeModelId: 'claude-opus-4.1',
           specModeReasoningEffort: 'high',
           enabledToolIds: ['Read', 'Glob'],
@@ -75,6 +77,8 @@ describe('foundation bootstrap', () => {
       factoryDefaultSettings: {
         model: 'claude-3.7',
         interactionMode: 'spec',
+        autonomyMode: 'auto-high',
+        autonomyLevel: 'high',
         specModeModelId: 'claude-opus-4.1',
         specModeReasoningEffort: 'high',
         enabledToolIds: ['Read', 'Glob'],
@@ -267,6 +271,7 @@ Model details:
           model: 'custom:gpt-5.4(high)',
           interactionMode: 'spec',
           reasoningEffort: 'high',
+          autonomyLevel: 'high',
         },
       }),
     )
@@ -310,6 +315,7 @@ Model details:
         model: 'custom:gpt-5.4(high)',
         interactionMode: 'spec',
         reasoningEffort: 'high',
+        autonomyLevel: 'high',
       },
     })
   })

@@ -969,7 +969,7 @@ describe('renderer store providers and sidebar shell', () => {
     expect(create).toHaveBeenCalledWith({
       cwd: '/tmp/live-session',
       settings: {
-        autonomyLevel: 'medium',
+        autonomyLevel: 'high',
         interactionMode: 'auto',
         modelId: 'gpt-5.4',
       },
@@ -1238,7 +1238,7 @@ describe('renderer store providers and sidebar shell', () => {
     expect(updateSettings).toHaveBeenCalledWith('session-attach-flow', {
       modelId: 'gpt-5.4',
       interactionMode: 'auto',
-      autonomyLevel: 'medium',
+      autonomyLevel: 'high',
     })
     expect(addUserMessage).toHaveBeenCalledWith('session-attach-flow', 'Ship the attach flow')
   })
@@ -1360,7 +1360,7 @@ describe('renderer store providers and sidebar shell', () => {
     expect(updateSettings).toHaveBeenCalledWith('session-auto-attach', {
       modelId: 'gpt-5.4',
       interactionMode: 'auto',
-      autonomyLevel: 'medium',
+      autonomyLevel: 'high',
     })
     expect(addUserMessage).toHaveBeenCalledWith('session-auto-attach', 'Auto attach from send')
     expect(attach.mock.invocationCallOrder[0]).toBeLessThan(
