@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FoundationRecordDelta, SessionRecord } from '../../../../../shared/ipc/contracts'
 import { createMemoryPersistencePort } from '../../../platform/persistence'
@@ -315,6 +315,112 @@ describe('SessionStore', () => {
     ])
     expect(restoredStore.sessionFolderAssignments).toEqual({
       'session-alpha': folder.id,
+    })
+  })
+
+  it('writes folder mutations through the SQLite-backed bridge when available', async () => {
+    const bridge = {
+      upsertSessionFolder: vi.fn().mockResolvedValue(undefined),
+      deleteSessionFolder: vi.fn().mockResolvedValue(undefined),
+      setSessionFolderAssignment: vi.fn().mockResolvedValue(undefined),
+      removeSessionFolderAssignment: vi.fn().mockResolvedValue(undefined),
+    }
+    const persistence = createMemoryPersistencePort()
+    const store = new SessionStore(persistence, bridge)
+
+    store.hydrateSessions([
+      {
+        id: 'session-alpha',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        parentSessionId: null,
+        modelId: 'gpt-5.4',
+        title: 'Alpha project work',
+        status: 'active',
+        transport: 'artifacts',
+        createdAt: '2026-03-24T08:00:00.000Z',
+        lastActivityAt: '2026-03-24T09:00:00.000Z',
+        updatedAt: '2026-03-24T09:00:00.000Z',
+      },
+    ])
+
+    const folder = store.createSessionFolder('project-alpha', 'Auth research')
+    store.moveSessionToFolder('session-alpha', folder.id)
+    store.moveSessionToProject('session-alpha', 'project-alpha')
+    await store.flushFolderPersistenceWrites()
+
+    expect(bridge.upsertSessionFolder).toHaveBeenCalledWith(
+      expect.objectContaining({ id: folder.id, name: 'Auth research' }),
+    )
+    expect(bridge.setSessionFolderAssignment).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-alpha', folderId: folder.id }),
+    )
+    expect(bridge.removeSessionFolderAssignment).toHaveBeenCalledWith('session-alpha')
+    expect(persistence.get('oxox.session.preferences', {})).not.toHaveProperty('sessionFolders')
+  })
+
+  it('hydrates SQLite-backed folders from foundation metadata without pruning missing sessions', () => {
+    const store = new SessionStore(createMemoryPersistencePort(), {
+      upsertSessionFolder: vi.fn().mockResolvedValue(undefined),
+    })
+
+    store.hydrateSessionFolderMetadata({
+      folders: [
+        {
+          id: 'folder-preserved',
+          projectKey: 'project-alpha',
+          name: 'Preserved',
+          parentFolderId: null,
+          createdAt: '2026-03-24T08:00:00.000Z',
+          updatedAt: '2026-03-24T08:00:00.000Z',
+          order: 0,
+        },
+      ],
+      assignments: [
+        {
+          sessionId: 'session-missing-during-reindex',
+          folderId: 'folder-preserved',
+          updatedAt: '2026-03-24T08:01:00.000Z',
+        },
+      ],
+    })
+    store.hydrateSessions([])
+
+    expect(store.sessionFolders.map((folder) => folder.id)).toEqual(['folder-preserved'])
+    expect(store.sessionFolderAssignments).toEqual({
+      'session-missing-during-reindex': 'folder-preserved',
+    })
+  })
+
+  it('keeps legacy folders visible while SQLite migration is pending', () => {
+    const persistence = createMemoryPersistencePort({
+      'oxox.session.preferences': {
+        sessionFolders: [
+          {
+            id: 'folder-legacy',
+            projectKey: 'project-alpha',
+            name: 'Legacy folder',
+            parentFolderId: null,
+            createdAt: '2026-03-24T08:00:00.000Z',
+            updatedAt: '2026-03-24T08:00:00.000Z',
+            order: 0,
+          },
+        ],
+        sessionFolderAssignments: {
+          'session-alpha': 'folder-legacy',
+        },
+      },
+    })
+    const store = new SessionStore(persistence, {
+      mergeSessionFolderMetadata: vi.fn().mockResolvedValue(undefined),
+    })
+
+    store.hydrateSessionFolderMetadata({ folders: [], assignments: [] })
+
+    expect(store.sessionFolders.map((folder) => folder.id)).toEqual(['folder-legacy'])
+    expect(store.sessionFolderAssignments).toEqual({
+      'session-alpha': 'folder-legacy',
     })
   })
 

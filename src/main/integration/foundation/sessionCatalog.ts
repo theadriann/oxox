@@ -1,5 +1,10 @@
 import type { SessionRecord } from '../../../shared/ipc/contracts'
-import type { ArtifactScanner, ArtifactScannerReport } from '../artifacts/scanner'
+import type {
+  ArtifactScanner,
+  ArtifactScannerProgress,
+  ArtifactScannerReport,
+  ArtifactScannerSyncOptions,
+} from '../artifacts/scanner'
 import type { DaemonTransport } from '../daemon/transport'
 import type { DatabaseService } from '../database/service'
 import { reconcileSessionRecords } from '../sessions/reconcile'
@@ -20,6 +25,9 @@ export interface CreateFoundationSessionCatalogOptions {
 
 export interface FoundationSessionCatalog {
   syncArtifacts: () => Promise<void>
+  reindexArtifacts: (
+    onProgress?: (progress: ArtifactScannerProgress) => void,
+  ) => Promise<ArtifactScannerReport>
   listSessions: () => SessionRecord[]
   close: () => void
 }
@@ -29,7 +37,7 @@ export function createFoundationSessionCatalog(
 ): FoundationSessionCatalog {
   let artifactSessions = options.database.listPersistedSessions()
   let syncInFlight = false
-  let activeSync: Promise<void> | null = null
+  let activeSync: Promise<ArtifactScannerReport> | null = null
   let resyncRequested = false
 
   const applySyncReport = (report: ArtifactScannerReport): void => {
@@ -45,19 +53,29 @@ export function createFoundationSessionCatalog(
     }
   }
 
-  const runQueuedSync = async (): Promise<void> => {
+  const runQueuedSync = async (
+    syncOptions?: ArtifactScannerSyncOptions,
+  ): Promise<ArtifactScannerReport> => {
+    let latestReport: ArtifactScannerReport | null = null
+
     if (syncInFlight) {
-      resyncRequested = true
+      if (!syncOptions?.force) {
+        resyncRequested = true
+      }
       await activeSync
-      return
+
+      if (!syncOptions?.force) {
+        return createEmptyScannerReport()
+      }
     }
 
     do {
       resyncRequested = false
-      const report = options.scanner.sync()
+      const report = options.scanner.sync(syncOptions)
 
       if (!isPromiseLike(report)) {
         applySyncReport(report)
+        latestReport = report
         continue
       }
 
@@ -65,19 +83,30 @@ export function createFoundationSessionCatalog(
       activeSync = report
         .then((resolvedReport) => {
           applySyncReport(resolvedReport)
+          latestReport = resolvedReport
+          return resolvedReport
         })
         .catch((error) => {
           console.error('Failed to synchronize session artifacts', error)
+          return createEmptyScannerReport()
         })
 
       await activeSync
       activeSync = null
       syncInFlight = false
     } while (resyncRequested)
+
+    return latestReport ?? createEmptyScannerReport()
   }
 
   const syncArtifacts = async (): Promise<void> => {
     await runQueuedSync()
+  }
+
+  const reindexArtifacts = async (
+    onProgress?: (progress: ArtifactScannerProgress) => void,
+  ): Promise<ArtifactScannerReport> => {
+    return runQueuedSync({ force: true, onProgress })
   }
 
   void syncArtifacts()
@@ -90,6 +119,7 @@ export function createFoundationSessionCatalog(
 
   return {
     syncArtifacts,
+    reindexArtifacts,
     listSessions: () => {
       const cachedSessions = options.database.listPersistedSessions()
       const reconciledSessions = reconcileSessionRecords({
@@ -107,6 +137,16 @@ export function createFoundationSessionCatalog(
       clearIntervalFn(artifactPollTimer)
       void options.scanner.close?.()
     },
+  }
+}
+
+function createEmptyScannerReport(): ArtifactScannerReport {
+  return {
+    deletedCount: 0,
+    durationMs: 0,
+    processedCount: 0,
+    skippedCount: 0,
+    unreadableCount: 0,
   }
 }
 

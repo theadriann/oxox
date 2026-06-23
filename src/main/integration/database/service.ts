@@ -6,6 +6,9 @@ import { join } from 'node:path'
 import type {
   DatabaseDiagnostics,
   ProjectRecord,
+  SessionFolderAssignmentRecord,
+  SessionFolderMetadata,
+  SessionFolderRecord,
   SessionRecord,
   SessionTranscriptScrollState,
   SyncMetadataRecord,
@@ -82,15 +85,34 @@ const FOUNDATION_SCHEMA = `
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS session_folders (
+    id TEXT PRIMARY KEY,
+    project_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    parent_folder_id TEXT REFERENCES session_folders(id) ON DELETE SET NULL,
+    folder_order REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS session_folder_assignments (
+    session_id TEXT PRIMARY KEY,
+    folder_id TEXT NOT NULL REFERENCES session_folders(id) ON DELETE CASCADE,
+    updated_at TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_sessions_project_id ON sessions(project_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_last_activity_at ON sessions(last_activity_at);
   CREATE INDEX IF NOT EXISTS idx_sync_metadata_session_id ON sync_metadata(session_id);
   CREATE INDEX IF NOT EXISTS idx_session_runtime_status ON session_runtime(status);
   CREATE INDEX IF NOT EXISTS idx_session_lineage_parent_session_id ON session_lineage(parent_session_id);
   CREATE INDEX IF NOT EXISTS idx_session_rewind_boundaries_session_id ON session_rewind_boundaries(session_id);
+  CREATE INDEX IF NOT EXISTS idx_session_folders_project_key ON session_folders(project_key);
+  CREATE INDEX IF NOT EXISTS idx_session_folders_parent_folder_id ON session_folders(parent_folder_id);
+  CREATE INDEX IF NOT EXISTS idx_session_folder_assignments_folder_id ON session_folder_assignments(folder_id);
 `
 
-const CURRENT_SCHEMA_VERSION = 6
+const CURRENT_SCHEMA_VERSION = 7
 
 const require = createRequire(import.meta.url)
 
@@ -194,6 +216,8 @@ export interface DatabaseService {
   listPersistedSessions: () => SessionRecord[]
   listSessionRuntimes: () => SessionRuntimeRecord[]
   listSessionRewindBoundaries: (sessionId: string) => SessionRewindBoundaryRecord[]
+  listSessionFolders: () => SessionFolderRecord[]
+  listSessionFolderAssignments: () => SessionFolderAssignmentRecord[]
   getSessionTranscriptScrollState: (sessionId: string) => SessionTranscriptScrollState | null
   listSessions: () => SessionRecord[]
   listSyncMetadata: () => SyncMetadataRecord[]
@@ -206,6 +230,11 @@ export interface DatabaseService {
   listSessionLineageIds: () => string[]
   clearSessionRuntime: (sessionId: string) => void
   removeSession: (sessionId: string) => void
+  mergeSessionFolderMetadata: (metadata: SessionFolderMetadata) => void
+  upsertSessionFolder: (folder: SessionFolderRecord) => void
+  deleteSessionFolder: (folderId: string) => void
+  setSessionFolderAssignment: (assignment: SessionFolderAssignmentRecord) => void
+  removeSessionFolderAssignment: (sessionId: string) => void
   upsertSessionRewindBoundary: (boundary: SessionRewindBoundaryUpsert) => void
   upsertSessionTranscriptScrollState: (state: SessionTranscriptScrollState) => void
   upsertSession: (session: SessionUpsert) => void
@@ -439,6 +468,28 @@ export function createDatabaseService({
       WHERE session_id = ?
     `)
 
+  const sessionFolderStatement = database.prepare<SessionFolderRecord>(`
+    SELECT
+      id,
+      project_key AS projectKey,
+      name,
+      parent_folder_id AS parentFolderId,
+      created_at AS createdAt,
+      updated_at AS updatedAt,
+      folder_order AS "order"
+    FROM session_folders
+    ORDER BY project_key COLLATE NOCASE ASC, parent_folder_id ASC, folder_order ASC, name COLLATE NOCASE ASC
+  `)
+
+  const sessionFolderAssignmentStatement = database.prepare<SessionFolderAssignmentRecord>(`
+    SELECT
+      session_id AS sessionId,
+      folder_id AS folderId,
+      updated_at AS updatedAt
+    FROM session_folder_assignments
+    ORDER BY session_id ASC
+  `)
+
   const tableNamesStatement = database.prepare<TableNameRow>(`
     SELECT name
     FROM sqlite_master
@@ -600,6 +651,48 @@ export function createDatabaseService({
       updated_at = excluded.updated_at
   `)
 
+  const upsertSessionFolderStatement = database.prepare(`
+    INSERT INTO session_folders (
+      id,
+      project_key,
+      name,
+      parent_folder_id,
+      folder_order,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      project_key = excluded.project_key,
+      name = excluded.name,
+      parent_folder_id = excluded.parent_folder_id,
+      folder_order = excluded.folder_order,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at
+  `)
+
+  const deleteSessionFolderStatement = database.prepare(`
+    DELETE FROM session_folders
+    WHERE id = ?
+  `)
+
+  const upsertSessionFolderAssignmentStatement = database.prepare(`
+    INSERT INTO session_folder_assignments (
+      session_id,
+      folder_id,
+      updated_at
+    )
+    VALUES (?, ?, ?)
+    ON CONFLICT(session_id) DO UPDATE SET
+      folder_id = excluded.folder_id,
+      updated_at = excluded.updated_at
+  `)
+
+  const deleteSessionFolderAssignmentStatement = database.prepare(`
+    DELETE FROM session_folder_assignments
+    WHERE session_id = ?
+  `)
+
   const persistSessionRow = (session: SessionUpsert): void => {
     if (session.projectWorkspacePath) {
       const project: ProjectMutationInput = {
@@ -684,6 +777,36 @@ export function createDatabaseService({
     },
   )
 
+  const mergeSessionFolderMetadataTransaction = database.transaction(
+    (metadata: SessionFolderMetadata) => {
+      for (const folder of metadata.folders) {
+        upsertSessionFolderStatement.run(
+          folder.id,
+          folder.projectKey,
+          folder.name,
+          folder.parentFolderId,
+          folder.order,
+          folder.createdAt,
+          folder.updatedAt,
+        )
+      }
+
+      const folderIds = new Set(metadata.folders.map((folder) => folder.id))
+
+      for (const assignment of metadata.assignments) {
+        if (!folderIds.has(assignment.folderId)) {
+          continue
+        }
+
+        upsertSessionFolderAssignmentStatement.run(
+          assignment.sessionId,
+          assignment.folderId,
+          assignment.updatedAt,
+        )
+      }
+    },
+  )
+
   return {
     close: () => {
       if (database.open) {
@@ -705,6 +828,8 @@ export function createDatabaseService({
     listPersistedSessions: () => persistedSessionStatement.all().map(normalizeSessionRecord),
     listSessionRuntimes: () => sessionRuntimeStatement.all(),
     listSessionRewindBoundaries: (sessionId) => sessionRewindBoundaryStatement.all(sessionId),
+    listSessionFolders: () => sessionFolderStatement.all().map(normalizeSessionFolderRecord),
+    listSessionFolderAssignments: () => sessionFolderAssignmentStatement.all(),
     getSessionTranscriptScrollState: (sessionId) => {
       const row = sessionTranscriptScrollStateStatement.get(sessionId)
       return row ? normalizeSessionTranscriptScrollState(row) : null
@@ -725,6 +850,33 @@ export function createDatabaseService({
     },
     removeSession: (sessionId) => {
       deleteSessionByIdStatement.run(sessionId)
+    },
+    mergeSessionFolderMetadata: (metadata) => {
+      mergeSessionFolderMetadataTransaction(metadata)
+    },
+    upsertSessionFolder: (folder) => {
+      upsertSessionFolderStatement.run(
+        folder.id,
+        folder.projectKey,
+        folder.name,
+        folder.parentFolderId,
+        folder.order,
+        folder.createdAt,
+        folder.updatedAt,
+      )
+    },
+    deleteSessionFolder: (folderId) => {
+      deleteSessionFolderStatement.run(folderId)
+    },
+    setSessionFolderAssignment: (assignment) => {
+      upsertSessionFolderAssignmentStatement.run(
+        assignment.sessionId,
+        assignment.folderId,
+        assignment.updatedAt,
+      )
+    },
+    removeSessionFolderAssignment: (sessionId) => {
+      deleteSessionFolderAssignmentStatement.run(sessionId)
     },
     upsertSessionRewindBoundary: (boundary) => {
       upsertSessionRewindBoundaryStatement.run(
@@ -807,6 +959,14 @@ function normalizeSessionTranscriptScrollState(
     clientHeight: Number(state.clientHeight),
     distanceFromBottom: Number(state.distanceFromBottom),
     isAtBottom: Boolean(state.isAtBottom),
+  }
+}
+
+function normalizeSessionFolderRecord(folder: SessionFolderRecord): SessionFolderRecord {
+  return {
+    ...folder,
+    parentFolderId: folder.parentFolderId ?? null,
+    order: Number(folder.order),
   }
 }
 

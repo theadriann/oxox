@@ -144,6 +144,31 @@ describe('FoundationStore', () => {
     expect(emittedFoundation).toHaveBeenCalledWith({ bootstrap })
   })
 
+  it('runs the reindex bridge action and refreshes foundation state', async () => {
+    const bootstrap = createBootstrap()
+    const reindexSessions = vi.fn().mockResolvedValue({
+      deletedCount: 0,
+      durationMs: 12,
+      processedCount: 2,
+      skippedCount: 0,
+      unreadableCount: 0,
+    })
+    const getBootstrap = vi.fn().mockResolvedValue(bootstrap)
+    const { store } = createStoreHarness({
+      getBootstrap,
+      getRuntimeInfo: vi.fn().mockResolvedValue(RUNTIME_INFO),
+      reindexSessions,
+    })
+
+    const report = await store.reindexSessions()
+
+    expect(reindexSessions).toHaveBeenCalledTimes(1)
+    expect(getBootstrap).toHaveBeenCalledTimes(1)
+    expect(report).toMatchObject({ processedCount: 2 })
+    expect(store.isReindexingSessions).toBe(false)
+    expect(store.sessionReindexError).toBeNull()
+  })
+
   it('skips replacing foundation state and dependent hydrations when bootstrap is unchanged', async () => {
     const bootstrap = createBootstrap()
     const getBootstrap = vi.fn().mockResolvedValue(bootstrap)

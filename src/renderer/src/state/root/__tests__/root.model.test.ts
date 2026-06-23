@@ -320,6 +320,54 @@ describe('RootStore', () => {
     )
   })
 
+  it('migrates legacy session folders before loading the foundation bootstrap', async () => {
+    const calls: string[] = []
+    const mergeSessionFolderMetadata = vi.fn().mockImplementation(async () => {
+      calls.push('merge')
+    })
+    const getBootstrap = vi.fn().mockImplementation(async () => {
+      calls.push('bootstrap')
+      return FOUNDATION_BOOTSTRAP
+    })
+    const persistence = createMemoryPersistencePort({
+      'oxox.session.preferences': {
+        sessionFolders: [
+          {
+            id: 'folder-legacy',
+            projectKey: 'project-alpha',
+            name: 'Legacy folder',
+            parentFolderId: null,
+            createdAt: '2026-03-24T08:00:00.000Z',
+            updatedAt: '2026-03-24T08:00:00.000Z',
+            order: 0,
+          },
+        ],
+        sessionFolderAssignments: {
+          'session-live-1': 'folder-legacy',
+        },
+      },
+    })
+    const rootStore = new RootStore(
+      createPlatformApiClient({
+        oxox: {
+          foundation: {
+            getBootstrap,
+            mergeSessionFolderMetadata,
+            upsertSessionFolder: vi.fn().mockResolvedValue(undefined),
+          },
+        },
+      }),
+      persistence,
+    )
+
+    await rootStore.foundationStore.refresh()
+
+    expect(calls).toEqual(['merge', 'bootstrap'])
+    expect(mergeSessionFolderMetadata).toHaveBeenCalledWith({
+      folders: [expect.objectContaining({ id: 'folder-legacy' })],
+      assignments: [expect.objectContaining({ sessionId: 'session-live-1' })],
+    })
+  })
   it('keeps live snapshot updates flowing into session state through bus wiring', async () => {
     const platform = createPlatformApiClient({
       oxox: {

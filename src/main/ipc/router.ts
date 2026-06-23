@@ -149,6 +149,23 @@ export function registerAppIpcHandlers({
       lastBootstrapSnapshot = snapshot
       return snapshot
     },
+    [IPC_CHANNELS.foundationReindexSessions]: () => service.reindexSessions(),
+    [IPC_CHANNELS.foundationMergeSessionFolderMetadata]: (
+      _event,
+      metadata: Parameters<FoundationService['mergeSessionFolderMetadata']>[0],
+    ) => service.mergeSessionFolderMetadata(metadata),
+    [IPC_CHANNELS.foundationUpsertSessionFolder]: (
+      _event,
+      folder: Parameters<FoundationService['upsertSessionFolder']>[0],
+    ) => service.upsertSessionFolder(folder),
+    [IPC_CHANNELS.foundationDeleteSessionFolder]: (_event, folderId: string) =>
+      service.deleteSessionFolder(folderId),
+    [IPC_CHANNELS.foundationSetSessionFolderAssignment]: (
+      _event,
+      assignment: Parameters<FoundationService['setSessionFolderAssignment']>[0],
+    ) => service.setSessionFolderAssignment(assignment),
+    [IPC_CHANNELS.foundationRemoveSessionFolderAssignment]: (_event, sessionId: string) =>
+      service.removeSessionFolderAssignment(sessionId),
     [IPC_CHANNELS.databaseListProjects]: () => service.listProjects(),
     [IPC_CHANNELS.databaseListSessions]: () => service.listSessions(),
     [IPC_CHANNELS.databaseListSyncMetadata]: () => service.listSyncMetadata(),

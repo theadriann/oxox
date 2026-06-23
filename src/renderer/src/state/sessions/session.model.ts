@@ -1,5 +1,10 @@
 import { batch, type Observable } from '@legendapp/state'
-import type { FoundationRecordDelta, SessionRecord } from '../../../../shared/ipc/contracts'
+import type {
+  FoundationRecordDelta,
+  SessionFolderAssignmentRecord,
+  SessionFolderMetadata,
+  SessionRecord,
+} from '../../../../shared/ipc/contracts'
 import { createLocalStoragePort, type PersistencePort } from '../../platform/persistence'
 import type { StoreEventBus } from '../events/store-event-bus'
 import { createSessionPreview } from './session.factories'
@@ -33,12 +38,27 @@ export type {
   SessionStatus,
 } from './session.types'
 
+export interface SessionFolderPersistenceBridge {
+  mergeSessionFolderMetadata?: (metadata: SessionFolderMetadata) => Promise<void>
+  upsertSessionFolder?: (folder: SessionFolder) => Promise<void>
+  deleteSessionFolder?: (folderId: string) => Promise<void>
+  setSessionFolderAssignment?: (assignment: SessionFolderAssignmentRecord) => Promise<void>
+  removeSessionFolderAssignment?: (sessionId: string) => Promise<void>
+}
+
 export class SessionStore {
   readonly state$: Observable<SessionState> = createSessionState$()
   private readonly persistence: PersistencePort
+  private readonly folderPersistence: SessionFolderPersistenceBridge | null
+  private folderPersistenceQueue: Promise<void> = Promise.resolve()
+  private legacySessionFolderMetadata: SessionFolderMetadata | null = null
 
-  constructor(persistence: PersistencePort = createLocalStoragePort()) {
+  constructor(
+    persistence: PersistencePort = createLocalStoragePort(),
+    folderPersistence: SessionFolderPersistenceBridge | null = null,
+  ) {
     this.persistence = persistence
+    this.folderPersistence = folderPersistence
     this.hydratePreferences()
   }
 
@@ -268,6 +288,7 @@ export class SessionStore {
         this.isDraftSelectionActive = false
       }
     })
+    this.persistRemoveSessionFolderAssignment(sessionId)
     this.persistPreferences()
   }
 
@@ -333,7 +354,8 @@ export class SessionStore {
     }
 
     this.sessionFolders = [...this.sessionFolders, nextFolder]
-    this.persistPreferences()
+    this.persistFolderPreferences()
+    this.persistUpsertSessionFolder(nextFolder)
 
     return nextFolder
   }
@@ -349,7 +371,11 @@ export class SessionStore {
 
     if (nextFolders === this.sessionFolders) return
     this.sessionFolders = nextFolders
-    this.persistPreferences()
+    this.persistFolderPreferences()
+    const updatedFolder = nextFolders.find((folder) => folder.id === folderId)
+    if (updatedFolder) {
+      this.persistUpsertSessionFolder(updatedFolder)
+    }
   }
 
   deleteSessionFolder = (folderId: string): void => {
@@ -369,7 +395,10 @@ export class SessionStore {
       )
       this.sessionFolderAssignments = nextAssignments
     })
-    this.persistPreferences()
+    this.persistFolderPreferences()
+    for (const deletedFolderId of folderIdsToDelete) {
+      this.persistDeleteSessionFolder(deletedFolderId)
+    }
   }
 
   moveSessionToFolder = (sessionId: string, folderId: string): void => {
@@ -384,7 +413,8 @@ export class SessionStore {
       ...this.sessionFolderAssignments,
       [sessionId]: folderId,
     }
-    this.persistPreferences()
+    this.persistFolderPreferences()
+    this.persistSetSessionFolderAssignment(sessionId, folderId)
   }
 
   assignSessionToFolder = (sessionId: string, folderId: string): void => {
@@ -394,7 +424,8 @@ export class SessionStore {
       ...this.sessionFolderAssignments,
       [sessionId]: folderId,
     }
-    this.persistPreferences()
+    this.persistFolderPreferences()
+    this.persistSetSessionFolderAssignment(sessionId, folderId)
   }
 
   moveSessionToProject = (sessionId: string, projectKey: string): void => {
@@ -404,7 +435,8 @@ export class SessionStore {
     const nextAssignments = { ...this.sessionFolderAssignments }
     delete nextAssignments[sessionId]
     this.sessionFolderAssignments = nextAssignments
-    this.persistPreferences()
+    this.persistFolderPreferences()
+    this.persistRemoveSessionFolderAssignment(sessionId)
   }
 
   moveFolder = (
@@ -434,7 +466,40 @@ export class SessionStore {
         ? { ...candidate, parentFolderId: resolvedParentFolderId, updatedAt }
         : candidate,
     )
+    this.persistFolderPreferences()
+    const updatedFolder = this.sessionFolders.find((candidate) => candidate.id === folderId)
+    if (updatedFolder) {
+      this.persistUpsertSessionFolder(updatedFolder)
+    }
+  }
+
+  migrateLegacySessionFolderMetadata = async (): Promise<void> => {
+    if (!this.legacySessionFolderMetadata || !this.folderPersistence?.mergeSessionFolderMetadata) {
+      return
+    }
+
+    await this.folderPersistence.mergeSessionFolderMetadata(this.legacySessionFolderMetadata)
+    this.legacySessionFolderMetadata = null
     this.persistPreferences()
+  }
+
+  hydrateSessionFolderMetadata = (metadata: SessionFolderMetadata): void => {
+    if (!this.isFolderDatabaseBacked()) return
+    if (
+      metadata.folders.length === 0 &&
+      metadata.assignments.length === 0 &&
+      this.legacySessionFolderMetadata &&
+      this.sessionFolders.length > 0
+    ) {
+      return
+    }
+
+    batch(() => {
+      this.sessionFolders = metadata.folders
+      this.sessionFolderAssignments = Object.fromEntries(
+        metadata.assignments.map((assignment) => [assignment.sessionId, assignment.folderId]),
+      )
+    })
   }
 
   hydrateSessions = (sessionRecords: SessionRecord[]): void => {
@@ -480,6 +545,12 @@ export class SessionStore {
       }),
       bus.subscribe('sessions-hydrate', ({ sessions }) => {
         this.hydrateSessions(sessions)
+      }),
+      bus.subscribe('foundation-hydrate', ({ bootstrap }) => {
+        this.hydrateSessionFolderMetadata({
+          folders: bootstrap.sessionFolders ?? [],
+          assignments: bootstrap.sessionFolderAssignments ?? [],
+        })
       }),
       bus.subscribe('session-changes-apply', ({ changes }) => {
         this.applySessionChanges(changes)
@@ -558,13 +629,21 @@ export class SessionStore {
 
   private hydratePreferences(): void {
     const persistedPreferences = readPersistedSessionPreferences(this.persistence)
+    const legacyFolders = persistedPreferences.sessionFolders ?? []
+    const legacyAssignments = sessionFolderAssignmentRecordFromObject(
+      persistedPreferences.sessionFolderAssignments ?? {},
+    )
+    this.legacySessionFolderMetadata =
+      legacyFolders.length > 0 || legacyAssignments.length > 0
+        ? { folders: legacyFolders, assignments: legacyAssignments }
+        : null
 
     batch(() => {
       this.pinnedSessionIds = persistedPreferences.pinnedSessionIds ?? []
       this.archivedSessionIds = persistedPreferences.archivedSessionIds ?? []
       this.archivedProjectKeys = persistedPreferences.archivedProjectKeys ?? []
       this.projectDisplayNames = persistedPreferences.projectDisplayNames ?? {}
-      this.sessionFolders = persistedPreferences.sessionFolders ?? []
+      this.sessionFolders = legacyFolders
       this.sessionFolderAssignments = persistedPreferences.sessionFolderAssignments ?? {}
       this.sessions = applyDisplayNameOverrides(this.sessions, this.projectDisplayNames)
     })
@@ -576,14 +655,19 @@ export class SessionStore {
       projectDisplayNames: this.projectDisplayNames,
       archivedSessionIds: this.archivedSessionIds,
       archivedProjectKeys: this.archivedProjectKeys,
-      sessionFolders: this.sessionFolders,
-      sessionFolderAssignments: this.sessionFolderAssignments,
+    }
+
+    if (!this.isFolderDatabaseBacked()) {
+      preferences.sessionFolders = this.sessionFolders
+      preferences.sessionFolderAssignments = this.sessionFolderAssignments
     }
 
     this.persistence.set(SESSION_PREFERENCES_STORAGE_KEY, preferences)
   }
 
   private cleanupFolderPreferences(sessions: SessionPreview[]): void {
+    if (this.isFolderDatabaseBacked()) return
+
     const validProjectKeys = new Set(sessions.map((session) => session.projectKey))
     const validSessionIds = new Set(sessions.map((session) => session.id))
     const validFolders = this.sessionFolders.filter((folder) =>
@@ -619,6 +703,59 @@ export class SessionStore {
     })
     this.persistPreferences()
   }
+
+  private isFolderDatabaseBacked(): boolean {
+    return Boolean(this.folderPersistence)
+  }
+
+  private persistFolderPreferences(): void {
+    if (!this.isFolderDatabaseBacked()) {
+      this.persistPreferences()
+    }
+  }
+
+  private persistUpsertSessionFolder(folder: SessionFolder): void {
+    this.enqueueFolderPersistenceWrite(async () => {
+      await this.folderPersistence?.upsertSessionFolder?.(folder)
+    })
+  }
+
+  private persistDeleteSessionFolder(folderId: string): void {
+    this.enqueueFolderPersistenceWrite(async () => {
+      await this.folderPersistence?.deleteSessionFolder?.(folderId)
+    })
+  }
+
+  private persistSetSessionFolderAssignment(sessionId: string, folderId: string): void {
+    this.enqueueFolderPersistenceWrite(async () => {
+      await this.folderPersistence?.setSessionFolderAssignment?.({
+        sessionId,
+        folderId,
+        updatedAt: new Date().toISOString(),
+      })
+    })
+  }
+
+  private persistRemoveSessionFolderAssignment(sessionId: string): void {
+    this.enqueueFolderPersistenceWrite(async () => {
+      await this.folderPersistence?.removeSessionFolderAssignment?.(sessionId)
+    })
+  }
+
+  private enqueueFolderPersistenceWrite(operation: () => Promise<void>): void {
+    if (!this.isFolderDatabaseBacked()) return
+
+    this.folderPersistenceQueue = this.folderPersistenceQueue
+      .catch(() => undefined)
+      .then(operation)
+      .catch((error) => {
+        console.error('Failed to persist session folder metadata', error)
+      })
+  }
+
+  async flushFolderPersistenceWrites(): Promise<void> {
+    await this.folderPersistenceQueue.catch(() => undefined)
+  }
 }
 
 function createSessionFolderId(): string {
@@ -648,4 +785,16 @@ function isNestedChild(session: SessionPreview): boolean {
   return Boolean(
     session.parentSessionId && session.derivationType && session.derivationType !== 'fork',
   )
+}
+
+function sessionFolderAssignmentRecordFromObject(
+  assignments: Record<string, string>,
+): SessionFolderAssignmentRecord[] {
+  const updatedAt = new Date().toISOString()
+
+  return Object.entries(assignments).map(([sessionId, folderId]) => ({
+    sessionId,
+    folderId,
+    updatedAt,
+  }))
 }

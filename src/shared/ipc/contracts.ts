@@ -46,6 +46,12 @@ export const IPC_CHANNELS = {
   pluginHostChanged: 'plugin:host-changed',
   foundationBootstrap: 'foundation:get-bootstrap',
   foundationChanged: 'foundation:changed',
+  foundationReindexSessions: 'foundation:reindex-sessions',
+  foundationMergeSessionFolderMetadata: 'foundation:merge-session-folder-metadata',
+  foundationUpsertSessionFolder: 'foundation:upsert-session-folder',
+  foundationDeleteSessionFolder: 'foundation:delete-session-folder',
+  foundationSetSessionFolderAssignment: 'foundation:set-session-folder-assignment',
+  foundationRemoveSessionFolderAssignment: 'foundation:remove-session-folder-assignment',
   dialogSelectDirectory: 'dialog:select-directory',
   databaseListProjects: 'database:list-projects',
   databaseListSessions: 'database:list-sessions',
@@ -182,6 +188,59 @@ export interface SyncMetadataRecord {
   lastMtimeMs: number
   lastSyncedAt: string
   checksum: string | null
+}
+
+export interface SessionFolderRecord {
+  id: string
+  projectKey: string
+  name: string
+  parentFolderId: string | null
+  createdAt: string
+  updatedAt: string
+  order: number
+}
+
+export interface SessionFolderAssignmentRecord {
+  sessionId: string
+  folderId: string
+  updatedAt: string
+}
+
+export interface SessionFolderMetadata {
+  folders: SessionFolderRecord[]
+  assignments: SessionFolderAssignmentRecord[]
+}
+
+export interface SessionReindexReport {
+  deletedCount: number
+  durationMs: number
+  lineageBackfillScannedCount?: number
+  lineageBackfilledCount?: number
+  processedCount: number
+  skippedCount: number
+  unreadableCount: number
+}
+
+export type SessionReindexProgressPhase =
+  | 'idle'
+  | 'preparing'
+  | 'indexing'
+  | 'cleanup'
+  | 'done'
+  | 'error'
+
+export interface SessionReindexProgress {
+  phase: SessionReindexProgressPhase
+  totalCount: number
+  visitedCount: number
+  processedCount: number
+  skippedCount: number
+  unreadableCount: number
+  deletedCount: number
+  startedAt: string | null
+  updatedAt: string | null
+  completedAt: string | null
+  error: string | null
 }
 
 export interface WorkspaceFilesListRequest {
@@ -647,6 +706,9 @@ export interface FoundationBootstrap {
   projects: ProjectRecord[]
   sessions: SessionRecord[]
   syncMetadata: SyncMetadataRecord[]
+  sessionFolders?: SessionFolderRecord[]
+  sessionFolderAssignments?: SessionFolderAssignmentRecord[]
+  sessionReindexProgress?: SessionReindexProgress
   factoryModels: LiveSessionModel[]
   factoryDefaultSettings: {
     model?: string
@@ -689,6 +751,9 @@ export interface FoundationChanges {
   projects?: FoundationRecordDelta<ProjectRecord>
   sessions?: FoundationRecordDelta<SessionRecord>
   syncMetadata?: FoundationSyncMetadataDelta
+  sessionFolders?: FoundationRecordDelta<SessionFolderRecord>
+  sessionFolderAssignments?: FoundationRecordDelta<SessionFolderAssignmentRecord>
+  sessionReindexProgress?: SessionReindexProgress
   factoryModels?: LiveSessionModel[]
   factoryDefaultSettings?: FoundationBootstrap['factoryDefaultSettings']
 }
@@ -1144,6 +1209,12 @@ export interface OxoxBridge {
   }
   foundation: {
     getBootstrap: () => Promise<FoundationBootstrap>
+    reindexSessions: () => Promise<SessionReindexReport>
+    mergeSessionFolderMetadata: (metadata: SessionFolderMetadata) => Promise<void>
+    upsertSessionFolder: (folder: SessionFolderRecord) => Promise<void>
+    deleteSessionFolder: (folderId: string) => Promise<void>
+    setSessionFolderAssignment: (assignment: SessionFolderAssignmentRecord) => Promise<void>
+    removeSessionFolderAssignment: (sessionId: string) => Promise<void>
     onChanged?: (listener: (payload: FoundationChangedPayload) => void) => (() => void) | undefined
   }
   database: {

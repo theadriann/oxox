@@ -34,7 +34,12 @@ import type {
   LiveSessionSnapshot,
   LiveSessionToolInfo,
   ProjectRecord,
+  SessionFolderAssignmentRecord,
+  SessionFolderMetadata,
+  SessionFolderRecord,
   SessionRecord,
+  SessionReindexProgress,
+  SessionReindexReport,
   SessionSearchIndexingProgress,
   SessionSearchRequest,
   SessionSearchResponse,
@@ -51,6 +56,7 @@ import type {
 import type { PluginRegistry } from '../app/PluginRegistry'
 import { createBackgroundArtifactScanner } from './artifacts/backgroundScanner'
 import { deleteSessionArtifacts } from './artifacts/deleteSessionArtifacts'
+import type { ArtifactScannerProgress } from './artifacts/scanner'
 import { createEnvironmentDaemonAuthProvider, type DaemonAuthProvider } from './daemon/auth'
 import { createDaemonSessionControl } from './daemon/sessionControl'
 import { createDaemonTransport, type DaemonTransport } from './daemon/transport'
@@ -176,10 +182,16 @@ export interface FoundationService {
   deleteSession: (sessionId: string) => Promise<void>
   interruptSession: (sessionId: string) => Promise<void>
   getBootstrap: () => FoundationBootstrap
+  reindexSessions: () => Promise<SessionReindexReport>
   getDatabaseDiagnostics: () => DatabaseDiagnostics
   listProjects: () => ProjectRecord[]
   listSessions: () => SessionRecord[]
   listSyncMetadata: () => SyncMetadataRecord[]
+  mergeSessionFolderMetadata: (metadata: SessionFolderMetadata) => Promise<void>
+  upsertSessionFolder: (folder: SessionFolderRecord) => Promise<void>
+  deleteSessionFolder: (folderId: string) => Promise<void>
+  setSessionFolderAssignment: (assignment: SessionFolderAssignmentRecord) => Promise<void>
+  removeSessionFolderAssignment: (sessionId: string) => Promise<void>
   listWorkspaceFiles: (request: WorkspaceFilesListRequest) => Promise<WorkspaceFilesListResponse>
   searchWorkspaceFiles: (
     request: WorkspaceFilesSearchRequest,
@@ -268,8 +280,16 @@ export function createFoundationService(
   }
   let foundationChangeBroadcaster: ReturnType<typeof createFoundationChangeBroadcaster> | null =
     null
+  let sessionReindexProgress: SessionReindexProgress = createIdleSessionReindexProgress()
   const emitFoundationChanged = (): void => {
     foundationChangeBroadcaster?.broadcast()
+  }
+  const sessionReindexProgressBroadcaster = createThrottledSessionReindexProgressBroadcaster({
+    emit: emitFoundationChanged,
+  })
+  const updateSessionReindexProgress = (progress: SessionReindexProgress): void => {
+    sessionReindexProgress = progress
+    sessionReindexProgressBroadcaster.notify(progress)
   }
   const database = createDatabaseService(options)
   const factoryApi = createFactoryApiService()
@@ -345,6 +365,7 @@ export function createFoundationService(
     daemonTransport,
     droidCliStatus,
     getFactorySettingsBootstrap: foundationBootstrapState.getSnapshot,
+    getSessionReindexProgress: () => sessionReindexProgress,
   })
   const searchDatabasePath = join(options.userDataPath, 'session-search.db')
   const searchHydrationOptions = {
@@ -520,6 +541,7 @@ export function createFoundationService(
   return {
     factoryApi,
     close: () => {
+      sessionReindexProgressBroadcaster.dispose()
       sessionCatalog.close()
       unsubscribeSearchLiveSnapshots()
       liveSearchIndexScheduler.dispose()
@@ -601,10 +623,51 @@ export function createFoundationService(
     },
     interruptSession: liveSessionRuntime.interruptSession,
     getBootstrap: queries.getBootstrap,
+    reindexSessions: async () => {
+      updateSessionReindexProgress(createPreparingSessionReindexProgress())
+
+      try {
+        const report = await sessionCatalog.reindexArtifacts((progress) => {
+          updateSessionReindexProgress(mapArtifactProgressToSessionProgress(progress))
+        })
+        updateSessionReindexProgress(
+          createDoneSessionReindexProgress(report, sessionReindexProgress),
+        )
+        return report
+      } catch (error) {
+        updateSessionReindexProgress(
+          createErroredSessionReindexProgress(
+            error instanceof Error ? error.message : String(error),
+            sessionReindexProgress,
+          ),
+        )
+        throw error
+      }
+    },
     getDatabaseDiagnostics: queries.getDatabaseDiagnostics,
     listProjects: queries.listProjects,
     listSessions: queries.listSessions,
     listSyncMetadata: queries.listSyncMetadata,
+    mergeSessionFolderMetadata: async (metadata) => {
+      database.mergeSessionFolderMetadata(metadata)
+      emitFoundationChanged()
+    },
+    upsertSessionFolder: async (folder) => {
+      database.upsertSessionFolder(folder)
+      emitFoundationChanged()
+    },
+    deleteSessionFolder: async (folderId) => {
+      database.deleteSessionFolder(folderId)
+      emitFoundationChanged()
+    },
+    setSessionFolderAssignment: async (assignment) => {
+      database.setSessionFolderAssignment(assignment)
+      emitFoundationChanged()
+    },
+    removeSessionFolderAssignment: async (sessionId) => {
+      database.removeSessionFolderAssignment(sessionId)
+      emitFoundationChanged()
+    },
     listWorkspaceFiles,
     searchWorkspaceFiles,
     getWorkspaceFileContent,
@@ -629,6 +692,76 @@ export function createFoundationService(
   }
 }
 
+const SESSION_REINDEX_PROGRESS_THROTTLE_MS = 200
+
+type TimeoutHandle = ReturnType<typeof setTimeout>
+
+interface ThrottledSessionReindexProgressBroadcasterOptions {
+  clearTimeoutFn?: (handle: TimeoutHandle) => void
+  emit: () => void
+  nowFn?: () => number
+  setTimeoutFn?: (callback: () => void, delayMs: number) => TimeoutHandle
+  throttleMs?: number
+}
+
+function createThrottledSessionReindexProgressBroadcaster({
+  clearTimeoutFn = clearTimeout,
+  emit,
+  nowFn = Date.now,
+  setTimeoutFn = setTimeout,
+  throttleMs = SESSION_REINDEX_PROGRESS_THROTTLE_MS,
+}: ThrottledSessionReindexProgressBroadcasterOptions): {
+  dispose: () => void
+  notify: (progress: SessionReindexProgress) => void
+} {
+  let lastEmittedAt = Number.NEGATIVE_INFINITY
+  let pendingTimer: TimeoutHandle | null = null
+
+  const clearPendingTimer = (): void => {
+    if (!pendingTimer) {
+      return
+    }
+
+    clearTimeoutFn(pendingTimer)
+    pendingTimer = null
+  }
+
+  const emitNow = (): void => {
+    clearPendingTimer()
+    lastEmittedAt = nowFn()
+    emit()
+  }
+
+  const shouldEmitImmediately = (progress: SessionReindexProgress): boolean =>
+    progress.phase !== 'indexing'
+
+  return {
+    dispose: clearPendingTimer,
+    notify: (progress) => {
+      if (shouldEmitImmediately(progress)) {
+        emitNow()
+        return
+      }
+
+      const elapsedMs = nowFn() - lastEmittedAt
+      if (elapsedMs >= throttleMs) {
+        emitNow()
+        return
+      }
+
+      if (pendingTimer) {
+        return
+      }
+
+      pendingTimer = setTimeoutFn(() => {
+        pendingTimer = null
+        lastEmittedAt = nowFn()
+        emit()
+      }, throttleMs - elapsedMs)
+    },
+  }
+}
+
 function createNoopArtifactScanner(): ReturnType<typeof createBackgroundArtifactScanner> {
   return {
     sync: async () => ({
@@ -639,6 +772,87 @@ function createNoopArtifactScanner(): ReturnType<typeof createBackgroundArtifact
       unreadableCount: 0,
     }),
     close: async () => {},
+  }
+}
+
+function createIdleSessionReindexProgress(): SessionReindexProgress {
+  return {
+    phase: 'idle',
+    totalCount: 0,
+    visitedCount: 0,
+    processedCount: 0,
+    skippedCount: 0,
+    unreadableCount: 0,
+    deletedCount: 0,
+    startedAt: null,
+    updatedAt: null,
+    completedAt: null,
+    error: null,
+  }
+}
+
+function createPreparingSessionReindexProgress(): SessionReindexProgress {
+  const now = new Date().toISOString()
+
+  return {
+    ...createIdleSessionReindexProgress(),
+    phase: 'preparing',
+    startedAt: now,
+    updatedAt: now,
+  }
+}
+
+function mapArtifactProgressToSessionProgress(
+  progress: ArtifactScannerProgress,
+): SessionReindexProgress {
+  return {
+    phase: progress.phase,
+    totalCount: progress.totalCount,
+    visitedCount: progress.visitedCount,
+    processedCount: progress.processedCount,
+    skippedCount: progress.skippedCount,
+    unreadableCount: progress.unreadableCount,
+    deletedCount: progress.deletedCount,
+    startedAt: progress.startedAt,
+    updatedAt: progress.updatedAt,
+    completedAt: progress.phase === 'done' ? progress.updatedAt : null,
+    error: null,
+  }
+}
+
+function createDoneSessionReindexProgress(
+  report: SessionReindexReport,
+  previous: SessionReindexProgress,
+): SessionReindexProgress {
+  const now = new Date().toISOString()
+
+  return {
+    phase: 'done',
+    totalCount: Math.max(previous.totalCount, previous.visitedCount),
+    visitedCount: Math.max(previous.visitedCount, previous.totalCount),
+    processedCount: report.processedCount,
+    skippedCount: report.skippedCount,
+    unreadableCount: report.unreadableCount,
+    deletedCount: report.deletedCount,
+    startedAt: previous.startedAt,
+    updatedAt: now,
+    completedAt: now,
+    error: null,
+  }
+}
+
+function createErroredSessionReindexProgress(
+  error: string,
+  previous: SessionReindexProgress,
+): SessionReindexProgress {
+  const now = new Date().toISOString()
+
+  return {
+    ...previous,
+    phase: 'error',
+    updatedAt: now,
+    completedAt: now,
+    error,
   }
 }
 
@@ -679,6 +893,7 @@ function createNoopSessionSearchHydrator(): ReturnType<
 
 export {
   createFoundationBootstrapState,
+  createThrottledSessionReindexProgressBroadcaster,
   parseDroidExecHelpBootstrap,
   type ReadFoundationBootstrapOptions,
   readDroidExecHelp,

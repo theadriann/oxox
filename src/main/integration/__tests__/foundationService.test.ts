@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  createThrottledSessionReindexProgressBroadcaster,
   parseDroidExecHelpBootstrap,
   readFactorySettingsBootstrap,
   readFoundationBootstrap,
@@ -132,6 +133,119 @@ Model details:
         model: 'claude-opus-4-6',
       },
     })
+  })
+})
+
+describe('session reindex progress broadcaster', () => {
+  it('throttles repeated indexing progress notifications and flushes terminal phases immediately', () => {
+    let now = 1_000
+    let pendingCallback: (() => void) | null = null
+    const timeoutHandles: Array<{ delayMs: number }> = []
+    const emit = vi.fn()
+    const broadcaster = createThrottledSessionReindexProgressBroadcaster({
+      clearTimeoutFn: () => {
+        pendingCallback = null
+      },
+      emit,
+      nowFn: () => now,
+      setTimeoutFn: (callback, delayMs) => {
+        pendingCallback = callback
+        const handle = { delayMs }
+        timeoutHandles.push(handle)
+        return handle as ReturnType<typeof setTimeout>
+      },
+      throttleMs: 200,
+    })
+
+    const progress = {
+      completedAt: null,
+      deletedCount: 0,
+      error: null,
+      phase: 'indexing' as const,
+      processedCount: 1,
+      skippedCount: 0,
+      startedAt: '2026-06-23T00:00:00.000Z',
+      totalCount: 10,
+      unreadableCount: 0,
+      updatedAt: '2026-06-23T00:00:00.100Z',
+      visitedCount: 1,
+    }
+
+    broadcaster.notify(progress)
+    expect(emit).toHaveBeenCalledTimes(1)
+
+    now += 50
+    broadcaster.notify({ ...progress, processedCount: 2, visitedCount: 2 })
+    broadcaster.notify({ ...progress, processedCount: 3, visitedCount: 3 })
+
+    expect(emit).toHaveBeenCalledTimes(1)
+    expect(timeoutHandles).toEqual([{ delayMs: 150 }])
+
+    now += 150
+    pendingCallback?.()
+    expect(emit).toHaveBeenCalledTimes(2)
+
+    broadcaster.notify({
+      ...progress,
+      completedAt: '2026-06-23T00:00:01.000Z',
+      phase: 'done',
+      processedCount: 10,
+      updatedAt: '2026-06-23T00:00:01.000Z',
+      visitedCount: 10,
+    })
+
+    expect(emit).toHaveBeenCalledTimes(3)
+  })
+
+  it('clears pending trailing notifications on dispose', () => {
+    let now = 1_000
+    let pendingCallback: (() => void) | null = null
+    const emit = vi.fn()
+    const broadcaster = createThrottledSessionReindexProgressBroadcaster({
+      clearTimeoutFn: () => {
+        pendingCallback = null
+      },
+      emit,
+      nowFn: () => now,
+      setTimeoutFn: (callback) => {
+        pendingCallback = callback
+        return {} as ReturnType<typeof setTimeout>
+      },
+      throttleMs: 200,
+    })
+
+    broadcaster.notify({
+      completedAt: null,
+      deletedCount: 0,
+      error: null,
+      phase: 'indexing',
+      processedCount: 1,
+      skippedCount: 0,
+      startedAt: '2026-06-23T00:00:00.000Z',
+      totalCount: 10,
+      unreadableCount: 0,
+      updatedAt: '2026-06-23T00:00:00.100Z',
+      visitedCount: 1,
+    })
+    now += 50
+    broadcaster.notify({
+      completedAt: null,
+      deletedCount: 0,
+      error: null,
+      phase: 'indexing',
+      processedCount: 2,
+      skippedCount: 0,
+      startedAt: '2026-06-23T00:00:00.000Z',
+      totalCount: 10,
+      unreadableCount: 0,
+      updatedAt: '2026-06-23T00:00:00.150Z',
+      visitedCount: 2,
+    })
+
+    broadcaster.dispose()
+    pendingCallback?.()
+
+    expect(emit).toHaveBeenCalledTimes(1)
   })
 })
 

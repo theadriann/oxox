@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createPlatformApiClient } from '../../../platform/apiClient'
@@ -83,5 +83,40 @@ describe('GeneralSettings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Remember transcript position' }))
 
     expect(rootStore.uiStore.state$.persistTranscriptScrollPerSession.get()).toBe(true)
+  })
+
+  it('exposes a session reindex action', () => {
+    const { rootStore } = renderGeneralSettings()
+    rootStore.foundationStore.reindexSessions = vi.fn()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reindex' }))
+
+    expect(rootStore.foundationStore.reindexSessions).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows session reindex progress while running', () => {
+    const { rootStore } = renderGeneralSettings()
+
+    act(() => {
+      rootStore.foundationStore.isReindexingSessions = true
+      rootStore.foundationStore.state$.foundation.sessionReindexProgress.set({
+        completedAt: null,
+        deletedCount: 0,
+        error: null,
+        phase: 'indexing',
+        processedCount: 40,
+        skippedCount: 0,
+        startedAt: '2026-06-23T00:00:00.000Z',
+        totalCount: 100,
+        unreadableCount: 0,
+        updatedAt: '2026-06-23T00:00:01.000Z',
+        visitedCount: 40,
+      })
+    })
+
+    expect(screen.getByText('Reindexing 40/100 sessions (40%).')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Reindexing...' }).hasAttribute('disabled')).toBe(
+      true,
+    )
   })
 })

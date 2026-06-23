@@ -123,6 +123,8 @@ describe('createFoundationQueries', () => {
       projects,
       sessions,
       syncMetadata,
+      sessionFolders: [],
+      sessionFolderAssignments: [],
       factoryModels: factorySettingsBootstrap.factoryModels,
       factoryDefaultSettings: factorySettingsBootstrap.factoryDefaultSettings,
     })

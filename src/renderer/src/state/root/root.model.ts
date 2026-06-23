@@ -38,7 +38,8 @@ export class RootStore {
     this.api = api
     this.persistence = persistence
     configureTranscriptPerformanceLogger(api.diagnostics.logTranscriptPerformance)
-    this.sessionStore = new SessionStore(persistence)
+    const folderPersistence = this.api.foundation.upsertSessionFolder ? this.api.foundation : null
+    this.sessionStore = new SessionStore(persistence, folderPersistence)
     const getSessionTranscript = this.api.transcript.getSessionTranscript
     const getSnapshot = this.api.session.getSnapshot
 
@@ -90,8 +91,20 @@ export class RootStore {
     })
     this.updateStore = new UpdateStore(this.api.app)
     this.foundationStore = new FoundationStore(this.storeEventBus, {
-      getBootstrap: this.api.foundation.getBootstrap,
+      getBootstrap: this.api.foundation.getBootstrap
+        ? async () => {
+            await this.sessionStore.migrateLegacySessionFolderMetadata()
+            const getBootstrap = this.api.foundation.getBootstrap
+
+            if (!getBootstrap) {
+              throw new Error('Foundation bridge unavailable.')
+            }
+
+            return getBootstrap()
+          }
+        : undefined,
       getRuntimeInfo: this.api.runtime.getInfo,
+      reindexSessions: this.api.foundation.reindexSessions,
     })
     this.disposers.push(this.sessionStore.connectToEventBus(this.storeEventBus))
     this.disposers.push(this.transportStore.connectToEventBus(this.storeEventBus))

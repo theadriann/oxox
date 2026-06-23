@@ -450,10 +450,11 @@ describe('artifact scanner', () => {
     })
     cleanup.push(() => database.close())
 
+    const sdkListSessions = vi.fn().mockResolvedValue([])
     const scanner = createArtifactScanner({
       database,
       sessionsRoot,
-      sdkListSessions: vi.fn().mockResolvedValue([]),
+      sdkListSessions,
     })
 
     await expect(scanner.sync()).resolves.toMatchObject({
@@ -474,6 +475,66 @@ describe('artifact scanner', () => {
       error: expect.stringContaining('JSON'),
       filePath: settingsPath,
     })
+  })
+
+  it('force reindexes unchanged artifacts instead of using cached sync metadata', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'oxox-artifacts-'))
+    const sessionsRoot = join(root, 'sessions')
+    const userDataPath = join(root, 'user-data')
+    cleanup.push(() => rmSync(root, { recursive: true, force: true }))
+
+    const sessionId = '46464646-4646-4646-8646-464646464646'
+    writeSessionArtifact({
+      sessionsRoot,
+      bucket: '-force-reindex-project',
+      sessionId,
+      transcriptLines: [
+        JSON.stringify({
+          type: 'session_start',
+          timestamp: '2026-04-03T01:20:00.000Z',
+          id: sessionId,
+          title: 'Force reindex transcript',
+          cwd: '/tmp/force-reindex-project',
+        }),
+      ],
+    })
+
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createNodeSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    const sdkListSessions = vi.fn().mockResolvedValue([])
+    const scanner = createArtifactScanner({
+      database,
+      sessionsRoot,
+      sdkListSessions,
+    })
+
+    await expect(scanner.sync()).resolves.toMatchObject({
+      processedCount: 1,
+      skippedCount: 0,
+    })
+    await expect(scanner.sync()).resolves.toMatchObject({
+      processedCount: 0,
+      skippedCount: 1,
+    })
+    sdkListSessions.mockClear()
+    const progress = vi.fn()
+    await expect(scanner.sync({ force: true, onProgress: progress })).resolves.toMatchObject({
+      processedCount: 1,
+      skippedCount: 0,
+    })
+    expect(sdkListSessions).not.toHaveBeenCalled()
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'done',
+        totalCount: 1,
+        visitedCount: 1,
+        processedCount: 1,
+      }),
+    )
   })
 
   it('uses the newest duplicate artifact when the same session exists in root and project buckets', async () => {

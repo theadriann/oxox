@@ -4,6 +4,7 @@ import type {
   FoundationBootstrap,
   ProjectRecord,
   SessionRecord,
+  SessionReindexProgress,
   SessionTranscript,
   SessionTranscriptScrollState,
   SyncMetadataRecord,
@@ -42,7 +43,10 @@ export interface CreateFoundationQueriesOptions {
     Partial<
       Pick<
         DatabaseService,
-        'getSessionTranscriptScrollState' | 'upsertSessionTranscriptScrollState'
+        | 'getSessionTranscriptScrollState'
+        | 'listSessionFolderAssignments'
+        | 'listSessionFolders'
+        | 'upsertSessionTranscriptScrollState'
       >
     >
   sessionCatalog: Pick<FoundationSessionCatalog, 'listSessions'>
@@ -52,6 +56,7 @@ export interface CreateFoundationQueriesOptions {
     FoundationBootstrap,
     'factoryModels' | 'factoryDefaultSettings'
   >
+  getSessionReindexProgress?: () => SessionReindexProgress
   loadSessionTranscript?: LoadSessionTranscript
 }
 
@@ -71,6 +76,11 @@ export function createFoundationQueries(
         projects: options.database.listProjects(),
         sessions: options.sessionCatalog.listSessions(),
         syncMetadata: options.database.listSyncMetadata(),
+        sessionFolders: options.database.listSessionFolders?.() ?? [],
+        sessionFolderAssignments: options.database.listSessionFolderAssignments?.() ?? [],
+        ...(options.getSessionReindexProgress
+          ? { sessionReindexProgress: options.getSessionReindexProgress() }
+          : {}),
         factoryModels: factorySettingsBootstrap.factoryModels,
         factoryDefaultSettings: factorySettingsBootstrap.factoryDefaultSettings,
       }

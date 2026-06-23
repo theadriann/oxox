@@ -139,6 +139,8 @@ describe('createDatabaseService', () => {
         'sync_metadata',
         'session_runtime',
         'session_lineage',
+        'session_folder_assignments',
+        'session_folders',
         'session_transcript_scroll_state',
       ]),
     )
@@ -519,6 +521,100 @@ describe('createDatabaseService', () => {
     expect(database.listSessionRuntimes()).toEqual([])
     expect(database.listSessionRewindBoundaries('session-delete')).toEqual([])
     expect(database.getSessionTranscriptScrollState('session-delete')).toBeNull()
+  })
+
+  it('persists session folders and preserves assignments when sessions are reindexed', () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-db-'))
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createNodeSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    database.upsertArtifactSession({
+      sessionId: 'session-foldered',
+      sourcePath: '/tmp/session-foldered.jsonl',
+      projectWorkspacePath: '/tmp/project',
+      modelId: 'gpt-5.4',
+      hasUserMessage: true,
+      owner: null,
+      messageCount: 1,
+      isFavorite: false,
+      decompSessionType: null,
+      decompMissionId: null,
+      title: 'Foldered session',
+      status: 'completed',
+      transport: 'artifacts',
+      createdAt: '2026-04-25T10:00:00.000Z',
+      lastActivityAt: '2026-04-25T10:01:00.000Z',
+      updatedAt: '2026-04-25T10:01:00.000Z',
+      lastByteOffset: 12,
+      lastMtimeMs: 123,
+      checksum: 'checksum-foldered',
+    })
+    database.upsertSessionFolder({
+      id: 'folder-research',
+      projectKey: 'project-alpha',
+      name: 'Research',
+      parentFolderId: null,
+      createdAt: '2026-04-25T10:02:00.000Z',
+      updatedAt: '2026-04-25T10:02:00.000Z',
+      order: 0,
+    })
+    database.setSessionFolderAssignment({
+      sessionId: 'session-foldered',
+      folderId: 'folder-research',
+      updatedAt: '2026-04-25T10:03:00.000Z',
+    })
+
+    database.removeSessionsBySourcePaths(['/tmp/session-foldered.jsonl'])
+
+    expect(database.getSession('session-foldered')).toBeNull()
+    expect(database.listSessionFolders()).toEqual([
+      expect.objectContaining({ id: 'folder-research', name: 'Research' }),
+    ])
+    expect(database.listSessionFolderAssignments()).toEqual([
+      {
+        sessionId: 'session-foldered',
+        folderId: 'folder-research',
+        updatedAt: '2026-04-25T10:03:00.000Z',
+      },
+    ])
+  })
+
+  it('removes assignments when their folder is deleted', () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-db-'))
+    const database = createDatabaseService({
+      userDataPath,
+      databaseFactory: createNodeSqliteDatabaseFactory(),
+    })
+    cleanup.push(() => database.close())
+
+    database.mergeSessionFolderMetadata({
+      folders: [
+        {
+          id: 'folder-remove',
+          projectKey: 'project-alpha',
+          name: 'Remove me',
+          parentFolderId: null,
+          createdAt: '2026-04-25T10:02:00.000Z',
+          updatedAt: '2026-04-25T10:02:00.000Z',
+          order: 0,
+        },
+      ],
+      assignments: [
+        {
+          sessionId: 'session-alpha',
+          folderId: 'folder-remove',
+          updatedAt: '2026-04-25T10:03:00.000Z',
+        },
+      ],
+    })
+
+    database.deleteSessionFolder('folder-remove')
+
+    expect(database.listSessionFolders()).toEqual([])
+    expect(database.listSessionFolderAssignments()).toEqual([])
   })
 
   it('prefers the freshest persisted last-activity over an older runtime event timestamp', () => {

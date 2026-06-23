@@ -13,8 +13,16 @@ export function GeneralSettings() {
   const persistTranscriptScrollPerSession = useValue(
     uiStore.state$.persistTranscriptScrollPerSession,
   )
+  const isReindexingSessions = useValue(foundationStore.state$.isReindexingSessions)
+  const sessionReindexError = useValue(foundationStore.state$.sessionReindexError)
+  const sessionReindexProgress = useValue(foundationStore.state$.foundation.sessionReindexProgress)
   const factoryDefaultSettings = useValue(foundationStore.state$.foundation.factoryDefaultSettings)
   const defaultRows = buildFactoryDefaultRows(factoryDefaultSettings)
+  const reindexProgressLabel = formatReindexProgressLabel(
+    sessionReindexProgress,
+    isReindexingSessions,
+  )
+  const reindexProgressRatio = getReindexProgressRatio(sessionReindexProgress)
 
   return (
     <div className="flex flex-col gap-6">
@@ -106,6 +114,36 @@ export function GeneralSettings() {
             }
             label="Remember transcript position"
           />
+        </SettingsRow>
+
+        <SettingsRow
+          label="Reindex sessions"
+          description={
+            sessionReindexError ??
+            reindexProgressLabel ??
+            'Rescan local Droid session files while preserving OXOX folder metadata.'
+          }
+        >
+          <div className="flex items-center gap-3">
+            {isReindexingSessions ? (
+              <div className="h-1.5 w-28 overflow-hidden rounded-full bg-fd-border-subtle">
+                <div
+                  className="h-full rounded-full bg-fd-ember-400 transition-[width]"
+                  style={{ width: `${Math.round(reindexProgressRatio * 100)}%` }}
+                />
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className="rounded-md border border-fd-border-default bg-fd-panel px-3 py-1.5 text-xs text-fd-secondary transition-colors hover:bg-fd-border-subtle disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isReindexingSessions}
+              onClick={() => {
+                void foundationStore.reindexSessions()
+              }}
+            >
+              {isReindexingSessions ? 'Reindexing...' : 'Reindex'}
+            </button>
+          </div>
         </SettingsRow>
       </div>
 
@@ -233,6 +271,50 @@ function booleanDefaultRow(
   return typeof value === 'boolean'
     ? { label, description, value: value ? 'Enabled' : 'Disabled' }
     : null
+}
+
+function getReindexProgressRatio(progress: FoundationBootstrap['sessionReindexProgress']): number {
+  if (!progress || progress.totalCount <= 0) {
+    return 0
+  }
+
+  return Math.min(1, Math.max(0, progress.visitedCount / progress.totalCount))
+}
+
+function formatReindexProgressLabel(
+  progress: FoundationBootstrap['sessionReindexProgress'],
+  isReindexing: boolean,
+): string | null {
+  if (!progress || progress.phase === 'idle') {
+    return null
+  }
+
+  if (progress.phase === 'done' && progress.completedAt) {
+    return `Indexed ${progress.processedCount.toLocaleString()} sessions, skipped ${progress.skippedCount.toLocaleString()}, removed ${progress.deletedCount.toLocaleString()}.`
+  }
+
+  if (progress.phase === 'error') {
+    return progress.error ?? 'Session reindex failed.'
+  }
+
+  if (!isReindexing) {
+    return null
+  }
+
+  if (progress.phase === 'preparing') {
+    return 'Preparing session reindex...'
+  }
+
+  if (progress.phase === 'cleanup') {
+    return 'Cleaning up stale session records...'
+  }
+
+  const total = progress.totalCount.toLocaleString()
+  const visited = progress.visitedCount.toLocaleString()
+  const percent =
+    progress.totalCount > 0 ? ` (${Math.round(getReindexProgressRatio(progress) * 100)}%)` : ''
+
+  return `Reindexing ${visited}/${total} sessions${percent}.`
 }
 
 function formatTitleValue(value: string | undefined): string | undefined {

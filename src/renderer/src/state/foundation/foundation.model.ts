@@ -4,6 +4,7 @@ import type {
   FoundationChangedPayload,
   LiveSessionModel,
   RuntimeInfo,
+  SessionReindexReport,
 } from '../../../../shared/ipc/contracts'
 import {
   applyFoundationChanges,
@@ -25,6 +26,7 @@ export { PLACEHOLDER_FOUNDATION } from './foundation.state'
 export interface FoundationStoreBridge {
   getBootstrap?: () => Promise<FoundationBootstrap>
   getRuntimeInfo?: () => Promise<RuntimeInfo>
+  reindexSessions?: () => Promise<SessionReindexReport>
 }
 
 export class FoundationStore {
@@ -75,6 +77,22 @@ export class FoundationStore {
     return Boolean(this.foundationLoadError)
   }
 
+  get isReindexingSessions(): boolean {
+    return this.state$.isReindexingSessions.get()
+  }
+
+  set isReindexingSessions(value: boolean) {
+    this.state$.isReindexingSessions.set(value)
+  }
+
+  get sessionReindexError(): string | null {
+    return this.state$.sessionReindexError.get()
+  }
+
+  set sessionReindexError(value: string | null) {
+    this.state$.sessionReindexError.set(value)
+  }
+
   get factoryModels(): LiveSessionModel[] {
     return this.foundation.factoryModels
   }
@@ -104,6 +122,12 @@ export class FoundationStore {
         this.state$.foundation.sessions.set(nextFoundation.sessions)
       } else {
         this.foundation = nextFoundation
+      }
+      if (payload.changes?.sessionReindexProgress) {
+        const phase = payload.changes.sessionReindexProgress.phase
+        this.isReindexingSessions =
+          phase === 'preparing' || phase === 'indexing' || phase === 'cleanup'
+        this.sessionReindexError = payload.changes.sessionReindexProgress.error
       }
       this.foundationLoadError = null
     })
@@ -163,6 +187,31 @@ export class FoundationStore {
     }
   }
 
+  reindexSessions = async (): Promise<SessionReindexReport | null> => {
+    const reindexSessions = this.bridge.reindexSessions
+
+    if (!reindexSessions || this.isReindexingSessions) {
+      return null
+    }
+
+    batch(() => {
+      this.isReindexingSessions = true
+      this.sessionReindexError = null
+    })
+
+    try {
+      const report = await reindexSessions()
+      await this.refresh()
+      return report
+    } catch (error) {
+      this.sessionReindexError =
+        error instanceof Error ? error.message : 'Unable to reindex sessions.'
+      return null
+    } finally {
+      this.isReindexingSessions = false
+    }
+  }
+
   initRuntime = async (): Promise<void> => {
     if (this.runtimeInitPromise) {
       await this.runtimeInitPromise
@@ -214,6 +263,8 @@ function isSessionOnlyFoundationChanges(
     !changes.daemon &&
     !changes.projects &&
     !changes.syncMetadata &&
+    !changes.sessionFolders &&
+    !changes.sessionFolderAssignments &&
     !changes.factoryModels &&
     !changes.factoryDefaultSettings
   )

@@ -39,6 +39,7 @@ describe('createBackgroundArtifactScanner', () => {
 
     expect(worker.postMessage).toHaveBeenCalledWith({
       id: 1,
+      options: undefined,
       type: 'sync',
     })
 
@@ -65,5 +66,63 @@ describe('createBackgroundArtifactScanner', () => {
     await scanner.close()
 
     expect(worker.terminate).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards force reindex options to the scanner worker', async () => {
+    const worker = createWorkerDouble()
+    const scanner = createBackgroundArtifactScanner({
+      userDataPath: '/tmp/oxox-user-data',
+      sessionsRoot: '/tmp/oxox-sessions',
+      workerFactory: vi.fn(() => worker),
+    })
+
+    const onProgress = vi.fn()
+    const syncPromise = scanner.sync({ force: true, onProgress })
+
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      id: 1,
+      options: { force: true },
+      type: 'sync',
+    })
+
+    worker.emitMessage({
+      id: 1,
+      progress: {
+        deletedCount: 0,
+        phase: 'indexing',
+        processedCount: 2,
+        skippedCount: 0,
+        startedAt: '2026-06-23T00:00:00.000Z',
+        totalCount: 4,
+        unreadableCount: 0,
+        updatedAt: '2026-06-23T00:00:01.000Z',
+        visitedCount: 2,
+      },
+      type: 'progress',
+    })
+    worker.emitMessage({
+      id: 1,
+      ok: true,
+      type: 'result',
+      report: {
+        deletedCount: 0,
+        durationMs: 12,
+        processedCount: 4,
+        skippedCount: 0,
+        unreadableCount: 0,
+      },
+    })
+
+    await expect(syncPromise).resolves.toMatchObject({
+      processedCount: 4,
+      skippedCount: 0,
+    })
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'indexing',
+        totalCount: 4,
+        visitedCount: 2,
+      }),
+    )
   })
 })

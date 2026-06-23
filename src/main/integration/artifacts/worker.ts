@@ -2,6 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads'
 
 import { createDatabaseService } from '../database/service'
 
+import type { ArtifactScannerSyncOptions } from './scanner'
 import { createArtifactScanner } from './scanner'
 
 interface ArtifactScannerWorkerData {
@@ -12,6 +13,7 @@ interface ArtifactScannerWorkerData {
 interface SyncRequestMessage {
   id: number
   type: 'sync'
+  options?: Pick<ArtifactScannerSyncOptions, 'force'>
 }
 
 const data = workerData as ArtifactScannerWorkerData
@@ -32,13 +34,24 @@ parentPort?.on('message', async (message: SyncRequestMessage) => {
     parentPort.postMessage({
       id: message.id,
       ok: true,
-      report: await scanner.sync(),
+      report: await scanner.sync({
+        ...message.options,
+        onProgress: (progress) => {
+          parentPort.postMessage({
+            id: message.id,
+            progress,
+            type: 'progress',
+          })
+        },
+      }),
+      type: 'result',
     })
   } catch (error) {
     parentPort.postMessage({
       id: message.id,
       ok: false,
       error: error instanceof Error ? error.message : String(error),
+      type: 'result',
     })
   }
 })

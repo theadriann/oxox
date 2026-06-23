@@ -26,6 +26,21 @@ export const PLACEHOLDER_FOUNDATION: FoundationBootstrap = {
   projects: [],
   sessions: [],
   syncMetadata: [],
+  sessionFolders: [],
+  sessionFolderAssignments: [],
+  sessionReindexProgress: {
+    phase: 'idle',
+    totalCount: 0,
+    visitedCount: 0,
+    processedCount: 0,
+    skippedCount: 0,
+    unreadableCount: 0,
+    deletedCount: 0,
+    startedAt: null,
+    updatedAt: null,
+    completedAt: null,
+    error: null,
+  },
   factoryModels: [],
   factoryDefaultSettings: {},
 }
@@ -34,6 +49,8 @@ export interface FoundationState {
   foundation: FoundationBootstrap
   foundationLoadError: string | null
   hasLoadedFoundation: boolean
+  isReindexingSessions: boolean
+  sessionReindexError: string | null
 }
 
 export function createDefaultFoundationState(): FoundationState {
@@ -41,6 +58,8 @@ export function createDefaultFoundationState(): FoundationState {
     foundation: PLACEHOLDER_FOUNDATION,
     foundationLoadError: null,
     hasLoadedFoundation: false,
+    isReindexingSessions: false,
+    sessionReindexError: null,
   }
 }
 

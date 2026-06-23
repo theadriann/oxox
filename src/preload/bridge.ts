@@ -37,6 +37,7 @@ import type {
   ProjectRecord,
   RuntimeInfo,
   SessionRecord,
+  SessionReindexReport,
   SessionSearchIndexingProgress,
   SessionSearchRequest,
   SessionSearchResponse,
@@ -147,6 +148,18 @@ export function createOxoxBridge(
     foundation: {
       getBootstrap: () =>
         invokeTyped<FoundationBootstrap>(invoke, IPC_CHANNELS.foundationBootstrap),
+      reindexSessions: () =>
+        invokeTyped<SessionReindexReport>(invoke, IPC_CHANNELS.foundationReindexSessions),
+      mergeSessionFolderMetadata: (metadata) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.foundationMergeSessionFolderMetadata, metadata),
+      upsertSessionFolder: (folder) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.foundationUpsertSessionFolder, folder),
+      deleteSessionFolder: (folderId) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.foundationDeleteSessionFolder, folderId),
+      setSessionFolderAssignment: (assignment) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.foundationSetSessionFolderAssignment, assignment),
+      removeSessionFolderAssignment: (sessionId) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.foundationRemoveSessionFolderAssignment, sessionId),
       onChanged: (listener) =>
         subscribeTyped<FoundationChangedPayload>(on, off, IPC_CHANNELS.foundationChanged, listener),
     },

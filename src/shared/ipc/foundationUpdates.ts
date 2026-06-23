@@ -7,7 +7,10 @@ import type {
   FoundationRecordDelta,
   FoundationSyncMetadataDelta,
   ProjectRecord,
+  SessionFolderAssignmentRecord,
+  SessionFolderRecord,
   SessionRecord,
+  SessionReindexProgress,
   SyncMetadataRecord,
 } from './contracts'
 
@@ -57,6 +60,32 @@ export function diffFoundationBootstraps(
     changes.syncMetadata = syncMetadataChanges
   }
 
+  const sessionFolderChanges = diffRecordCollections(
+    previous.sessionFolders ?? [],
+    next.sessionFolders ?? [],
+    (folder) => folder.id,
+    sessionFolderRecordEqual,
+  )
+
+  if (sessionFolderChanges) {
+    changes.sessionFolders = sessionFolderChanges
+  }
+
+  const sessionFolderAssignmentChanges = diffRecordCollections(
+    previous.sessionFolderAssignments ?? [],
+    next.sessionFolderAssignments ?? [],
+    (assignment) => assignment.sessionId,
+    sessionFolderAssignmentRecordEqual,
+  )
+
+  if (sessionFolderAssignmentChanges) {
+    changes.sessionFolderAssignments = sessionFolderAssignmentChanges
+  }
+
+  if (!sessionReindexProgressEqual(previous.sessionReindexProgress, next.sessionReindexProgress)) {
+    changes.sessionReindexProgress = next.sessionReindexProgress
+  }
+
   if (!factoryModelsEqual(previous.factoryModels, next.factoryModels)) {
     changes.factoryModels = next.factoryModels
   }
@@ -83,6 +112,20 @@ export function applyFoundationChanges(
   const nextSyncMetadata = changes.syncMetadata
     ? applySyncMetadataDelta(foundation.syncMetadata, changes.syncMetadata)
     : foundation.syncMetadata
+  const nextSessionFolders = changes.sessionFolders
+    ? applyRecordDelta(
+        foundation.sessionFolders ?? [],
+        changes.sessionFolders,
+        (folder) => folder.id,
+      )
+    : (foundation.sessionFolders ?? [])
+  const nextSessionFolderAssignments = changes.sessionFolderAssignments
+    ? applyRecordDelta(
+        foundation.sessionFolderAssignments ?? [],
+        changes.sessionFolderAssignments,
+        (assignment) => assignment.sessionId,
+      )
+    : (foundation.sessionFolderAssignments ?? [])
 
   return {
     database: changes.database ?? foundation.database,
@@ -91,6 +134,9 @@ export function applyFoundationChanges(
     projects: nextProjects,
     sessions: nextSessions,
     syncMetadata: nextSyncMetadata,
+    sessionFolders: nextSessionFolders,
+    sessionFolderAssignments: nextSessionFolderAssignments,
+    sessionReindexProgress: changes.sessionReindexProgress ?? foundation.sessionReindexProgress,
     factoryModels: changes.factoryModels ?? foundation.factoryModels,
     factoryDefaultSettings: changes.factoryDefaultSettings ?? foundation.factoryDefaultSettings,
   }
@@ -281,6 +327,52 @@ function syncMetadataRecordEqual(left: SyncMetadataRecord, right: SyncMetadataRe
     left.lastMtimeMs === right.lastMtimeMs &&
     left.lastSyncedAt === right.lastSyncedAt &&
     left.checksum === right.checksum
+  )
+}
+
+function sessionFolderRecordEqual(left: SessionFolderRecord, right: SessionFolderRecord): boolean {
+  return (
+    left.id === right.id &&
+    left.projectKey === right.projectKey &&
+    left.name === right.name &&
+    left.parentFolderId === right.parentFolderId &&
+    left.createdAt === right.createdAt &&
+    left.updatedAt === right.updatedAt &&
+    left.order === right.order
+  )
+}
+
+function sessionFolderAssignmentRecordEqual(
+  left: SessionFolderAssignmentRecord,
+  right: SessionFolderAssignmentRecord,
+): boolean {
+  return (
+    left.sessionId === right.sessionId &&
+    left.folderId === right.folderId &&
+    left.updatedAt === right.updatedAt
+  )
+}
+
+function sessionReindexProgressEqual(
+  left: SessionReindexProgress | undefined,
+  right: SessionReindexProgress | undefined,
+): boolean {
+  if (!left || !right) {
+    return left === right
+  }
+
+  return (
+    left.phase === right.phase &&
+    left.totalCount === right.totalCount &&
+    left.visitedCount === right.visitedCount &&
+    left.processedCount === right.processedCount &&
+    left.skippedCount === right.skippedCount &&
+    left.unreadableCount === right.unreadableCount &&
+    left.deletedCount === right.deletedCount &&
+    left.startedAt === right.startedAt &&
+    left.updatedAt === right.updatedAt &&
+    left.completedAt === right.completedAt &&
+    left.error === right.error
   )
 }
 

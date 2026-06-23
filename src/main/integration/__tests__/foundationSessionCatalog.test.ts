@@ -197,6 +197,39 @@ describe('createFoundationSessionCatalog', () => {
     expect(scanner.sync).toHaveBeenCalled()
   })
 
+  it('runs a forced artifact scan for explicit reindex requests', async () => {
+    const scanner = {
+      sync: vi.fn().mockResolvedValue({
+        processedCount: 2,
+        skippedCount: 0,
+        deletedCount: 0,
+        unreadableCount: 0,
+        durationMs: 1,
+      }),
+    }
+    const database = {
+      listPersistedSessions: vi.fn(() => []),
+      listSessions: vi.fn(() => []),
+    }
+    const daemonTransport = {
+      listSessions: vi.fn(() => []),
+    }
+
+    const catalog = createFoundationSessionCatalog({
+      database,
+      scanner,
+      daemonTransport,
+      setIntervalFn: vi.fn(() => ({}) as ReturnType<typeof setInterval>),
+      clearIntervalFn: vi.fn(),
+    })
+
+    const onProgress = vi.fn()
+    const report = await catalog.reindexArtifacts(onProgress)
+
+    expect(scanner.sync).toHaveBeenLastCalledWith({ force: true, onProgress })
+    expect(report.processedCount).toBe(2)
+  })
+
   it('does not start a second artifact scan while an async scan is already in flight', async () => {
     let scheduledSync: (() => void) | undefined
     const resolveSyncs: Array<

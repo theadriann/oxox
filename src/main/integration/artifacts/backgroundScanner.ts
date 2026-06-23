@@ -1,25 +1,39 @@
 import { Worker } from 'node:worker_threads'
 
-import type { ArtifactScanner, ArtifactScannerReport } from './scanner'
+import type {
+  ArtifactScanner,
+  ArtifactScannerProgress,
+  ArtifactScannerReport,
+  ArtifactScannerSyncOptions,
+} from './scanner'
 
 type SyncRequestMessage = {
   id: number
   type: 'sync'
+  options?: Pick<ArtifactScannerSyncOptions, 'force'>
+}
+
+type SyncProgressMessage = {
+  id: number
+  progress: ArtifactScannerProgress
+  type: 'progress'
 }
 
 type SyncSuccessMessage = {
   id: number
   ok: true
+  type: 'result'
   report: ArtifactScannerReport
 }
 
 type SyncFailureMessage = {
   id: number
   ok: false
+  type: 'result'
   error: string
 }
 
-type WorkerResponseMessage = SyncSuccessMessage | SyncFailureMessage
+type WorkerResponseMessage = SyncProgressMessage | SyncSuccessMessage | SyncFailureMessage
 
 interface ArtifactScannerWorkerLike {
   postMessage: (message: SyncRequestMessage) => void
@@ -63,6 +77,7 @@ export function createBackgroundArtifactScanner({
     {
       resolve: (report: ArtifactScannerReport) => void
       reject: (error: Error) => void
+      onProgress?: (progress: ArtifactScannerProgress) => void
     }
   >()
 
@@ -84,6 +99,11 @@ export function createBackgroundArtifactScanner({
       const request = pending.get(message.id)
 
       if (!request) {
+        return
+      }
+
+      if (message.type === 'progress') {
+        request.onProgress?.(message.progress)
         return
       }
 
@@ -112,13 +132,14 @@ export function createBackgroundArtifactScanner({
   }
 
   return {
-    sync: () =>
+    sync: (options) =>
       new Promise<ArtifactScannerReport>((resolve, reject) => {
         const requestId = nextRequestId + 1
         nextRequestId = requestId
-        pending.set(requestId, { resolve, reject })
+        pending.set(requestId, { resolve, reject, onProgress: options?.onProgress })
         ensureWorker().postMessage({
           id: requestId,
+          options: options ? { force: options.force } : undefined,
           type: 'sync',
         })
       }),

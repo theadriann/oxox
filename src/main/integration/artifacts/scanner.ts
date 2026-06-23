@@ -55,8 +55,27 @@ export interface ArtifactScannerReport {
   unreadableCount: number
 }
 
+export interface ArtifactScannerProgress {
+  phase: 'preparing' | 'indexing' | 'cleanup' | 'done'
+  totalCount: number
+  visitedCount: number
+  processedCount: number
+  skippedCount: number
+  unreadableCount: number
+  deletedCount: number
+  startedAt: string
+  updatedAt: string
+}
+
+export interface ArtifactScannerSyncOptions {
+  force?: boolean
+  onProgress?: (progress: ArtifactScannerProgress) => void
+}
+
 export interface ArtifactScanner {
-  sync: () => ArtifactScannerReport | Promise<ArtifactScannerReport>
+  sync: (
+    options?: ArtifactScannerSyncOptions,
+  ) => ArtifactScannerReport | Promise<ArtifactScannerReport>
   close?: () => void | Promise<void>
 }
 
@@ -694,9 +713,33 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
   const checkedLineageBySourcePath = new Map<string, number>()
 
   return {
-    sync: async () => {
+    sync: async (syncOptions = {}) => {
+      const force = syncOptions.force === true
       const startedAt = Date.now()
-      const sdkMetadataBySessionId = await readLatestSdkSessionMetadata(options)
+      const startedAtIso = new Date(startedAt).toISOString()
+      let totalCount = 0
+      let processedCount = 0
+      let skippedCount = 0
+      let unreadableCount = 0
+      let deletedCount = 0
+      const emitProgress = (phase: ArtifactScannerProgress['phase']): void => {
+        syncOptions.onProgress?.({
+          phase,
+          totalCount,
+          visitedCount: processedCount + skippedCount,
+          processedCount,
+          skippedCount,
+          unreadableCount,
+          deletedCount,
+          startedAt: startedAtIso,
+          updatedAt: new Date().toISOString(),
+        })
+      }
+
+      emitProgress('preparing')
+      const sdkMetadataBySessionId = force
+        ? new Map<string, SdkSessionMetadata>()
+        : await readLatestSdkSessionMetadata(options)
       const trackedByPath = new Map(
         options.database.listSyncMetadata().map((metadata) => [metadata.sourcePath, metadata]),
       )
@@ -715,11 +758,10 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
       const currentSourcePaths = new Set(currentFiles.map((file) => file.sourcePath))
       const currentSessionIds = new Set(currentFiles.map((file) => file.sessionId))
 
-      let processedCount = 0
-      let skippedCount = 0
-      let unreadableCount = 0
+      totalCount = currentFiles.length
+      emitProgress('indexing')
 
-      for (const file of currentFiles) {
+      for (const [index, file] of currentFiles.entries()) {
         const stat = statSync(file.sourcePath)
         const tracked = trackedByPath.get(file.sourcePath)
         const previousSession = sessionsById.get(file.sessionId)
@@ -727,6 +769,7 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
         const currentChecksum = buildArtifactChecksum(stat)
 
         if (
+          !force &&
           shouldSkipArtifactSync({
             tracked,
             previousSession,
@@ -749,6 +792,9 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
           }
 
           skippedCount += 1
+          if (index % 10 === 0 || index === currentFiles.length - 1) {
+            emitProgress('indexing')
+          }
           continue
         }
 
@@ -768,10 +814,10 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
           let lastByteOffset: number
 
           try {
-            const startOffset = isAppendOnlyUpdate ? tracked.lastByteOffset : 0
+            const startOffset = !force && isAppendOnlyUpdate ? tracked.lastByteOffset : 0
             parsed = await parseTranscriptFileFromPath(file.sourcePath, startOffset)
             snapshot =
-              isAppendOnlyUpdate && previousSession
+              !force && isAppendOnlyUpdate && previousSession
                 ? deriveDeltaSnapshot(parsed.records, fallbackTimestamp, previousSession, favorites)
                 : deriveSnapshot(
                     file,
@@ -857,8 +903,12 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
         }
 
         processedCount += 1
+        if (index % 10 === 0 || index === currentFiles.length - 1) {
+          emitProgress('indexing')
+        }
       }
 
+      emitProgress('cleanup')
       const { backfilledCount: lineageBackfilledCount, scannedCount: lineageBackfillScannedCount } =
         backfillSessionLineage(options, currentFiles, checkedLineageBySourcePath)
 
@@ -874,9 +924,11 @@ export function createArtifactScanner(options: CreateArtifactScannerOptions): Ar
       options.database.removeSessionsBySourcePaths(
         missingSessionDeletes.map((metadata) => metadata.sourcePath),
       )
+      deletedCount = missingSessionDeletes.length
+      emitProgress('done')
 
       return {
-        deletedCount: missingSessionDeletes.length,
+        deletedCount,
         durationMs: Date.now() - startedAt,
         lineageBackfillScannedCount,
         lineageBackfilledCount,
