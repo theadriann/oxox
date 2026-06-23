@@ -720,7 +720,10 @@ describe('createSessionSearchService', () => {
 
     await service.waitForHydration()
 
-    expect(loadSessionTranscript).toHaveBeenCalledWith('session-1', '/tmp/session-1.jsonl')
+    expect(loadSessionTranscript).toHaveBeenCalledWith('session-1', '/tmp/session-1.jsonl', {
+      startLineNo: 1,
+      startOffset: 0,
+    })
   })
 
   it('stores hydrated transcript content in a disk-backed SQLite search database', async () => {
@@ -805,6 +808,44 @@ describe('createSessionSearchService', () => {
     restartedService.dispose()
   })
 
+  it('returns native FTS snippets for fragment content matches', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-search-snippet-'))
+    const searchDatabasePath = join(userDataPath, 'session-search.db')
+    const prefix = Array.from({ length: 40 }, (_, index) => `prefix${index}`).join(' ')
+    const suffix = Array.from({ length: 40 }, (_, index) => `suffix${index}`).join(' ')
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'snippet-session' })]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [
+          {
+            kind: 'message',
+            id: 'message-snippet',
+            sourceMessageId: 'message-snippet',
+            occurredAt: null,
+            role: 'assistant',
+            markdown: `${prefix} precise needle phrase ${suffix}`,
+          },
+        ]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    await service.waitForHydration()
+
+    const reason = service.searchSessions({ query: 'content:needle' }).matches[0]?.reasons[0]
+
+    expect(reason).toMatchObject({
+      field: 'content',
+      sourceId: 'message-snippet',
+      sourceKind: 'block',
+    })
+    expect(reason?.snippet).toContain('needle')
+    expect(reason?.snippet).not.toContain('prefix0')
+    service.dispose()
+  })
+
   it('persists transcript source offsets and rehydrates stale artifact sources safely', async () => {
     const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-search-source-'))
     const searchDatabasePath = join(userDataPath, 'session-search.db')
@@ -884,14 +925,6 @@ describe('createSessionSearchService', () => {
         [
           {
             kind: 'message',
-            id: 'message-old',
-            sourceMessageId: 'message-old',
-            occurredAt: null,
-            role: 'assistant',
-            markdown: 'old indexed source content',
-          },
-          {
-            kind: 'message',
             id: 'message-new',
             sourceMessageId: 'message-new',
             occurredAt: null,
@@ -900,13 +933,6 @@ describe('createSessionSearchService', () => {
           },
         ],
         [
-          createSourceRecord({
-            lineNo: 1,
-            byteOffset: 0,
-            byteLength: 120,
-            recordId: 'message-old',
-            rawHash: 'old-hash',
-          }),
           createSourceRecord({
             lineNo: 2,
             byteOffset: 120,
@@ -928,9 +954,130 @@ describe('createSessionSearchService', () => {
     await restartedService.waitForHydration()
 
     expect(loadUpdatedTranscript).toHaveBeenCalledTimes(1)
+    expect(loadUpdatedTranscript).toHaveBeenCalledWith(
+      'source-session',
+      '/tmp/source-session.jsonl',
+      {
+        startLineNo: 2,
+        startOffset: 120,
+      },
+    )
+    expect(restartedService.searchSessions({ query: 'content:old' }).matches[0]).toMatchObject({
+      sessionId: 'source-session',
+      reasons: expect.arrayContaining([expect.objectContaining({ sourceId: 'message-old' })]),
+    })
     expect(restartedService.searchSessions({ query: 'content:needle' }).matches[0]).toMatchObject({
       sessionId: 'source-session',
       reasons: expect.arrayContaining([expect.objectContaining({ sourceId: 'message-new' })]),
+    })
+    restartedService.dispose()
+  })
+
+  it('purges indexed fragments and rebuilds when a transcript source shrinks', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'oxox-search-shrink-'))
+    const searchDatabasePath = join(userDataPath, 'session-search.db')
+    const firstBootstrap = createBootstrap([createSession({ id: 'shrink-session' })])
+    firstBootstrap.syncMetadata = [
+      {
+        sourcePath: '/tmp/shrink-session.jsonl',
+        sessionId: 'shrink-session',
+        lastByteOffset: 240,
+        lastMtimeMs: 1_000,
+        lastSyncedAt: '2026-03-24T20:05:00.000Z',
+        checksum: 'checksum-large',
+      },
+    ]
+    const firstService = createSessionSearchService({
+      bootstrap: firstBootstrap,
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(
+          sessionId,
+          [
+            {
+              kind: 'message',
+              id: 'message-large',
+              sourceMessageId: 'message-large',
+              occurredAt: null,
+              role: 'assistant',
+              markdown: 'large stale source content',
+            },
+          ],
+          [
+            createSourceRecord({
+              lineNo: 1,
+              byteOffset: 0,
+              byteLength: 240,
+              recordId: 'message-large',
+              rawHash: 'large-hash',
+            }),
+          ],
+        ),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    await firstService.waitForHydration()
+    firstService.dispose()
+
+    const nextBootstrap = createBootstrap([createSession({ id: 'shrink-session' })])
+    nextBootstrap.syncMetadata = [
+      {
+        sourcePath: '/tmp/shrink-session.jsonl',
+        sessionId: 'shrink-session',
+        lastByteOffset: 80,
+        lastMtimeMs: 2_000,
+        lastSyncedAt: '2026-03-24T20:06:00.000Z',
+        checksum: 'checksum-small',
+      },
+    ]
+    const loadShrunkTranscript = vi.fn(async (sessionId: string) =>
+      createTranscript(
+        sessionId,
+        [
+          {
+            kind: 'message',
+            id: 'message-small',
+            sourceMessageId: 'message-small',
+            occurredAt: null,
+            role: 'assistant',
+            markdown: 'replacement compact source content',
+          },
+        ],
+        [
+          createSourceRecord({
+            lineNo: 1,
+            byteOffset: 0,
+            byteLength: 80,
+            recordId: 'message-small',
+            rawHash: 'small-hash',
+          }),
+        ],
+      ),
+    )
+    const restartedService = createSessionSearchService({
+      bootstrap: nextBootstrap,
+      loadSessionTranscript: loadShrunkTranscript,
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+      searchDatabasePath,
+    })
+
+    await restartedService.waitForHydration()
+
+    expect(loadShrunkTranscript).toHaveBeenCalledWith(
+      'shrink-session',
+      '/tmp/shrink-session.jsonl',
+      {
+        startLineNo: 1,
+        startOffset: 0,
+      },
+    )
+    expect(restartedService.searchSessions({ query: 'content:stale' }).matches).toEqual([])
+    expect(restartedService.searchSessions({ query: 'content:compact' }).matches[0]).toMatchObject({
+      sessionId: 'shrink-session',
+      reasons: expect.arrayContaining([expect.objectContaining({ sourceId: 'message-small' })]),
     })
     restartedService.dispose()
   })

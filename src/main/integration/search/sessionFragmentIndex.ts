@@ -17,6 +17,7 @@ export interface SearchFragmentDocument {
   projectId: string | null
   sourceKind: SearchFragmentSourceKind
   sourceId: string
+  ftsSnippet?: string | null
   title: string
   subtitle: string
   body: string

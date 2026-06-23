@@ -16,6 +16,11 @@ import type {
   SessionSettingsSearchSource,
 } from '../search/sessionFragmentIndex'
 
+type LoadSessionTranscriptOptions = {
+  startLineNo?: number
+  startOffset?: number
+}
+
 type TranscriptEnvelope = {
   id?: unknown
   message?: {
@@ -35,9 +40,13 @@ const TOOL_ERROR_PREFIX = /^error\b|^failed\b/i
 export async function loadSessionTranscriptFromFile(
   sessionId: string,
   sourcePath: string,
+  options: LoadSessionTranscriptOptions = {},
   rewindBoundaryMessageIdsByMessageId?: ReadonlyMap<string, string>,
 ): Promise<SessionTranscript> {
-  const parsed = await parseTranscriptFileFromPath(sourcePath)
+  const parsed = await parseTranscriptFileFromPath(sourcePath, {
+    startLineNo: options.startLineNo,
+    startOffset: options.startOffset ?? 0,
+  })
   const sidecars = readTranscriptSidecars(sessionId, sourcePath)
   return {
     ...buildSessionTranscript(

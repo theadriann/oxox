@@ -44,15 +44,17 @@ export async function parseTranscriptFile(
 
 export async function parseTranscriptFileFromPath(
   filePath: string,
-  startOffset = 0,
+  options: number | ParseTranscriptFileOptions = 0,
 ): Promise<TranscriptParseResult> {
+  const startOffset = typeof options === 'number' ? options : (options.startOffset ?? 0)
+  const startLineNo = typeof options === 'number' ? undefined : options.startLineNo
   const safeStartOffset = Math.max(0, startOffset)
   const stream = createReadStream(filePath, {
     start: safeStartOffset,
   })
 
   return parseTranscriptReadable(stream, {
-    startLineNo: await countLineNumberAtOffset(filePath, safeStartOffset),
+    startLineNo: startLineNo ?? (await countLineNumberAtOffset(filePath, safeStartOffset)),
     startOffset: safeStartOffset,
   })
 }

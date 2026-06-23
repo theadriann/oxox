@@ -38,6 +38,25 @@ type SearchSessionTranscript = SessionTranscript & {
   sourceRecords?: TranscriptRecord[]
 }
 
+export interface LoadSessionTranscriptSearchOptions {
+  startLineNo?: number
+  startOffset?: number
+}
+
+type TranscriptHydrationMode = 'append' | 'replace'
+
+interface TranscriptHydrationState {
+  checksum: string | null
+  lastIndexedByteOffset: number
+  lastIndexedLineNo: number
+  lastMtimeMs: number
+  parseStatus: string
+  recordCount: number
+  schemaVersion: number
+  sessionId: string
+  sourcePath: string
+}
+
 export interface SearchDocument {
   id: string
   title: string
@@ -59,12 +78,17 @@ export interface SearchDocument {
 
 export interface SessionSearchStore {
   listHydratedDocumentIds: () => string[]
+  getTranscriptHydrationState?: (
+    sessionId: string,
+    sourcePath: string,
+  ) => TranscriptHydrationState | null
   deleteSession: (sessionId: string) => void
   replaceMetadataDocuments: (documents: SearchDocument[]) => void
   upsertDocument: (
     document: SearchDocument,
     fragments?: SearchFragmentDocument[],
     sourceRecords?: TranscriptRecord[],
+    options?: { mode?: TranscriptHydrationMode; previousState?: TranscriptHydrationState | null },
   ) => void
   searchDocuments: (parsed: ParsedSessionSearchQuery) => SearchDocument[]
   searchFragments?: (parsed: ParsedSessionSearchQuery) => SearchFragmentDocument[]
@@ -76,6 +100,7 @@ interface CreateSessionSearchServiceOptions {
   loadSessionTranscript: (
     sessionId: string,
     transcriptSourcePath: string,
+    options?: LoadSessionTranscriptSearchOptions,
   ) => Promise<SearchSessionTranscript>
   backgroundHydrationBatchDelayMs?: number
   backgroundHydrationBatchSize?: number
@@ -150,10 +175,42 @@ export function createSessionSearchService({
     document: SearchDocument,
     fragments?: SearchFragmentDocument[],
     sourceRecords?: TranscriptRecord[],
+    options?: { mode?: TranscriptHydrationMode; previousState?: TranscriptHydrationState | null },
   ) => {
     documents.set(document.id, stripHydratedFields(document))
     hydratedDocumentIds.add(document.id)
-    searchStore.upsertDocument(document, fragments, sourceRecords)
+    searchStore.upsertDocument(document, fragments, sourceRecords, options)
+  }
+
+  const resolveTranscriptHydration = (document: SearchDocument) => {
+    const previousState = document.transcriptSourcePath
+      ? (searchStore.getTranscriptHydrationState?.(document.id, document.transcriptSourcePath) ??
+        null)
+      : null
+    const canAppend =
+      Boolean(previousState) &&
+      previousState?.parseStatus === 'ok' &&
+      previousState.schemaVersion === SEARCH_SOURCE_SCHEMA_VERSION &&
+      previousState.sessionId === document.id &&
+      previousState.sourcePath === document.transcriptSourcePath &&
+      previousState.lastIndexedByteOffset > 0 &&
+      previousState.lastIndexedByteOffset < document.sourceLastByteOffset
+
+    if (canAppend) {
+      return {
+        mode: 'append' as const,
+        previousState,
+        startLineNo: previousState.lastIndexedLineNo + 1,
+        startOffset: previousState.lastIndexedByteOffset,
+      }
+    }
+
+    return {
+      mode: 'replace' as const,
+      previousState,
+      startLineNo: 1,
+      startOffset: 0,
+    }
   }
 
   const getHydrationPlan = () => {
@@ -228,9 +285,11 @@ export function createSessionSearchService({
           }
 
           try {
+            const hydration = resolveTranscriptHydration(currentDocument)
             const transcript = await loadSessionTranscript(
               currentDocument.id,
               currentDocument.transcriptSourcePath,
+              { startLineNo: hydration.startLineNo, startOffset: hydration.startOffset },
             )
 
             if (disposed || !documents.has(currentDocument.id)) {
@@ -254,13 +313,16 @@ export function createSessionSearchService({
                 entries: transcript.entries,
                 projectId: nextDocument.project || null,
                 sessionId: currentDocument.id,
-                settings: transcript.settings,
-                snapshots: transcript.snapshots,
+                settings: hydration.mode === 'append' ? null : transcript.settings,
+                snapshots: hydration.mode === 'append' ? [] : transcript.snapshots,
                 sourceRecords: indexedSourceRecords,
               }),
               maxIndexedFragmentsPerSession,
             )
-            upsertIndexedDocument(nextDocument, indexedFragments, indexedSourceRecords)
+            upsertIndexedDocument(nextDocument, indexedFragments, indexedSourceRecords, {
+              mode: hydration.mode,
+              previousState: hydration.previousState,
+            })
           } catch {
             // Search should remain available even if a transcript artifact is missing
             // or malformed. Metadata matches are still useful and are indexed synchronously.
@@ -494,6 +556,7 @@ type SearchFragmentDocumentRow = {
   projectId: string | null
   sourceKind: SearchFragmentDocument['sourceKind']
   sourceId: string
+  ftsSnippet?: string | null
   title: string
   subtitle: string
   body: string
@@ -506,6 +569,18 @@ type SearchFragmentDocumentRow = {
   rankBoost: number
   messageId: string | null
   toolCallId: string | null
+}
+
+type TranscriptHydrationStateRow = {
+  checksum: string | null
+  lastIndexedByteOffset: number
+  lastIndexedLineNo: number
+  lastMtimeMs: number
+  parseStatus: string
+  recordCount: number
+  schemaVersion: number
+  sessionId: string
+  sourcePath: string
 }
 
 function shouldResetSearchDatabase(database: SqliteDatabase, databasePath: string): boolean {
@@ -854,6 +929,20 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
   const deleteArtifactSourceStatement = database.prepare(
     'DELETE FROM artifact_sources WHERE session_id = ?',
   )
+  const selectArtifactSourceStatement = database.prepare<TranscriptHydrationStateRow>(`
+    SELECT
+      source_path AS sourcePath,
+      session_id AS sessionId,
+      last_indexed_byte_offset AS lastIndexedByteOffset,
+      last_indexed_line_no AS lastIndexedLineNo,
+      last_mtime_ms AS lastMtimeMs,
+      checksum,
+      record_count AS recordCount,
+      parse_status AS parseStatus,
+      schema_version AS schemaVersion
+    FROM artifact_sources
+    WHERE session_id = ? AND source_path = ?
+  `)
   const selectSearchDocumentIdsBySessionStatement = database.prepare<{ id: number }>(
     'SELECT id FROM search_documents WHERE session_id = ?',
   )
@@ -883,7 +972,7 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
     'DELETE FROM session_entities WHERE session_id = ?',
   )
   const insertSessionBlockStatement = database.prepare(`
-    INSERT INTO session_blocks (
+    INSERT OR REPLACE INTO session_blocks (
       session_id,
       source_id,
       message_id,
@@ -903,7 +992,7 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertSessionToolCallStatement = database.prepare(`
-    INSERT INTO session_tool_calls (
+    INSERT OR REPLACE INTO session_tool_calls (
       session_id,
       tool_call_id,
       tool_name,
@@ -931,7 +1020,7 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertSessionTodoStatement = database.prepare(`
-    INSERT INTO session_todos (
+    INSERT OR REPLACE INTO session_todos (
       session_id,
       source_id,
       timestamp,
@@ -1017,7 +1106,7 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertSearchDocumentStatement = database.prepare(`
-    INSERT INTO search_documents (
+    INSERT OR REPLACE INTO search_documents (
       document_key,
       session_id,
       project_id,
@@ -1048,6 +1137,14 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
   const insertSearchPathFtsStatement = database.prepare(`
     INSERT INTO search_path_fts (rowid, file_path, title, subtitle)
     VALUES (?, ?, ?, ?)
+  `)
+  const deleteSearchFtsByDocumentKeyStatement = database.prepare(`
+    DELETE FROM search_fts
+    WHERE rowid IN (SELECT id FROM search_documents WHERE document_key = ?)
+  `)
+  const deleteSearchPathFtsByDocumentKeyStatement = database.prepare(`
+    DELETE FROM search_path_fts
+    WHERE rowid IN (SELECT id FROM search_documents WHERE document_key = ?)
   `)
 
   const upsertMetadata = (document: SearchDocument) => {
@@ -1101,6 +1198,136 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
       upsertMetadata(document)
     }
   })
+  const insertFragmentRows = (fragments: SearchFragmentDocument[]) => {
+    for (const fragment of fragments) {
+      insertSessionBlockStatement.run(
+        fragment.sessionId,
+        fragment.sourceId,
+        fragment.messageId,
+        fragment.role,
+        'user_visible',
+        fragment.sourceKind,
+        fragment.timestamp,
+        fragment.toolCallId,
+        fragment.toolName,
+        fragment.status === 'error' ? 1 : 0,
+        fragment.filePath,
+        fragment.title,
+        fragment.body,
+        fragment.preview,
+        String(fragment.body.length),
+      )
+
+      if (fragment.sourceKind === 'tool_call' && fragment.toolCallId && fragment.toolName) {
+        insertSessionToolCallStatement.run(
+          fragment.sessionId,
+          fragment.toolCallId,
+          fragment.toolName,
+          fragment.body,
+          fragment.body,
+          fragment.preview,
+          fragment.status === 'error' ? 1 : 0,
+          fragment.filePath,
+          fragment.title.toLowerCase() === 'execute' ? fragment.body : null,
+          fragment.timestamp,
+        )
+      }
+
+      if (fragment.sourceKind === 'todo') {
+        insertSessionTodoStatement.run(
+          fragment.sessionId,
+          fragment.sourceId,
+          fragment.timestamp,
+          fragment.status,
+          fragment.body,
+        )
+      }
+
+      if (fragment.sourceKind === 'compaction') {
+        insertSessionCompactionStatement.run(
+          fragment.sessionId,
+          fragment.sourceId,
+          fragment.timestamp,
+          fragment.subtitle,
+          null,
+          null,
+          fragment.body,
+          null,
+        )
+      }
+
+      if (fragment.sourceKind === 'file_snapshot' && fragment.filePath) {
+        insertSessionFileSnapshotStatement.run(
+          fragment.sessionId,
+          fragment.messageId,
+          null,
+          fragment.toolCallId,
+          toNullableTimestamp(fragment.timestamp),
+          fragment.filePath,
+          fragment.filePath.split('/').at(-1) ?? fragment.filePath,
+          fragment.filePath.split('.').at(-1) ?? null,
+          extractHashLike(fragment.body),
+          null,
+          toNullableTimestamp(fragment.timestamp),
+          fragment.status ?? 'snapshot',
+        )
+      }
+
+      for (const entity of extractSearchEntities(fragment)) {
+        insertSessionEntityStatement.run(
+          fragment.sessionId,
+          fragment.sourceKind,
+          fragment.sourceId,
+          entity.kind,
+          entity.value,
+          entity.weight,
+        )
+      }
+
+      deleteSearchFtsByDocumentKeyStatement.run(fragment.id)
+      deleteSearchPathFtsByDocumentKeyStatement.run(fragment.id)
+
+      insertSearchDocumentStatement.run(
+        fragment.id,
+        fragment.sessionId,
+        fragment.projectId,
+        fragment.sourceKind,
+        fragment.sourceId,
+        fragment.title,
+        fragment.subtitle,
+        fragment.body,
+        fragment.preview,
+        fragment.role,
+        fragment.toolName,
+        fragment.filePath,
+        fragment.timestamp,
+        fragment.status,
+        fragment.rankBoost,
+        fragment.messageId,
+        fragment.toolCallId,
+      )
+
+      const row = selectSearchDocumentIdByKeyStatement.get(fragment.id)
+
+      if (!row) {
+        continue
+      }
+
+      insertSearchFtsStatement.run(
+        row.id,
+        fragment.title,
+        fragment.subtitle,
+        fragment.body,
+        fragment.preview,
+      )
+      insertSearchPathFtsStatement.run(
+        row.id,
+        fragment.filePath ?? '',
+        fragment.title,
+        fragment.subtitle,
+      )
+    }
+  }
   const replaceFragmentsTransaction = database.transaction(
     (
       document: SearchDocument,
@@ -1152,131 +1379,52 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
         }
       }
 
-      for (const fragment of fragments) {
-        insertSessionBlockStatement.run(
-          fragment.sessionId,
-          fragment.sourceId,
-          fragment.messageId,
-          fragment.role,
-          'user_visible',
-          fragment.sourceKind,
-          fragment.timestamp,
-          fragment.toolCallId,
-          fragment.toolName,
-          fragment.status === 'error' ? 1 : 0,
-          fragment.filePath,
-          fragment.title,
-          fragment.body,
-          fragment.preview,
-          String(fragment.body.length),
-        )
+      insertFragmentRows(fragments)
+    },
+  )
+  const appendFragmentsTransaction = database.transaction(
+    (
+      document: SearchDocument,
+      fragments: SearchFragmentDocument[],
+      sourceRecords: TranscriptRecord[] = [],
+      previousState: TranscriptHydrationState | null = null,
+    ) => {
+      const sessionId = document.id
+      const transcriptSourcePath = document.transcriptSourcePath
 
-        if (fragment.sourceKind === 'tool_call' && fragment.toolCallId && fragment.toolName) {
-          insertSessionToolCallStatement.run(
-            fragment.sessionId,
-            fragment.toolCallId,
-            fragment.toolName,
-            fragment.body,
-            fragment.body,
-            fragment.preview,
-            fragment.status === 'error' ? 1 : 0,
-            fragment.filePath,
-            fragment.title.toLowerCase() === 'execute' ? fragment.body : null,
-            fragment.timestamp,
-          )
-        }
+      if (!transcriptSourcePath) {
+        return
+      }
 
-        if (fragment.sourceKind === 'todo') {
-          insertSessionTodoStatement.run(
-            fragment.sessionId,
-            fragment.sourceId,
-            fragment.timestamp,
-            fragment.status,
-            fragment.body,
-          )
-        }
-
-        if (fragment.sourceKind === 'compaction') {
-          insertSessionCompactionStatement.run(
-            fragment.sessionId,
-            fragment.sourceId,
-            fragment.timestamp,
-            fragment.subtitle,
-            null,
-            null,
-            fragment.body,
-            null,
-          )
-        }
-
-        if (fragment.sourceKind === 'file_snapshot' && fragment.filePath) {
-          insertSessionFileSnapshotStatement.run(
-            fragment.sessionId,
-            fragment.messageId,
-            null,
-            fragment.toolCallId,
-            toNullableTimestamp(fragment.timestamp),
-            fragment.filePath,
-            fragment.filePath.split('/').at(-1) ?? fragment.filePath,
-            fragment.filePath.split('.').at(-1) ?? null,
-            extractHashLike(fragment.body),
-            null,
-            toNullableTimestamp(fragment.timestamp),
-            fragment.status ?? 'snapshot',
-          )
-        }
-
-        for (const entity of extractSearchEntities(fragment)) {
-          insertSessionEntityStatement.run(
-            fragment.sessionId,
-            fragment.sourceKind,
-            fragment.sourceId,
-            entity.kind,
-            entity.value,
-            entity.weight,
-          )
-        }
-
-        insertSearchDocumentStatement.run(
-          fragment.id,
-          fragment.sessionId,
-          fragment.projectId,
-          fragment.sourceKind,
-          fragment.sourceId,
-          fragment.title,
-          fragment.subtitle,
-          fragment.body,
-          fragment.preview,
-          fragment.role,
-          fragment.toolName,
-          fragment.filePath,
-          fragment.timestamp,
-          fragment.status,
-          fragment.rankBoost,
-          fragment.messageId,
-          fragment.toolCallId,
-        )
-
-        const row = selectSearchDocumentIdByKeyStatement.get(fragment.id)
-
-        if (!row) {
-          continue
-        }
-
-        insertSearchFtsStatement.run(
-          row.id,
-          fragment.title,
-          fragment.subtitle,
-          fragment.body,
-          fragment.preview,
-        )
-        insertSearchPathFtsStatement.run(
-          row.id,
-          fragment.filePath ?? '',
-          fragment.title,
-          fragment.subtitle,
+      for (const record of sourceRecords) {
+        insertSessionRecordStatement.run(
+          sessionId,
+          transcriptSourcePath,
+          record.lineNo,
+          record.byteOffset,
+          record.byteLength,
+          record.recordId,
+          record.type,
+          record.timestamp,
+          record.parentRecordId,
+          record.compactionSummaryId,
+          record.rawHash,
         )
       }
+
+      insertFragmentRows(fragments)
+
+      upsertArtifactSourceStatement.run(
+        transcriptSourcePath,
+        sessionId,
+        document.sourceLastByteOffset,
+        Math.max(previousState?.lastIndexedLineNo ?? 0, maxSourceLineNo(sourceRecords)),
+        document.sourceLastMtimeMs,
+        document.sourceChecksum,
+        (previousState?.recordCount ?? 0) + sourceRecords.length,
+        SEARCH_SOURCE_SCHEMA_VERSION,
+        new Date().toISOString(),
+      )
     },
   )
   const deleteSessionTransaction = database.transaction((sessionId: string) => {
@@ -1298,17 +1446,23 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
 
   return {
     listHydratedDocumentIds: () => hydratedIdsStatement.all().map((row) => row.id),
+    getTranscriptHydrationState: (sessionId, sourcePath) =>
+      selectArtifactSourceStatement.get(sessionId, sourcePath) ?? null,
     deleteSession: (sessionId) => {
       deleteSessionTransaction(sessionId)
     },
     replaceMetadataDocuments: (nextDocuments) => {
       replaceMetadataTransaction(nextDocuments)
     },
-    upsertDocument: (document, fragments, sourceRecords) => {
+    upsertDocument: (document, fragments, sourceRecords, options) => {
       upsertDocument(document)
 
       if (fragments) {
-        replaceFragmentsTransaction(document, fragments, sourceRecords)
+        if (options?.mode === 'append') {
+          appendFragmentsTransaction(document, fragments, sourceRecords, options.previousState)
+        } else {
+          replaceFragmentsTransaction(document, fragments, sourceRecords)
+        }
       }
     },
     searchDocuments: (parsed) => {
@@ -1356,6 +1510,7 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
               search_documents.project_id AS projectId,
               search_documents.source_kind AS sourceKind,
               search_documents.source_id AS sourceId,
+              snippet(search_fts, 2, '', '', '…', 24) AS ftsSnippet,
               search_documents.title,
               search_documents.subtitle,
               search_documents.body,
@@ -1748,6 +1903,7 @@ function rowToSearchFragmentDocument(row: SearchFragmentDocumentRow): SearchFrag
     projectId: row.projectId,
     sourceKind: row.sourceKind,
     sourceId: row.sourceId,
+    ftsSnippet: row.ftsSnippet ?? null,
     title: row.title,
     subtitle: row.subtitle,
     body: row.body,
@@ -2564,7 +2720,10 @@ function buildFragmentReasons(
     reasons.push({
       field: matchingField,
       messageId: fragment.messageId,
-      snippet: createSnippet(getFragmentFieldValue(fragment, matchingField), term),
+      snippet:
+        matchingField === 'content' && fragment.ftsSnippet
+          ? normalizeFtsSnippet(fragment.ftsSnippet)
+          : createSnippet(getFragmentFieldValue(fragment, matchingField), term),
       sourceId: fragment.sourceId,
       sourceKind: fragment.sourceKind,
       toolCallId: fragment.toolCallId,
@@ -2666,7 +2825,10 @@ function buildSessionCoverageReasons(
     reasons.push({
       field,
       messageId: fragment.messageId,
-      snippet: createSnippet(getFragmentFieldValue(fragment, field), term),
+      snippet:
+        field === 'content' && fragment.ftsSnippet
+          ? normalizeFtsSnippet(fragment.ftsSnippet)
+          : createSnippet(getFragmentFieldValue(fragment, field), term),
       sourceId: fragment.sourceId,
       sourceKind: fragment.sourceKind,
       toolCallId: fragment.toolCallId,
@@ -2748,6 +2910,10 @@ function prioritizeSourceReasons(
   return [...reasons].sort(
     (left, right) => Number(Boolean(right.sourceKind)) - Number(Boolean(left.sourceKind)),
   )
+}
+
+function normalizeFtsSnippet(snippet: string): string {
+  return snippet.replace(/\s+/gu, ' ').trim()
 }
 
 function createSnippet(value: string, term: string): string {
