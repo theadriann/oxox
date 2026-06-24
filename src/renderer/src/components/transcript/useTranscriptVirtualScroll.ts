@@ -59,7 +59,7 @@ export function useTranscriptVirtualScroll<TItem>({
   const appliedScrollRestoreKeyRef = useRef<string | null>(null)
   const prevTimelineMarkerRef = useRef(latestTimelineMarker)
   const lastConsumedScrollSignalRef = useRef(scrollToBottomSignal)
-  const appliedSearchTargetRef = useRef<SessionSearchTarget | null>(null)
+  const appliedSearchTargetRef = useRef<string | null>(null)
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -263,22 +263,32 @@ export function useTranscriptVirtualScroll<TItem>({
     initialScrollDoneRef.current = true
   }, [scrollToBottomSignal, scrollToLatest])
 
+  const searchTargetKey = searchTarget ? getSearchTargetKey(searchTarget, scrollContextKey) : null
+
   useLayoutEffect(() => {
     if (!searchTarget || items.length === 0) return
-    if (appliedSearchTargetRef.current === searchTarget) return
+    if (appliedSearchTargetRef.current === searchTargetKey) return
 
     const targetIndex = findSearchTargetIndex(items, searchTarget)
     if (targetIndex < 0) return
 
-    appliedSearchTargetRef.current = searchTarget
+    appliedSearchTargetRef.current = searchTargetKey
     navigateToRow(targetIndex)
 
-    const frame = requestAnimationFrame(() => {
+    let frame = 0
+    let attempts = 0
+    const scrollTargetIntoView = () => {
       virtualizer.scrollToIndex(targetIndex, { align: 'center' })
-    })
+      attempts += 1
+      if (attempts < 4) {
+        frame = requestAnimationFrame(scrollTargetIntoView)
+      }
+    }
+
+    frame = requestAnimationFrame(scrollTargetIntoView)
 
     return () => cancelAnimationFrame(frame)
-  }, [findSearchTargetIndex, items, navigateToRow, searchTarget, virtualizer])
+  }, [findSearchTargetIndex, items, navigateToRow, searchTarget, searchTargetKey, virtualizer])
 
   return useMemo(
     () => ({
@@ -329,6 +339,17 @@ function createFallbackVirtualRows<TItem>(
     nextStart += estimateSize(item)
     return row
   })
+}
+
+function getSearchTargetKey(target: SessionSearchTarget, scrollContextKey: string): string {
+  return [
+    scrollContextKey,
+    target.sessionId,
+    target.sourceKind,
+    target.sourceId,
+    target.messageId ?? '',
+    target.toolCallId ?? '',
+  ].join(':')
 }
 
 function isScrolledToBottom(el: HTMLElement): boolean {

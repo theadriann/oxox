@@ -1323,6 +1323,7 @@ describe('TranscriptRenderer (live)', () => {
 
     await act(async () => {
       await Promise.resolve()
+      await new Promise((resolve) => requestAnimationFrame(resolve))
     })
 
     expect(scrollToMock.mock.calls.length).toBeGreaterThan(initialCalls)
@@ -1587,9 +1588,11 @@ describe('TranscriptRenderer (live)', () => {
 
 describe('TranscriptRenderer (historical)', () => {
   let scrollToMock: ReturnType<typeof vi.fn>
+  let scrollIntoViewMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     scrollToMock = vi.fn()
+    scrollIntoViewMock = vi.fn()
 
     class ResizeObserverMock {
       observe() {}
@@ -1626,6 +1629,10 @@ describe('TranscriptRenderer (historical)', () => {
           this.scrollTop = options.top
         }
       },
+    })
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoViewMock,
     })
   })
 
@@ -2093,11 +2100,74 @@ describe('TranscriptRenderer (historical)', () => {
 
     await act(async () => {
       await Promise.resolve()
+      await new Promise((resolve) => requestAnimationFrame(resolve))
     })
 
     // The target path suspends bottom-pinning immediately, so the
     // jump-to-latest affordance is visible without any user scroll.
     expect(screen.getByRole('button', { name: 'Scroll to latest' })).toBeTruthy()
+    expect(scrollToMock).toHaveBeenCalled()
+  })
+
+  it('centers a rendered search target row once the exact DOM element is available', async () => {
+    render(
+      <TranscriptRenderer
+        items={buildHistoricalTimeline(createTranscript(20).entries)}
+        isLive={false}
+        isLoading={false}
+        scrollContextKey="session-history-rendered-target"
+        searchTarget={{
+          sessionId: 'session-1',
+          sourceKind: 'block',
+          sourceId: 'message-5',
+          messageId: 'message-5',
+        }}
+      />,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    })
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'center' })
+    expect(
+      screen
+        .getAllByTestId('transcript-row')
+        .find((row) => row.dataset.searchMessageId === 'message-5')?.className,
+    ).toContain('ring-fd-ember-400/30')
+  })
+
+  it('does not keep recentering the search target after the user scrolls the transcript', async () => {
+    render(
+      <TranscriptRenderer
+        items={buildHistoricalTimeline(createTranscript(20).entries)}
+        isLive={false}
+        isLoading={false}
+        scrollContextKey="session-history-free-scroll-target"
+        searchTarget={{
+          sessionId: 'session-1',
+          sourceKind: 'block',
+          sourceId: 'message-5',
+          messageId: 'message-5',
+        }}
+      />,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    })
+
+    scrollIntoViewMock.mockClear()
+    fireEvent.scroll(screen.getByRole('region', { name: 'Transcript messages' }))
+
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    })
+
+    expect(scrollIntoViewMock).not.toHaveBeenCalled()
   })
 
   it('matches search targets against tool call ids inside grouped tool rows', async () => {

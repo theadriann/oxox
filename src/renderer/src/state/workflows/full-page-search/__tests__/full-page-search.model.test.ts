@@ -97,7 +97,7 @@ describe('FullPageSearchController', () => {
     await vi.advanceTimersByTimeAsync(100)
 
     expect(searchSessions).toHaveBeenCalledTimes(1)
-    expect(searchSessions).toHaveBeenCalledWith({ limit: 80, query: 'daemon' })
+    expect(searchSessions).toHaveBeenCalledWith({ limit: 100, query: 'daemon' })
 
     const vm = controller.buildViewModel([createSession({ id: 'session-1' })])
     expect(vm.visibleItems).toHaveLength(1)
@@ -216,6 +216,7 @@ describe('FullPageSearchController', () => {
               sourceKind: 'block' as const,
               sourceId: 'message-1:0',
               messageId: 'message-1',
+              role: 'user',
             },
           ],
         },
@@ -245,11 +246,13 @@ describe('FullPageSearchController', () => {
 
     const allVm = controller.buildViewModel(sessions)
     expect(allVm.scopeCounts.message).toBe(1)
+    expect(allVm.scopeCounts['user-message']).toBe(1)
+    expect(allVm.scopeCounts['assistant-message']).toBe(0)
     expect(allVm.scopeCounts.tool).toBe(1)
 
-    controller.setScope('tool')
-    const toolVm = controller.buildViewModel(sessions)
-    expect(toolVm.visibleItems.map((item) => item.type)).toEqual(['tool'])
+    controller.setScope('user-message')
+    const userMessageVm = controller.buildViewModel(sessions)
+    expect(userMessageVm.visibleItems.map((item) => item.type)).toEqual(['user-message'])
   })
 
   it('prefers flat hits over grouped session matches for result rows', async () => {
@@ -353,9 +356,11 @@ describe('FullPageSearchController', () => {
     const hovered = vm.visibleItems.find((item) => item.session.id === 'session-2')
     controller.previewItem(hovered?.id ?? null)
 
+    expect(controller.buildViewModel(sessions).semiSelectedItem?.session.id).toBe('session-2')
     expect(controller.buildViewModel(sessions).inspectorItem?.session.id).toBe('session-2')
 
     controller.previewItem(null)
+    expect(controller.buildViewModel(sessions).semiSelectedItem).toBeNull()
     expect(controller.buildViewModel(sessions).inspectorItem?.session.id).toBe('session-1')
   })
 

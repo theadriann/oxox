@@ -42,6 +42,7 @@ export interface FullPageSearchViewModel {
   visibleItems: SearchResultItem[]
   groupedSections: FullPageSearchResultSection[]
   selectedItem: SearchResultItem | null
+  semiSelectedItem: SearchResultItem | null
   inspectorItem: SearchResultItem | null
   relatedMatches: SearchResultItem[]
   isSearching: boolean
@@ -54,6 +55,8 @@ export interface FullPageSearchViewModel {
   datePreset: DatePreset
   projects: ProjectOption[]
   projectSearchQuery: string
+  canLoadMore: boolean
+  resultLimit: number
 }
 
 interface FullPageSearchControllerOptions {
@@ -64,6 +67,8 @@ interface FullPageSearchControllerOptions {
 const RESULT_TYPE_ORDER: ResultType[] = [
   'session',
   'message',
+  'user-message',
+  'assistant-message',
   'tool',
   'file',
   'summary',
@@ -72,6 +77,9 @@ const RESULT_TYPE_ORDER: ResultType[] = [
 ]
 
 const MAX_PROJECT_OPTIONS = 20
+const DEFAULT_SEARCH_LIMIT = 100
+const SEARCH_LIMIT_STEP = 100
+const MAX_SEARCH_LIMIT = 2_000
 
 export class FullPageSearchController {
   readonly state$: Observable<FullPageSearchState> = createFullPageSearchState$()
@@ -80,14 +88,16 @@ export class FullPageSearchController {
   private chipIdCounter = 0
   private scheduledSearchTimer: ReturnType<typeof setTimeout> | null = null
   private readonly debounceMs: number
-  private readonly searchLimit: number
+  private readonly initialSearchLimit: number
+  private currentSearchLimit: number
 
   constructor(
     private readonly searchSessions?: SearchSessionsGateway,
     options: FullPageSearchControllerOptions = {},
   ) {
     this.debounceMs = options.debounceMs ?? 200
-    this.searchLimit = options.searchLimit ?? 80
+    this.initialSearchLimit = options.searchLimit ?? DEFAULT_SEARCH_LIMIT
+    this.currentSearchLimit = this.initialSearchLimit
   }
 
   get query(): string {
@@ -110,11 +120,13 @@ export class FullPageSearchController {
 
     this.state$.inputText.set(extracted.text)
     this.state$.selectedItemId.set(null)
+    this.resetSearchLimit()
     this.scheduleSearch()
   }
 
   removeChip = (chipId: string): void => {
     this.state$.chips.set(this.state$.chips.get().filter((chip) => chip.id !== chipId))
+    this.resetSearchLimit()
     this.scheduleSearch()
   }
 
@@ -134,6 +146,7 @@ export class FullPageSearchController {
       ...this.state$.chips.get(),
       ...extracted.chips.map((chip) => this.withChipId(chip)),
     ])
+    this.resetSearchLimit()
     this.scheduleSearch()
   }
 
@@ -201,6 +214,20 @@ export class FullPageSearchController {
     return true
   }
 
+  loadMoreResults = (): void => {
+    const query = this.query
+
+    if (!query || this.currentSearchLimit >= MAX_SEARCH_LIMIT) {
+      return
+    }
+
+    this.currentSearchLimit = Math.min(
+      MAX_SEARCH_LIMIT,
+      this.currentSearchLimit + SEARCH_LIMIT_STEP,
+    )
+    void this.executeSearch(query)
+  }
+
   dispose = (): void => {
     this.clearScheduledSearch()
     this.requestSequence += 1
@@ -232,19 +259,24 @@ export class FullPageSearchController {
     })
 
     const scopeCounts = countItemsByScope(allItems)
-    const visibleItems = filterResultItems(allItems, { scope: state.scope })
-      .slice(0, MAX_RENDERED_RESULTS)
-      .sort(
-        (left, right) =>
-          RESULT_TYPE_ORDER.indexOf(left.type) - RESULT_TYPE_ORDER.indexOf(right.type),
-      )
+    const filteredVisibleItems = filterResultItems(allItems, { scope: state.scope }).slice(
+      0,
+      MAX_RENDERED_RESULTS,
+    )
+    const visibleItems =
+      hasQuery && state.scope === 'all'
+        ? filteredVisibleItems
+        : filteredVisibleItems.sort(
+            (left, right) =>
+              RESULT_TYPE_ORDER.indexOf(left.type) - RESULT_TYPE_ORDER.indexOf(right.type),
+          )
 
     const selectedItem =
       visibleItems.find((item) => item.id === state.selectedItemId) ?? visibleItems[0] ?? null
-    const previewItem = state.previewItemId
+    const semiSelectedItem = state.previewItemId
       ? (visibleItems.find((item) => item.id === state.previewItemId) ?? null)
       : null
-    const inspectorItem = previewItem ?? selectedItem
+    const inspectorItem = semiSelectedItem ?? selectedItem
     const relatedMatches = inspectorItem
       ? visibleItems.filter(
           (item) => item.session.id === inspectorItem.session.id && item.id !== inspectorItem.id,
@@ -252,6 +284,11 @@ export class FullPageSearchController {
       : []
 
     return {
+      canLoadMore:
+        hasQuery &&
+        state.scope === 'all' &&
+        state.hasMoreResults &&
+        this.currentSearchLimit < MAX_SEARCH_LIMIT,
       chips: state.chips,
       datePreset: state.datePreset,
       error: state.error,
@@ -265,9 +302,11 @@ export class FullPageSearchController {
       projects: collectProjects(sessions, state.projectSearchQuery),
       query,
       relatedMatches,
+      resultLimit: this.currentSearchLimit,
       scope: state.scope,
       scopeCounts,
       selectedItem,
+      semiSelectedItem,
       selectedProjects: state.selectedProjects,
       selectedSources: state.selectedSources,
       selectedStatuses: state.selectedStatuses,
@@ -293,6 +332,7 @@ export class FullPageSearchController {
     if (!query) {
       this.state$.hits.set([])
       this.state$.matches.set([])
+      this.state$.hasMoreResults.set(false)
       this.state$.isSearching.set(false)
       this.state$.error.set(null)
       return
@@ -303,6 +343,7 @@ export class FullPageSearchController {
     if (!this.searchSessions) {
       this.state$.matches.set([])
       this.state$.hits.set([])
+      this.state$.hasMoreResults.set(false)
       this.state$.error.set('Search bridge unavailable.')
       return
     }
@@ -312,7 +353,7 @@ export class FullPageSearchController {
 
     try {
       const response: SessionSearchResponse = await this.searchSessions({
-        limit: this.searchLimit,
+        limit: this.currentSearchLimit,
         query,
       })
 
@@ -322,6 +363,7 @@ export class FullPageSearchController {
 
       this.state$.hits.set(response.hits ?? [])
       this.state$.matches.set(response.matches)
+      this.state$.hasMoreResults.set(Boolean(response.hasMore))
     } catch (caughtError) {
       if (sequence !== this.requestSequence) {
         return
@@ -329,6 +371,7 @@ export class FullPageSearchController {
 
       this.state$.matches.set([])
       this.state$.hits.set([])
+      this.state$.hasMoreResults.set(false)
       this.state$.error.set(caughtError instanceof Error ? caughtError.message : 'Search failed.')
     } finally {
       if (sequence === this.requestSequence) {
@@ -342,6 +385,11 @@ export class FullPageSearchController {
       clearTimeout(this.scheduledSearchTimer)
       this.scheduledSearchTimer = null
     }
+  }
+
+  private resetSearchLimit(): void {
+    this.currentSearchLimit = this.initialSearchLimit
+    this.state$.hasMoreResults.set(false)
   }
 
   private withChipId(chip: { key: string; value: string }): FullPageSearchChip {

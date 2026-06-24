@@ -13,6 +13,7 @@ export function FullPageSearchConnected() {
 
   return (
     <FullPageSearch
+      getSessionTranscript={rootStore.api.transcript.getSessionTranscript}
       sessions={sessions}
       searchSessions={rootStore.api.search.sessions}
       onSelectSession={(sessionId, target) => {

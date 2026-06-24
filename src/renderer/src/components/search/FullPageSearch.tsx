@@ -14,9 +14,16 @@ import {
   TerminalSquare,
   X,
 } from 'lucide-react'
-import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useRef } from 'react'
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
-import type { SessionSearchTarget } from '../../../../shared/ipc/contracts'
+import type { SessionSearchTarget, SessionTranscript } from '../../../../shared/ipc/contracts'
 import type { SessionPreview } from '../../state/sessions/session.model'
 import {
   DATE_PRESETS,
@@ -34,16 +41,24 @@ import {
   type ProjectOption,
 } from '../../state/workflows/full-page-search/full-page-search.model'
 import type { SearchSessionsGateway } from '../../state/workflows/session-search/session-search.model'
+import { buildHistoricalTimeline } from '../transcript/buildHistoricalTimeline'
+import { TranscriptRenderer } from '../transcript/TranscriptRenderer'
 import { Kbd } from '../ui/kbd'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 
 export interface FullPageSearchProps {
   sessions: SessionPreview[]
   searchSessions?: SearchSessionsGateway
+  getSessionTranscript?: (sessionId: string) => Promise<SessionTranscript>
   onSelectSession: (sessionId: string, target?: SessionSearchTarget) => void
 }
 
-export function FullPageSearch({ sessions, searchSessions, onSelectSession }: FullPageSearchProps) {
+export function FullPageSearch({
+  sessions,
+  searchSessions,
+  getSessionTranscript,
+  onSelectSession,
+}: FullPageSearchProps) {
   const controllerRef = useRef<FullPageSearchController | null>(null)
   controllerRef.current ??= new FullPageSearchController(searchSessions)
   const controller = controllerRef.current
@@ -52,9 +67,81 @@ export function FullPageSearch({ sessions, searchSessions, onSelectSession }: Fu
 
   const inputRef = useRef<HTMLInputElement | null>(null)
   const vm = useValue(() => controller.buildViewModel(sessions))
+  const [expandedSessionIds, setExpandedSessionIds] = useState<Set<string>>(() => new Set())
+  const [transcriptPanel, setTranscriptPanel] = useState<SearchTranscriptState | null>(null)
+  const [transcriptScrollKey, setTranscriptScrollKey] = useState(0)
+  const inspectorItem = vm.inspectorItem
+  const inspectorItemId = inspectorItem?.id ?? null
+  const inspectorSessionId = inspectorItem?.session.id ?? null
+
+  useEffect(() => {
+    if (!inspectorItemId || !inspectorSessionId || !getSessionTranscript) {
+      setTranscriptPanel(null)
+      return
+    }
+
+    let isCancelled = false
+    setTranscriptPanel({
+      itemId: inspectorItemId,
+      sessionId: inspectorSessionId,
+      status: 'loading',
+    })
+
+    getSessionTranscript(inspectorSessionId)
+      .then((transcript) => {
+        if (isCancelled) {
+          return
+        }
+
+        setTranscriptPanel({
+          itemId: inspectorItemId,
+          sessionId: inspectorSessionId,
+          status: 'ready',
+          transcript,
+        })
+      })
+      .catch((error: unknown) => {
+        if (isCancelled) {
+          return
+        }
+
+        setTranscriptPanel({
+          error: error instanceof Error ? error.message : 'Transcript preview unavailable.',
+          itemId: inspectorItemId,
+          sessionId: inspectorSessionId,
+          status: 'error',
+        })
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [getSessionTranscript, inspectorItemId, inspectorSessionId])
 
   const openItem = (item: SearchResultItem) => {
     onSelectSession(item.session.id, item.target)
+  }
+
+  const previewItem = (itemId: string | null) => {
+    controller.previewItem(itemId)
+
+    if (itemId) {
+      setTranscriptScrollKey((current) => current + 1)
+    }
+  }
+
+  const toggleSessionExpanded = (sessionId: string) => {
+    setExpandedSessionIds((current) => {
+      const next = new Set(current)
+
+      if (next.has(sessionId)) {
+        next.delete(sessionId)
+      } else {
+        next.add(sessionId)
+      }
+
+      return next
+    })
   }
 
   const moveSelection = (delta: number) => {
@@ -98,8 +185,8 @@ export function FullPageSearch({ sessions, searchSessions, onSelectSession }: Fu
   }
 
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden px-4 pt-2 sm:px-6">
-      <div className="mx-auto flex h-full w-full max-w-[1600px] min-h-0 flex-col gap-3 pb-3">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-fd-panel/30 px-3 pt-2 sm:px-5">
+      <div className="mx-auto flex h-full w-full max-w-[1760px] min-h-0 flex-col gap-3 pb-3">
         <section className="flex flex-col gap-2.5">
           <label
             className="flex min-h-12 cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-fd-border-default bg-fd-surface px-3 py-1.5 transition focus-within:border-fd-border-strong"
@@ -251,10 +338,10 @@ export function FullPageSearch({ sessions, searchSessions, onSelectSession }: Fu
           </div>
         </section>
 
-        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,24rem)]">
+        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,40rem)_minmax(0,1fr)]">
           <section
             aria-label="Search results"
-            className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-fd-border-default bg-fd-panel/70"
+            className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-fd-border-default bg-fd-panel/80"
           >
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
               {vm.error ? (
@@ -278,45 +365,74 @@ export function FullPageSearch({ sessions, searchSessions, onSelectSession }: Fu
               ) : null}
               {!vm.error && !vm.isSearching && vm.visibleItems.length > 0 ? (
                 <div className="flex flex-col gap-3">
-                  {vm.groupedSections.map((section) => (
-                    <section key={section.type} className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2 px-2 pt-1">
-                        <ResultTypeIcon type={section.type} />
-                        <h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fd-tertiary">
-                          {RESULT_TYPE_LABELS[section.type]}
-                        </h3>
-                        <span className="text-[10px] tabular-nums text-fd-tertiary">
-                          {section.items.length}
-                        </span>
-                        <div className="h-px flex-1 bg-fd-border-subtle" />
-                      </div>
-                      {section.items.map((item) => (
-                        <ResultRow
-                          key={item.id}
+                  {vm.hasQuery && vm.scope === 'all'
+                    ? groupItemsBySession(vm.visibleItems).map((section) => (
+                        <SessionResultGroup
+                          key={section.session.id}
+                          isExpanded={expandedSessionIds.has(section.session.id)}
                           highlightQuery={vm.query}
-                          isSelected={vm.selectedItem?.id === item.id}
-                          item={item}
-                          onHover={controller.previewItem}
-                          onOpen={() => openItem(item)}
-                          onSelect={() => controller.selectItem(item.id)}
+                          section={section}
+                          selectedItemId={vm.selectedItem?.id ?? null}
+                          onHover={previewItem}
+                          onOpen={openItem}
+                          onSelect={controller.selectItem}
+                          onToggleExpanded={toggleSessionExpanded}
                         />
+                      ))
+                    : vm.groupedSections.map((section) => (
+                        <section key={section.type} className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 px-2 pt-1">
+                            <ResultTypeIcon type={section.type} />
+                            <h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fd-tertiary">
+                              {RESULT_TYPE_LABELS[section.type]}
+                            </h3>
+                            <span className="text-[10px] tabular-nums text-fd-tertiary">
+                              {section.items.length}
+                            </span>
+                            <div className="h-px flex-1 bg-fd-border-subtle" />
+                          </div>
+                          {section.items.map((item) => (
+                            <ResultRow
+                              key={item.id}
+                              highlightQuery={vm.query}
+                              isSelected={vm.selectedItem?.id === item.id}
+                              item={item}
+                              onHover={previewItem}
+                              onOpen={() => openItem(item)}
+                              onSelect={() => controller.selectItem(item.id)}
+                            />
+                          ))}
+                        </section>
                       ))}
-                    </section>
-                  ))}
+                  {vm.canLoadMore ? (
+                    <button
+                      className="rounded-xl border border-fd-border-subtle bg-fd-surface/70 px-4 py-2 text-sm font-medium text-fd-secondary transition hover:border-fd-border-strong hover:text-fd-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={vm.isSearching}
+                      type="button"
+                      onClick={controller.loadMoreResults}
+                    >
+                      {vm.isSearching ? 'Loading more results...' : 'Load more results'}
+                      <span className="ml-2 text-xs font-normal text-fd-tertiary">
+                        Showing {vm.visibleItems.length}
+                      </span>
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
           </section>
 
           <aside
-            aria-label="Result inspector"
-            className="hidden min-h-0 flex-col overflow-hidden rounded-lg border border-fd-border-default bg-fd-panel/70 lg:flex"
+            aria-label="Transcript preview"
+            className="hidden min-h-0 flex-col overflow-hidden rounded-xl border border-fd-border-default bg-fd-panel/85 lg:flex"
           >
             {vm.inspectorItem ? (
-              <ResultInspector
+              <TranscriptSearchInspector
                 highlightQuery={vm.query}
                 item={vm.inspectorItem}
                 relatedMatches={vm.relatedMatches}
+                transcriptScrollKey={transcriptScrollKey}
+                transcriptPanel={transcriptPanel}
                 onOpen={openItem}
               />
             ) : (
@@ -332,6 +448,130 @@ export function FullPageSearch({ sessions, searchSessions, onSelectSession }: Fu
         </div>
       </div>
     </main>
+  )
+}
+
+interface SessionResultSection {
+  items: SearchResultItem[]
+  session: SessionPreview
+}
+
+interface SearchTranscriptState {
+  itemId: string
+  sessionId: string
+  status: 'loading' | 'ready' | 'error'
+  transcript?: SessionTranscript
+  error?: string
+}
+
+function SessionResultGroup({
+  highlightQuery,
+  isExpanded,
+  section,
+  selectedItemId,
+  onHover,
+  onOpen,
+  onSelect,
+  onToggleExpanded,
+}: {
+  highlightQuery: string
+  isExpanded: boolean
+  section: SessionResultSection
+  selectedItemId: string | null
+  onHover: (itemId: string | null) => void
+  onOpen: (item: SearchResultItem) => void
+  onSelect: (itemId: string) => void
+  onToggleExpanded: (sessionId: string) => void
+}) {
+  const primaryItem = section.items[0]
+  const contentItems = section.items.filter((item) => !isSessionMetadataOnly(item))
+  const visibleItems = isExpanded ? contentItems : contentItems.slice(0, 3)
+  const hiddenCount = contentItems.length - visibleItems.length
+  const isSelected = primaryItem ? selectedItemId === primaryItem.id : false
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-fd-border-subtle bg-fd-surface/25">
+      <button
+        aria-current={isSelected}
+        className={`group flex w-full items-center gap-2 border-b border-fd-border-subtle px-2.5 py-1.5 text-left transition ${
+          isSelected ? 'bg-fd-ember-400/[0.08]' : 'bg-white/[0.018] hover:bg-white/[0.04]'
+        }`}
+        data-search-result-id={primaryItem?.id}
+        type="button"
+        onClick={() => {
+          if (primaryItem) {
+            onOpen(primaryItem)
+          }
+        }}
+        onFocus={() => {
+          if (primaryItem) {
+            onSelect(primaryItem.id)
+          }
+        }}
+        onMouseEnter={() => {
+          if (primaryItem) {
+            onHover(primaryItem.id)
+          }
+        }}
+      >
+        <ResultTypeIcon type={primaryItem?.type ?? 'session'} />
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-[13px] font-semibold text-fd-primary">
+              <HighlightedText query={highlightQuery} value={section.session.title} />
+            </span>
+            <span className="shrink-0 text-[10px] text-fd-tertiary">
+              {section.session.projectLabel}
+            </span>
+            {section.session.lastActivityAt ? (
+              <span className="shrink-0 text-[10px] text-fd-tertiary">
+                {formatRelativeDate(section.session.lastActivityAt)}
+              </span>
+            ) : null}
+          </span>
+          {section.session.projectWorkspacePath ? (
+            <code className="block truncate font-mono text-[10px] leading-4 text-fd-tertiary">
+              {shortenWorkspacePath(section.session.projectWorkspacePath)}
+            </code>
+          ) : null}
+        </span>
+        <span className="shrink-0 rounded-full border border-fd-border-subtle bg-fd-panel px-1.5 py-0.5 text-[10px] tabular-nums text-fd-tertiary">
+          {section.items.length} {section.items.length === 1 ? 'hit' : 'hits'}
+        </span>
+      </button>
+      {visibleItems.length > 0 || contentItems.length > 3 ? (
+        <div className="flex flex-col gap-0.5 p-1">
+          {visibleItems.map((item) => (
+            <ResultRow
+              key={item.id}
+              compact
+              highlightQuery={highlightQuery}
+              isSelected={selectedItemId === item.id}
+              item={item}
+              onHover={onHover}
+              onOpen={() => onOpen(item)}
+              onSelect={() => onSelect(item.id)}
+            />
+          ))}
+          {contentItems.length > 3 ? (
+            <button
+              className="mx-1 rounded-md border border-fd-border-subtle bg-fd-panel/70 px-2.5 py-1 text-left text-[11px] font-medium text-fd-secondary transition hover:border-fd-border-strong hover:text-fd-primary"
+              type="button"
+              onClick={() => onToggleExpanded(section.session.id)}
+            >
+              {isExpanded
+                ? 'Show fewer matches'
+                : `View all ${contentItems.length} message matches`}
+              {!isExpanded ? (
+                <span className="ml-1 font-normal text-fd-tertiary">
+                  ({hiddenCount} more in this session)
+                </span>
+              ) : null}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   )
 }
 
@@ -524,6 +764,7 @@ function FilterOptionList({
 }
 
 function ResultRow({
+  compact = false,
   highlightQuery,
   isSelected,
   item,
@@ -531,6 +772,7 @@ function ResultRow({
   onOpen,
   onSelect,
 }: {
+  compact?: boolean
   highlightQuery: string
   isSelected: boolean
   item: SearchResultItem
@@ -538,10 +780,13 @@ function ResultRow({
   onOpen: () => void
   onSelect: () => void
 }) {
+  const metadataOnly = isSessionMetadataOnly(item)
+  const rowPadding = compact ? 'px-2 py-1.5' : metadataOnly ? 'px-2.5 py-1.5' : 'px-2.5 py-2'
+
   return (
     <button
       aria-current={isSelected}
-      className={`group flex w-full items-start gap-2.5 rounded-lg border px-2.5 py-2 text-left transition ${
+      className={`group flex w-full items-start gap-2 rounded-md border ${rowPadding} text-left transition ${
         isSelected
           ? 'border-fd-ember-400/40 bg-fd-ember-400/[0.08]'
           : 'border-transparent hover:border-fd-border-subtle hover:bg-white/[0.03]'
@@ -551,33 +796,45 @@ function ResultRow({
       onClick={onOpen}
       onFocus={onSelect}
       onMouseEnter={() => onHover(item.id)}
-      onMouseLeave={() => onHover(null)}
     >
-      <span className="mt-0.5 shrink-0">
+      <span className="mt-0.5 shrink-0 opacity-80">
         <ResultTypeIcon type={item.type} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium text-fd-primary">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="rounded bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-medium text-fd-secondary">
+            {RESULT_TYPE_LABELS[item.type]}
+          </span>
+          <span className="min-w-0 truncate text-[11px] text-fd-tertiary">
+            {metadataOnly ? item.session.projectLabel : item.session.title}
+          </span>
+          {!metadataOnly && item.session.lastActivityAt ? (
+            <span className="shrink-0 text-[10px] text-fd-tertiary">
+              {formatRelativeDate(item.session.lastActivityAt)}
+            </span>
+          ) : null}
+        </span>
+        {metadataOnly ? (
+          <span className="mt-0.5 block truncate text-[13px] font-semibold text-fd-primary">
             <HighlightedText query={highlightQuery} value={item.session.title} />
           </span>
-          <span className="shrink-0 text-[10px] text-fd-tertiary">{item.session.projectLabel}</span>
-        </span>
+        ) : null}
         {item.reason?.snippet ? (
-          <span className="mt-0.5 line-clamp-2 block text-xs leading-5 text-fd-secondary">
+          <span
+            className={`mt-0.5 block text-fd-secondary ${
+              compact ? 'line-clamp-2 text-[12px] leading-5' : 'line-clamp-3 text-[13px] leading-5'
+            }`}
+          >
             <HighlightedText query={highlightQuery} value={item.reason.snippet} />
           </span>
         ) : null}
-        <span className="mt-0.5 flex items-center gap-2 text-[10px] text-fd-tertiary">
+        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-[10px] text-fd-tertiary">
           <span className="capitalize">{item.session.status}</span>
-          {item.session.lastActivityAt ? (
-            <span>{formatRelativeDate(item.session.lastActivityAt)}</span>
-          ) : null}
-          {item.reason?.field ? <span>{item.reason.field}</span> : null}
+          {item.reason ? <span className="truncate">{describeResultMatch(item)}</span> : null}
         </span>
       </span>
       <ArrowRight
-        className={`mt-1 size-3.5 shrink-0 transition ${
+        className={`mt-1 size-3 shrink-0 transition ${
           isSelected ? 'text-fd-primary' : 'text-transparent group-hover:text-fd-tertiary'
         }`}
       />
@@ -585,105 +842,179 @@ function ResultRow({
   )
 }
 
-function ResultInspector({
+function TranscriptSearchInspector({
   highlightQuery,
   item,
   relatedMatches,
+  transcriptScrollKey,
+  transcriptPanel,
   onOpen,
 }: {
   highlightQuery: string
   item: SearchResultItem
   relatedMatches: SearchResultItem[]
+  transcriptScrollKey: number
+  transcriptPanel: SearchTranscriptState | null
   onOpen: (item: SearchResultItem) => void
 }) {
+  const itemReason = item.reason
+  const itemTarget = item.target
+  const searchTarget = useMemo(
+    () =>
+      createSearchTargetFromParts({
+        messageId: itemTarget?.messageId ?? itemReason?.messageId,
+        sessionId: item.session.id,
+        sourceId: itemTarget?.sourceId ?? itemReason?.sourceId,
+        sourceKind: itemTarget?.sourceKind ?? itemReason?.sourceKind,
+        toolCallId: itemTarget?.toolCallId ?? itemReason?.toolCallId,
+      }),
+    [
+      item.session.id,
+      itemReason?.messageId,
+      itemReason?.sourceId,
+      itemReason?.sourceKind,
+      itemReason?.toolCallId,
+      itemTarget?.messageId,
+      itemTarget?.sourceId,
+      itemTarget?.sourceKind,
+      itemTarget?.toolCallId,
+    ],
+  )
+  const timelineItems = transcriptPanel?.transcript
+    ? buildHistoricalTimeline(transcriptPanel.transcript.entries)
+    : []
+  const transcriptScrollContextKey = `search-transcript:${item.session.id}:${item.id}:${transcriptScrollKey}`
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-fd-border-subtle p-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-fd-tertiary">
-              <ResultTypeIcon type={item.type} />
-              {RESULT_TYPE_LABELS[item.type]}
-            </p>
-            <h2 className="mt-1 break-words text-sm font-semibold text-fd-primary">
-              {item.session.title}
+      <div className="border-b border-fd-border-subtle bg-fd-surface/35 p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-fd-tertiary">
+              <span className="rounded-md border border-fd-border-subtle bg-fd-panel px-1.5 py-0.5">
+                {RESULT_TYPE_LABELS[item.type]}
+              </span>
+              <span className="truncate">{describeResultMatch(item)}</span>
+            </div>
+            <h2 className="line-clamp-2 text-[15px] font-semibold leading-5 text-fd-primary">
+              <HighlightedText query={highlightQuery} value={item.session.title} />
             </h2>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-fd-tertiary">
+              <span>{item.session.projectLabel}</span>
+              <span className="capitalize">{item.session.status}</span>
+              {item.session.lastActivityAt ? (
+                <span>{formatRelativeDate(item.session.lastActivityAt)}</span>
+              ) : null}
+              <span>{Math.round(item.score)} relevance</span>
+            </div>
           </div>
+          <button
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-fd-ember-400/15 px-2.5 py-1.5 text-xs font-medium text-fd-primary ring-1 ring-fd-ember-400/40 transition hover:bg-fd-ember-400/25"
+            type="button"
+            onClick={() => onOpen(item)}
+          >
+            {item.target ? 'Open match' : 'Open session'}
+            <CornerDownLeft className="size-3" />
+          </button>
         </div>
-        <button
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-fd-ember-400/15 px-2.5 py-1.5 text-xs font-medium text-fd-primary ring-1 ring-fd-ember-400/40 transition hover:bg-fd-ember-400/25"
-          type="button"
-          onClick={() => onOpen(item)}
-        >
-          {item.target ? 'Open at match' : 'Open session'}
-          <CornerDownLeft className="size-3" />
-        </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {item.reason?.snippet ? (
-          <div className="rounded-lg border border-fd-border-subtle bg-fd-surface/70 p-2.5">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-fd-tertiary">
-              Matched {item.reason.field}
-            </p>
-            <p className="whitespace-pre-wrap text-xs leading-5 text-fd-secondary">
-              <HighlightedText query={highlightQuery} value={item.reason.snippet} />
-            </p>
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)]">
+        <div className="border-b border-fd-border-subtle bg-fd-panel/50 p-3">
+          <div className="grid gap-3 2xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+            <div className="rounded-lg border border-fd-ember-400/20 bg-fd-surface/80 p-3">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-fd-tertiary">
+                Match
+              </p>
+              <p className="max-h-28 overflow-y-auto whitespace-pre-wrap text-[13px] leading-6 text-fd-secondary">
+                <HighlightedText
+                  query={highlightQuery}
+                  value={item.reason?.snippet || item.session.title}
+                />
+              </p>
+            </div>
+
+            <div className="grid gap-2 rounded-lg border border-fd-border-subtle bg-fd-surface/45 p-3 text-xs">
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <InspectorField label="Project" value={item.session.projectLabel} />
+                <InspectorField label="Status" value={item.session.status} />
+                <InspectorField label="Transport" value={item.session.transport ?? 'unknown'} />
+                <InspectorField
+                  label="Last activity"
+                  value={
+                    item.session.lastActivityAt
+                      ? formatFullDate(item.session.lastActivityAt)
+                      : 'Unknown'
+                  }
+                />
+                {item.reason ? (
+                  <>
+                    <InspectorField
+                      label="Source"
+                      value={formatSourceKind(item.reason.sourceKind)}
+                    />
+                    <InspectorField label="Field" value={formatReasonField(item.reason.field)} />
+                  </>
+                ) : null}
+              </dl>
+              {item.session.projectWorkspacePath ? (
+                <code className="block truncate border-t border-fd-border-subtle pt-2 font-mono text-[11px] leading-4 text-fd-tertiary">
+                  {item.session.projectWorkspacePath}
+                </code>
+              ) : null}
+            </div>
           </div>
-        ) : null}
 
-        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-          <InspectorField label="Project" value={item.session.projectLabel} />
-          <InspectorField label="Status" value={item.session.status} />
-          <InspectorField label="Transport" value={item.session.transport ?? 'unknown'} />
-          <InspectorField label="Relevance" value={`${Math.round(item.score)}`} />
-          <InspectorField
-            label="Last activity"
-            value={
-              item.session.lastActivityAt ? formatFullDate(item.session.lastActivityAt) : 'Unknown'
-            }
-          />
-          <InspectorField label="Created" value={formatFullDate(item.session.createdAt)} />
-        </dl>
-
-        {item.session.projectWorkspacePath ? (
-          <div className="mt-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-fd-tertiary">
-              Workspace
-            </p>
-            <code className="mt-0.5 block break-all font-mono text-[11px] leading-4 text-fd-secondary">
-              {item.session.projectWorkspacePath}
-            </code>
-          </div>
-        ) : null}
-
-        {relatedMatches.length > 0 ? (
-          <div className="mt-4">
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-fd-tertiary">
-              More matches in this session
-            </p>
-            <div className="flex flex-col gap-1">
-              {relatedMatches.slice(0, 6).map((relatedItem) => (
+          {relatedMatches.length > 0 ? (
+            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
+              {relatedMatches.slice(0, 10).map((relatedItem) => (
                 <button
                   key={relatedItem.id}
-                  className="flex items-start gap-2 rounded-md border border-fd-border-subtle bg-fd-surface/60 px-2 py-1.5 text-left transition hover:border-fd-border-strong"
+                  className="min-w-40 rounded-md border border-fd-border-subtle bg-fd-surface/55 px-2 py-1.5 text-left transition hover:border-fd-border-strong hover:bg-white/[0.04]"
                   type="button"
                   onClick={() => onOpen(relatedItem)}
                 >
-                  <span className="mt-0.5 shrink-0">
+                  <span className="flex items-center gap-1 text-[10px] font-medium text-fd-tertiary">
                     <ResultTypeIcon type={relatedItem.type} />
+                    {RESULT_TYPE_LABELS[relatedItem.type]}
                   </span>
-                  <span className="line-clamp-2 min-w-0 text-[11px] leading-4 text-fd-secondary">
+                  <span className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-fd-secondary">
                     <HighlightedText
                       query={highlightQuery}
-                      value={relatedItem.reason?.snippet ?? RESULT_TYPE_LABELS[relatedItem.type]}
+                      value={relatedItem.reason?.snippet ?? describeResultMatch(relatedItem)}
                     />
                   </span>
                 </button>
               ))}
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
+
+        <div className="min-h-0 bg-fd-panel/30">
+          {transcriptPanel?.itemId === item.id && transcriptPanel.status === 'ready' ? (
+            <TranscriptRenderer
+              items={timelineItems}
+              isLive={false}
+              isLoading={false}
+              searchTarget={searchTarget}
+              scrollContextKey={transcriptScrollContextKey}
+              scrollPersistenceEnabled={false}
+            />
+          ) : transcriptPanel?.itemId === item.id && transcriptPanel.status === 'error' ? (
+            <div className="flex h-full items-center justify-center p-6 text-center text-xs text-fd-tertiary">
+              {transcriptPanel.error ?? 'Transcript preview unavailable.'}
+            </div>
+          ) : (
+            <TranscriptRenderer
+              items={[]}
+              isLive={false}
+              isLoading={Boolean(transcriptPanel && transcriptPanel.itemId === item.id)}
+              searchTarget={searchTarget}
+              scrollContextKey={`${transcriptScrollContextKey}:loading`}
+              scrollPersistenceEnabled={false}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -704,6 +1035,8 @@ function ResultTypeIcon({ type }: { type: ResultType }) {
   const className = 'size-3.5 text-fd-tertiary'
 
   switch (type) {
+    case 'user-message':
+    case 'assistant-message':
     case 'message':
       return <MessageSquareText className={className} />
     case 'tool':
@@ -718,6 +1051,155 @@ function ResultTypeIcon({ type }: { type: ResultType }) {
       return <FileText className={className} />
     case 'session':
       return <Folder className={className} />
+  }
+}
+
+function groupItemsBySession(items: SearchResultItem[]): SessionResultSection[] {
+  const sections = new Map<string, SessionResultSection>()
+
+  for (const item of items) {
+    const existing = sections.get(item.session.id)
+
+    if (existing) {
+      existing.items.push(item)
+      continue
+    }
+
+    sections.set(item.session.id, {
+      items: [item],
+      session: item.session,
+    })
+  }
+
+  return [...sections.values()]
+}
+
+function createSearchTargetFromParts(parts: {
+  sessionId: string
+  sourceKind?: SessionSearchTarget['sourceKind']
+  sourceId?: string
+  messageId?: string | null
+  toolCallId?: string | null
+}): SessionSearchTarget | null {
+  if (!parts.sourceKind || !parts.sourceId) {
+    return null
+  }
+
+  return {
+    messageId: parts.messageId,
+    sessionId: parts.sessionId,
+    sourceId: parts.sourceId,
+    sourceKind: parts.sourceKind,
+    toolCallId: parts.toolCallId,
+  }
+}
+
+function isSessionMetadataOnly(item: SearchResultItem): boolean {
+  return item.type === 'session' && !item.reason?.snippet
+}
+
+function describeResultMatch(item: SearchResultItem): string {
+  const reason = item.reason
+
+  if (!reason) {
+    return 'Session metadata match'
+  }
+
+  const source = formatSourceKind(reason.sourceKind)
+  const field = formatReasonField(reason.field)
+
+  if (reason.sourceKind === 'tool_result' && reason.field === 'content') {
+    return 'Tool output matched transcript text'
+  }
+
+  if (reason.sourceKind === 'tool_call' && reason.field === 'command') {
+    return 'Tool call matched command'
+  }
+
+  if (reason.sourceKind === 'tool_call' && reason.field === 'tool') {
+    return 'Tool call matched tool name'
+  }
+
+  if (reason.sourceKind === 'block' && reason.field === 'content') {
+    if (item.type === 'user-message') {
+      return 'User message matched transcript text'
+    }
+
+    if (item.type === 'assistant-message') {
+      return 'Assistant message matched transcript text'
+    }
+
+    return 'Message matched transcript text'
+  }
+
+  if (reason.sourceKind === 'file_snapshot') {
+    return `File snapshot matched ${field}`
+  }
+
+  return `${source} matched ${field}`
+}
+
+function formatSourceKind(
+  sourceKind: NonNullable<SearchResultItem['reason']>['sourceKind'],
+): string {
+  switch (sourceKind) {
+    case 'block':
+      return 'Message'
+    case 'tool_call':
+      return 'Tool call'
+    case 'tool_result':
+      return 'Tool output'
+    case 'file_snapshot':
+      return 'File snapshot'
+    case 'compaction':
+      return 'Summary'
+    case 'settings':
+      return 'Settings'
+    case 'todo':
+      return 'Todo'
+    case 'session':
+    case undefined:
+      return 'Session'
+  }
+}
+
+function formatReasonField(field: NonNullable<SearchResultItem['reason']>['field']): string {
+  switch (field) {
+    case 'content':
+      return 'transcript text'
+    case 'path':
+      return 'workspace path'
+    case 'file':
+      return 'file path'
+    case 'command':
+      return 'command'
+    case 'tool':
+      return 'tool name'
+    case 'issue':
+      return 'issue key'
+    case 'error':
+      return 'error text'
+    case 'id':
+      return 'session id'
+    case 'title':
+      return 'session title'
+    case 'project':
+      return 'project'
+    case 'status':
+      return 'status'
+    case 'source':
+    case 'kind':
+      return 'source type'
+    case 'model':
+      return 'model'
+    case 'reasoning':
+      return 'reasoning'
+    case 'transport':
+      return 'transport'
+    case 'favorite':
+      return 'favorite state'
+    case 'extension':
+      return 'file extension'
   }
 }
 

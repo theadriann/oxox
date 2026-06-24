@@ -92,7 +92,7 @@ export interface SessionSearchStore {
     options?: { mode?: TranscriptHydrationMode; previousState?: TranscriptHydrationState | null },
   ) => void
   searchDocuments: (parsed: ParsedSessionSearchQuery) => SearchDocument[]
-  searchFragments?: (parsed: ParsedSessionSearchQuery) => SearchFragmentDocument[]
+  searchFragments?: (parsed: ParsedSessionSearchQuery, limit?: number) => SearchFragmentDocument[]
   dispose?: () => void
 }
 
@@ -139,6 +139,9 @@ const DEFAULT_HYDRATION_YIELD_MS = 25
 const DEFAULT_LIVE_UPDATE_DEBOUNCE_MS = 100
 const DEFAULT_MAX_INDEXED_CONTENT_CHARS = 80_000
 const DEFAULT_MAX_INDEXED_TOOL_CHARS = 40_000
+const MAX_SEARCH_CANDIDATES = 2_500
+const MIN_SEARCH_CANDIDATES = 250
+const SEARCH_CANDIDATE_MULTIPLIER = 4
 const MAX_ENTITY_SCAN_CHARS = 20_000
 const MAX_ENTITIES_PER_FRAGMENT = 64
 const FILE_WITH_EXTENSION_ENTITY_PATTERN = /[\w@./-]+\.[A-Za-z0-9]{1,12}/gu
@@ -416,7 +419,8 @@ export function createSessionSearchService({
         reasons: buildReasons(document, parsed),
       }))
 
-    const searchableFragments = searchStore.searchFragments?.(parsed) ?? []
+    const candidateLimit = calculateSearchCandidateLimit(limit)
+    const searchableFragments = searchStore.searchFragments?.(parsed, candidateLimit) ?? []
     const fragmentsBySessionId = groupFragmentsBySession(searchableFragments)
     const fragmentMatches = searchableFragments
       .filter((fragment) => fragmentMatchesQuery(fragment, parsed))
@@ -445,12 +449,18 @@ export function createSessionSearchService({
       )
 
     const matchingSessionIds = new Set(mergedMatches.map((match) => match.sessionId))
-    const hits = buildSearchHits(
+    const allHits = buildSearchHits(
       rankedMatches.filter((match) => matchingSessionIds.has(match.sessionId)),
-    ).slice(0, limit)
+    )
+    const hits = allHits.slice(0, limit)
     const matches = mergedMatches.slice(0, limit)
 
-    return { hits, query: request.query, matches }
+    return {
+      hasMore: allHits.length > limit || mergedMatches.length > limit,
+      hits,
+      query: request.query,
+      matches,
+    }
   }
 
   const scheduleLiveSnapshotUpdate = (snapshot: LiveSessionSnapshot) => {
@@ -1502,8 +1512,13 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
         .all(...parameters)
         .map(rowToSearchDocument)
     },
-    searchFragments: (parsed) => {
+    searchFragments: (parsed, limit = MIN_SEARCH_CANDIDATES) => {
       const fragments = new Map<string, SearchFragmentDocument>()
+      const addFragment = (fragment: SearchFragmentDocument) => {
+        if (!fragments.has(fragment.id)) {
+          fragments.set(fragment.id, fragment)
+        }
+      }
 
       for (const ftsQuery of buildFtsQueries(parsed)) {
         for (const fragment of database
@@ -1531,10 +1546,11 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
             JOIN search_fts ON search_fts.rowid = search_documents.id
             WHERE search_fts MATCH ?
             ORDER BY bm25(search_fts) ASC, search_documents.timestamp DESC, search_documents.id ASC
+            LIMIT ?
           `)
-          .all(ftsQuery)
+          .all(ftsQuery, limit)
           .map(rowToSearchFragmentDocument)) {
-          fragments.set(fragment.id, fragment)
+          addFragment(fragment)
         }
       }
 
@@ -1563,10 +1579,11 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
             JOIN search_path_fts ON search_path_fts.rowid = search_documents.id
             WHERE search_path_fts MATCH ?
             ORDER BY bm25(search_path_fts) ASC, search_documents.id ASC
+            LIMIT ?
           `)
-          .all(query)
+          .all(query, limit)
           .map(rowToSearchFragmentDocument)) {
-          fragments.set(fragment.id, fragment)
+          addFragment(fragment)
         }
       }
 
@@ -1599,10 +1616,11 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
             WHERE session_entities.entity_kind = ?
               AND instr(session_entities.value, ?) > 0
             ORDER BY session_entities.weight DESC, search_documents.id ASC
+            LIMIT ?
           `)
-          .all(kind, value)
+          .all(kind, value, limit)
           .map(rowToSearchFragmentDocument)) {
-          fragments.set(fragment.id, fragment)
+          addFragment(fragment)
         }
       }
 
@@ -1630,10 +1648,11 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
           FROM search_documents
           WHERE instr(${field}, ?) > 0
           ORDER BY search_documents.id ASC
+          LIMIT ?
         `)
-          .all(value)
+          .all(value, limit)
           .map(rowToSearchFragmentDocument)) {
-          fragments.set(fragment.id, fragment)
+          addFragment(fragment)
         }
       }
 
@@ -1711,6 +1730,13 @@ function ensureTableColumn(
 
 function maxSourceLineNo(sourceRecords: TranscriptRecord[]): number {
   return sourceRecords.reduce((maxLineNo, record) => Math.max(maxLineNo, record.lineNo), 0)
+}
+
+function calculateSearchCandidateLimit(limit: number): number {
+  return Math.min(
+    MAX_SEARCH_CANDIDATES,
+    Math.max(MIN_SEARCH_CANDIDATES, limit * SEARCH_CANDIDATE_MULTIPLIER),
+  )
 }
 
 function toNullableTimestamp(value: string | null): number | null {
@@ -2727,6 +2753,7 @@ function buildFragmentReasons(
     reasons.push({
       field: matchingField,
       messageId: fragment.messageId,
+      role: fragment.role,
       snippet:
         matchingField === 'content' && fragment.ftsSnippet
           ? normalizeFtsSnippet(fragment.ftsSnippet)
@@ -2773,13 +2800,14 @@ function buildSessionCoverageMatches(
     matches.push({
       sessionId,
       score:
-        20_000 +
-        distinctSourceCount * 750 +
-        evidenceFragments.reduce(
-          (total, fragment, index) =>
-            total + rankTermGroupAcrossFragmentFields(fragment, groups[index] ?? []),
-          0,
-        ),
+        2_000 +
+        distinctSourceCount * 250 +
+        0.3 *
+          evidenceFragments.reduce(
+            (total, fragment, index) =>
+              total + rankTermGroupAcrossFragmentFields(fragment, groups[index] ?? []),
+            0,
+          ),
       reasons: buildSessionCoverageReasons(evidenceFragments, groups),
     })
   }
@@ -2832,6 +2860,7 @@ function buildSessionCoverageReasons(
     reasons.push({
       field,
       messageId: fragment.messageId,
+      role: fragment.role,
       snippet:
         field === 'content' && fragment.ftsSnippet
           ? normalizeFtsSnippet(fragment.ftsSnippet)

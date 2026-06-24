@@ -6,7 +6,16 @@ import type {
 } from '../../../../../shared/ipc/contracts'
 import type { SessionPreview } from '../../sessions/session.model'
 
-export type SearchScope = 'all' | 'session' | 'message' | 'tool' | 'file' | 'summary' | 'todo'
+export type SearchScope =
+  | 'all'
+  | 'session'
+  | 'message'
+  | 'user-message'
+  | 'assistant-message'
+  | 'tool'
+  | 'file'
+  | 'summary'
+  | 'todo'
 export type ResultType = Exclude<SearchScope, 'all'> | 'detail'
 export type DatePreset = 'any' | '24h' | '7d' | '30d'
 
@@ -29,6 +38,8 @@ export const SEARCH_SCOPES: Array<{ id: SearchScope; label: string }> = [
   { id: 'all', label: 'All' },
   { id: 'session', label: 'Sessions' },
   { id: 'message', label: 'Messages' },
+  { id: 'user-message', label: 'User messages' },
+  { id: 'assistant-message', label: 'Assistant messages' },
   { id: 'tool', label: 'Tools' },
   { id: 'file', label: 'Files' },
   { id: 'summary', label: 'Summaries' },
@@ -38,6 +49,8 @@ export const SEARCH_SCOPES: Array<{ id: SearchScope; label: string }> = [
 export const RESULT_TYPE_LABELS: Record<ResultType, string> = {
   session: 'Sessions',
   message: 'Messages',
+  'user-message': 'User messages',
+  'assistant-message': 'Assistant messages',
   tool: 'Tools',
   file: 'Files',
   summary: 'Summaries',
@@ -106,7 +119,7 @@ const DATE_PRESET_WINDOW_MS: Record<Exclude<DatePreset, 'any'>, number> = {
   '30d': 30 * 24 * 60 * 60 * 1000,
 }
 
-export const MAX_RENDERED_RESULTS = 120
+export const MAX_RENDERED_RESULTS = 500
 
 /**
  * Shortens a workspace path Raycast-style: home dir becomes `~`, middle
@@ -177,6 +190,14 @@ export function buildSearchQuery(chips: OperatorChip[], freeText: string): strin
 export function classifyReason(reason?: SessionSearchReason): ResultType {
   switch (reason?.sourceKind) {
     case 'block':
+      if (reason.role === 'user') {
+        return 'user-message'
+      }
+
+      if (reason.role === 'assistant') {
+        return 'assistant-message'
+      }
+
       return 'message'
     case 'tool_call':
     case 'tool_result':
@@ -266,7 +287,7 @@ export function createItemsFromHits(
         type: classifyReason(hit.reason),
       }
     }),
-  ).sort(sortItems)
+  )
 }
 
 export function createBrowseItems(sessions: SessionPreview[]): SearchResultItem[] {
@@ -298,7 +319,7 @@ export function filterResultItems(
   filters: ResultFilters,
 ): SearchResultItem[] {
   return items.filter((item) => {
-    if (filters.scope !== 'all' && item.type !== filters.scope) {
+    if (filters.scope !== 'all' && !itemMatchesScope(item, filters.scope)) {
       return false
     }
 
@@ -338,6 +359,8 @@ export function countItemsByScope(items: SearchResultItem[]): Record<SearchScope
     all: items.length,
     session: 0,
     message: 0,
+    'user-message': 0,
+    'assistant-message': 0,
     tool: 0,
     file: 0,
     summary: 0,
@@ -350,9 +373,21 @@ export function countItemsByScope(items: SearchResultItem[]): Record<SearchScope
     }
 
     counts[item.type] += 1
+
+    if (isMessageResultType(item.type) && item.type !== 'message') {
+      counts.message += 1
+    }
   }
 
   return counts
+}
+
+function itemMatchesScope(item: SearchResultItem, scope: SearchScope): boolean {
+  return scope === 'message' ? isMessageResultType(item.type) : item.type === scope
+}
+
+function isMessageResultType(type: ResultType): boolean {
+  return type === 'message' || type === 'user-message' || type === 'assistant-message'
 }
 
 function createFallbackSessionPreview(match: { sessionId: string }): SessionPreview {

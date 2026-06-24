@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { SessionSearchResponse } from '../../../../../shared/ipc/contracts'
+import type { SessionSearchResponse, SessionTranscript } from '../../../../../shared/ipc/contracts'
 import type { SessionPreview } from '../../../state/sessions/session.model'
 import { FullPageSearch } from '../FullPageSearch'
 
@@ -71,6 +71,7 @@ describe('FullPageSearch', () => {
                 sourceKind: 'block',
                 sourceId: 'message-1:0',
                 messageId: 'message-1',
+                role: 'assistant',
               },
             ],
           },
@@ -107,11 +108,17 @@ describe('FullPageSearch', () => {
     fireEvent.change(getSearchInput(), { target: { value: 'resizeobserver' } })
 
     await waitFor(() =>
-      expect(searchSessions).toHaveBeenCalledWith({ query: 'resizeobserver', limit: 80 }),
+      expect(searchSessions).toHaveBeenCalledWith({ query: 'resizeobserver', limit: 100 }),
     )
 
     expect(screen.getAllByText('Messages').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Assistant messages').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Tools').length).toBeGreaterThan(0)
+    expect(screen.getByText('ResizeObserver debug')).toBeTruthy()
+    expect(screen.getAllByText('Assistant message matched transcript text').length).toBeGreaterThan(
+      0,
+    )
+    expect(screen.getAllByText('Tool call matched tool name').length).toBeGreaterThan(0)
     expect(
       screen.getAllByText(textContentIncludes('Assistant explained the ResizeObserver failure'))
         .length,
@@ -129,6 +136,97 @@ describe('FullPageSearch', () => {
       sourceKind: 'block',
       toolCallId: undefined,
     })
+  })
+
+  it('progressively discloses many hits within a session group', async () => {
+    const searchSessions = vi.fn(async (request: { query: string }) => {
+      const response: SessionSearchResponse = {
+        hits: Array.from({ length: 7 }, (_, index) => ({
+          id: `many-hit-session:block:message-${index}`,
+          reason: {
+            field: 'content',
+            messageId: `message-${index}`,
+            snippet: `path match ${index}`,
+            sourceId: `message-${index}:0`,
+            sourceKind: 'block',
+          },
+          score: 100 - index,
+          sessionId: 'many-hit-session',
+        })),
+        matches: [],
+        query: request.query,
+      }
+
+      return response
+    })
+
+    render(
+      <FullPageSearch
+        sessions={[createSession({ id: 'many-hit-session', title: 'Many path hits' })]}
+        searchSessions={searchSessions}
+        onSelectSession={() => undefined}
+      />,
+    )
+
+    fireEvent.change(getSearchInput(), { target: { value: '/var/run/argo' } })
+
+    await waitFor(() =>
+      expect(searchSessions).toHaveBeenCalledWith({ query: '/var/run/argo', limit: 100 }),
+    )
+
+    expect(screen.getAllByText('path match 0').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('path match 2').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('[data-search-result-id]')).toHaveLength(4)
+
+    fireEvent.click(screen.getByText('View all 7 message matches'))
+
+    expect(document.querySelectorAll('[data-search-result-id]')).toHaveLength(8)
+    expect(screen.getAllByText('path match 6').length).toBeGreaterThan(0)
+  })
+
+  it('loads more backend results when more are available', async () => {
+    const searchSessions = vi.fn(async (request: { query: string; limit: number }) => {
+      const response: SessionSearchResponse = {
+        hasMore: request.limit < 200,
+        hits: Array.from({ length: Math.min(request.limit, 150) }, (_, index) => ({
+          id: `load-more-session:block:message-${index}`,
+          reason: {
+            field: 'content',
+            messageId: `message-${index}`,
+            snippet: `load more match ${index}`,
+            sourceId: `message-${index}:0`,
+            sourceKind: 'block',
+          },
+          score: 200 - index,
+          sessionId: 'load-more-session',
+        })),
+        matches: [],
+        query: request.query,
+      }
+
+      return response
+    })
+
+    render(
+      <FullPageSearch
+        sessions={[createSession({ id: 'load-more-session', title: 'Load more session' })]}
+        searchSessions={searchSessions}
+        onSelectSession={() => undefined}
+      />,
+    )
+
+    fireEvent.change(getSearchInput(), { target: { value: 'build logs compute' } })
+
+    await waitFor(() =>
+      expect(searchSessions).toHaveBeenCalledWith({ query: 'build logs compute', limit: 100 }),
+    )
+
+    fireEvent.click(screen.getByText('Load more results'))
+
+    await waitFor(() =>
+      expect(searchSessions).toHaveBeenCalledWith({ query: 'build logs compute', limit: 200 }),
+    )
+    expect(screen.getByText('View all 150 message matches')).toBeTruthy()
   })
 
   it('converts completed operator tokens into removable chips and includes them in the query', async () => {
@@ -152,14 +250,16 @@ describe('FullPageSearch', () => {
     expect((getSearchInput() as HTMLInputElement).value).toBe('daemon')
 
     await waitFor(() =>
-      expect(searchSessions).toHaveBeenCalledWith({ query: 'tool:Execute daemon', limit: 80 }),
+      expect(searchSessions).toHaveBeenCalledWith({ query: 'tool:Execute daemon', limit: 100 }),
     )
 
     fireEvent.click(screen.getByRole('button', { name: /remove filter tool:Execute/i }))
 
     expect(screen.queryByText('tool:')).toBeNull()
 
-    await waitFor(() => expect(searchSessions).toHaveBeenCalledWith({ query: 'daemon', limit: 80 }))
+    await waitFor(() =>
+      expect(searchSessions).toHaveBeenCalledWith({ query: 'daemon', limit: 100 }),
+    )
   })
 
   it('supports keyboard navigation across results and opens with Enter', async () => {
@@ -289,6 +389,28 @@ describe('FullPageSearch', () => {
 
   it('shows the inspector preview for the selected result with an open action', async () => {
     const onSelectSession = vi.fn()
+    const getSessionTranscript = vi.fn(
+      async (): Promise<SessionTranscript> => ({
+        entries: [
+          {
+            id: 'message-before',
+            kind: 'message',
+            markdown: 'before inspected context',
+            occurredAt: null,
+            role: 'user',
+          },
+          {
+            id: 'message-1',
+            kind: 'message',
+            markdown: 'inspected transcript context with surrounding detail',
+            occurredAt: null,
+            role: 'assistant',
+          },
+        ],
+        loadedAt: '2026-06-10T12:00:00.000Z',
+        sessionId: 'inspected-session',
+      }),
+    )
     const searchSessions = vi.fn(async (request: { query: string }) => {
       const response: SessionSearchResponse = {
         query: request.query,
@@ -321,6 +443,7 @@ describe('FullPageSearch', () => {
             projectWorkspacePath: '/tmp/inspected',
           }),
         ]}
+        getSessionTranscript={getSessionTranscript}
         searchSessions={searchSessions}
         onSelectSession={onSelectSession}
       />,
@@ -334,16 +457,85 @@ describe('FullPageSearch', () => {
       ).toBeGreaterThan(0),
     )
 
-    const inspector = screen.getByRole('complementary', { name: /result inspector/i })
+    const inspector = screen.getByRole('complementary', { name: /transcript preview/i })
     expect(inspector.textContent).toContain('Inspected session')
     expect(inspector.textContent).toContain('/tmp/inspected')
+    await waitFor(() =>
+      expect(inspector.textContent).toContain(
+        'inspected transcript context with surrounding detail',
+      ),
+    )
+    expect(inspector.textContent).toContain('before inspected context')
 
-    fireEvent.click(screen.getByRole('button', { name: /open at match/i }))
+    fireEvent.click(screen.getByRole('button', { name: /open match/i }))
 
     expect(onSelectSession).toHaveBeenCalledWith(
       'inspected-session',
       expect.objectContaining({ messageId: 'message-1' }),
     )
+  })
+
+  it('updates the inspector from the hovered result without opening it', async () => {
+    const searchSessions = vi.fn(async (request: { query: string }) => ({
+      hits: [
+        {
+          id: 'first-session:block:message-1',
+          reason: {
+            field: 'content',
+            messageId: 'message-1',
+            snippet: 'first hover snippet',
+            sourceId: 'message-1:0',
+            sourceKind: 'block' as const,
+          },
+          score: 90,
+          sessionId: 'first-session',
+        },
+        {
+          id: 'second-session:block:message-2',
+          reason: {
+            field: 'content',
+            messageId: 'message-2',
+            snippet: 'second hover snippet with more context',
+            sourceId: 'message-2:0',
+            sourceKind: 'block' as const,
+          },
+          score: 80,
+          sessionId: 'second-session',
+        },
+      ],
+      matches: [],
+      query: request.query,
+    }))
+
+    render(
+      <FullPageSearch
+        sessions={[
+          createSession({ id: 'first-session', title: 'First inspected session' }),
+          createSession({ id: 'second-session', title: 'Second inspected session' }),
+        ]}
+        searchSessions={searchSessions}
+        onSelectSession={() => undefined}
+      />,
+    )
+
+    fireEvent.change(getSearchInput(), { target: { value: 'hover' } })
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(textContentIncludes('second hover snippet with more context')).length,
+      ).toBeGreaterThan(0),
+    )
+    const secondRow = screen
+      .getAllByText(textContentIncludes('second hover snippet with more context'))[0]
+      ?.closest('button')
+
+    expect(secondRow).toBeTruthy()
+    fireEvent.mouseEnter(secondRow as HTMLElement)
+
+    const inspector = screen.getByRole('complementary', { name: /transcript preview/i })
+    expect(inspector.textContent).toContain('Second inspected session')
+    expect(inspector.textContent).toContain('second hover snippet with more context')
+    expect(inspector.textContent).toContain('Match')
   })
 
   it('renders backend matches even before matching session previews are loaded', async () => {
@@ -381,7 +573,7 @@ describe('FullPageSearch', () => {
     fireEvent.change(getSearchInput(), { target: { value: 'indexed transcript' } })
 
     await waitFor(() =>
-      expect(searchSessions).toHaveBeenCalledWith({ query: 'indexed transcript', limit: 80 }),
+      expect(searchSessions).toHaveBeenCalledWith({ query: 'indexed transcript', limit: 100 }),
     )
 
     expect(

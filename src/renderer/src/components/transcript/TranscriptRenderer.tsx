@@ -7,7 +7,15 @@ import {
   Loader2,
   ServerCog,
 } from 'lucide-react'
-import { type MutableRefObject, memo, type ReactNode, useCallback, useMemo, useState } from 'react'
+import {
+  type MutableRefObject,
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import type {
   LiveSessionAskUserAnswerRecord,
   SessionSearchTarget,
@@ -253,6 +261,32 @@ function getRenderItemToolCallId(item: RenderItem): string | null {
   return item.kind === 'timeline-item' && item.item.kind === 'tool' ? item.item.toolUseId : null
 }
 
+function rowDatasetMatchesSearchTarget(row: HTMLElement, target: SessionSearchTarget): boolean {
+  if (target.messageId && row.dataset.searchMessageId === target.messageId) {
+    return true
+  }
+
+  if (target.toolCallId && row.dataset.searchToolCallId?.split(' ').includes(target.toolCallId)) {
+    return true
+  }
+
+  return (
+    row.dataset.searchMessageId === target.sourceId ||
+    row.dataset.searchToolCallId === target.sourceId
+  )
+}
+
+function getRenderedSearchTargetKey(target: SessionSearchTarget, scrollContextKey: string): string {
+  return [
+    scrollContextKey,
+    target.sessionId,
+    target.sourceKind,
+    target.sourceId,
+    target.messageId ?? '',
+    target.toolCallId ?? '',
+  ].join(':')
+}
+
 function LiveTranscriptView({
   items,
   scrollContextKey,
@@ -471,6 +505,24 @@ function HistoricalTranscriptView({
   >({})
   const hasTranscript = items.length > 0
 
+  useEffect(() => {
+    if (!searchTarget?.toolCallId) {
+      return
+    }
+
+    setExpandedToolIds((current) => ({ ...current, [searchTarget.toolCallId as string]: true }))
+
+    const containingGroup = items.find(
+      (item): item is Extract<RenderItem, { kind: 'tool-group' }> =>
+        item.kind === 'tool-group' &&
+        item.items.some((toolItem) => toolItem.toolUseId === searchTarget.toolCallId),
+    )
+
+    if (containingGroup) {
+      setExpandedToolGroupIds((current) => ({ ...current, [containingGroup.id]: true }))
+    }
+  }, [items, searchTarget?.toolCallId])
+
   const transcriptScroll = useTranscriptVirtualScroll({
     estimateSize: estimateRenderItemSize,
     findSearchTargetIndex: findRenderItemSearchTargetIndex,
@@ -495,6 +547,46 @@ function HistoricalTranscriptView({
     isOpen: inlineSearch.isOpen,
     query: inlineSearch.query,
   })
+  const renderedSearchTargetKey = searchTarget
+    ? getRenderedSearchTargetKey(searchTarget, scrollContextKey)
+    : null
+  useEffect(() => {
+    if (!searchTarget || !renderedSearchTargetKey) {
+      return
+    }
+
+    let frame = 0
+    let attempts = 0
+    const scrollRenderedTargetIntoView = () => {
+      const scrollArea = transcriptScroll.scrollAreaRef.current
+
+      if (!scrollArea) {
+        attempts += 1
+        if (attempts < 6) {
+          frame = requestAnimationFrame(scrollRenderedTargetIntoView)
+        }
+        return
+      }
+
+      const targetRow = Array.from(
+        scrollArea.querySelectorAll<HTMLElement>('[data-testid="transcript-row"]'),
+      ).find((row) => rowDatasetMatchesSearchTarget(row, searchTarget))
+
+      if (targetRow) {
+        targetRow.scrollIntoView?.({ block: 'center' })
+        return
+      }
+
+      attempts += 1
+      if (attempts < 6) {
+        frame = requestAnimationFrame(scrollRenderedTargetIntoView)
+      }
+    }
+
+    frame = requestAnimationFrame(scrollRenderedTargetIntoView)
+
+    return () => cancelAnimationFrame(frame)
+  }, [renderedSearchTargetKey, searchTarget, transcriptScroll.scrollAreaRef])
 
   const toggleToolCall = useCallback((toolUseId: string) => {
     setExpandedToolIds((c) => ({ ...c, [toolUseId]: !c[toolUseId] }))
@@ -588,6 +680,9 @@ function HistoricalTranscriptView({
             {transcriptScroll.rowsToRender.map((virtualRow) => {
               const entry = items[virtualRow.index]
               if (!entry) return null
+              const isSearchTargetMatch = searchTarget
+                ? renderItemMatchesSearchTarget(entry, searchTarget)
+                : false
 
               return (
                 <div
@@ -597,7 +692,11 @@ function HistoricalTranscriptView({
                   data-search-message-id={getRenderItemMessageId(entry) ?? undefined}
                   data-search-tool-call-id={getRenderItemToolCallId(entry) ?? undefined}
                   data-testid="transcript-row"
-                  className="absolute left-0 top-0 w-full pb-1.5"
+                  className={`absolute left-0 top-0 w-full pb-1.5 ${
+                    isSearchTargetMatch
+                      ? 'rounded-lg bg-fd-ember-400/[0.06] ring-1 ring-inset ring-fd-ember-400/30'
+                      : ''
+                  }`}
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
                   {entry.kind === 'tool-group' ? (

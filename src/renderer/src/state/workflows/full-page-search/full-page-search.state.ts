@@ -17,6 +17,7 @@ export interface FullPageSearchState {
   projectSearchQuery: string
   hits: SessionSearchHit[]
   matches: SessionSearchMatch[]
+  hasMoreResults: boolean
   isSearching: boolean
   error: string | null
   hasSearched: boolean
@@ -36,6 +37,7 @@ export function createDefaultFullPageSearchState(): FullPageSearchState {
     projectSearchQuery: '',
     hits: [],
     matches: [],
+    hasMoreResults: false,
     isSearching: false,
     error: null,
     hasSearched: false,

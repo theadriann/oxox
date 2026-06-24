@@ -637,6 +637,7 @@ export interface SessionSearchReason {
     | 'todo'
   sourceId?: string
   messageId?: string | null
+  role?: string | null
   toolCallId?: string | null
 }
 
@@ -664,6 +665,7 @@ export interface SessionSearchHit {
 
 export interface SessionSearchResponse {
   query: string
+  hasMore?: boolean
   hits?: SessionSearchHit[]
   matches: SessionSearchMatch[]
 }

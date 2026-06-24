@@ -683,6 +683,92 @@ describe('createSessionSearchService', () => {
     ])
   })
 
+  it('ranks a single fragment containing all query terms above session-level coverage', async () => {
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([
+        createSession({ id: 'exact-session', lastActivityAt: '2026-03-24T20:00:00.000Z' }),
+        createSession({ id: 'coverage-session', lastActivityAt: '2026-03-24T20:10:00.000Z' }),
+      ]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(
+          sessionId,
+          sessionId === 'exact-session'
+            ? [
+                {
+                  kind: 'message',
+                  id: 'exact-message',
+                  occurredAt: null,
+                  role: 'assistant',
+                  markdown: 'compute build logs show the container failure',
+                },
+              ]
+            : [
+                {
+                  kind: 'message',
+                  id: 'coverage-build',
+                  occurredAt: null,
+                  role: 'assistant',
+                  markdown: 'build output is available',
+                },
+                {
+                  kind: 'message',
+                  id: 'coverage-logs',
+                  occurredAt: null,
+                  role: 'assistant',
+                  markdown: 'logs are attached',
+                },
+                {
+                  kind: 'message',
+                  id: 'coverage-compute',
+                  occurredAt: null,
+                  role: 'assistant',
+                  markdown: 'compute host details are attached',
+                },
+              ],
+        ),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    await service.waitForHydration()
+
+    const response = service.searchSessions({ query: 'build logs compute', limit: 10 })
+
+    expect(response.matches.map((match) => match.sessionId)).toEqual([
+      'exact-session',
+      'coverage-session',
+    ])
+    expect(response.hits?.[0]?.sessionId).toBe('exact-session')
+  })
+
+  it('reports when more search hits are available beyond the requested limit', async () => {
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'many-hits-session' })]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(
+          sessionId,
+          Array.from({ length: 5 }, (_, index) => ({
+            kind: 'message',
+            id: `message-${index}`,
+            occurredAt: null,
+            role: 'assistant',
+            markdown: `build logs compute match ${index}`,
+          })),
+        ),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    await service.waitForHydration()
+
+    const response = service.searchSessions({ query: 'build logs compute', limit: 2 })
+
+    expect(response.hits).toHaveLength(2)
+    expect(response.hasMore).toBe(true)
+  })
+
   it('matches free-text terms across separate fragments in the same session', async () => {
     const service = createSessionSearchService({
       bootstrap: createBootstrap([
@@ -720,6 +806,54 @@ describe('createSessionSearchService', () => {
     expect(
       service.searchSessions({ query: 'windows cli', limit: 80 }).matches.map((m) => m.sessionId),
     ).toContain('awesome-cli-session')
+
+    service.dispose()
+  })
+
+  it('returns the message author role with transcript search hits', async () => {
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'role-session' })]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [
+          {
+            kind: 'message',
+            id: 'user-message',
+            occurredAt: null,
+            role: 'user',
+            markdown: 'How can I search only my own deployment questions?',
+          },
+          {
+            kind: 'message',
+            id: 'assistant-message',
+            occurredAt: null,
+            role: 'assistant',
+            markdown: 'Assistant answers can be filtered separately from user prompts.',
+          },
+        ]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    await service.waitForHydration()
+
+    const userHit = service
+      .searchSessions({ query: 'deployment questions', limit: 10 })
+      .hits?.find((hit) => hit.reason.role === 'user')
+    const assistantHit = service
+      .searchSessions({ query: 'assistant answers', limit: 10 })
+      .hits?.find((hit) => hit.reason.role === 'assistant')
+
+    expect(userHit?.reason).toMatchObject({
+      messageId: 'user-message',
+      role: 'user',
+      sourceKind: 'block',
+    })
+    expect(assistantHit?.reason).toMatchObject({
+      messageId: 'assistant-message',
+      role: 'assistant',
+      sourceKind: 'block',
+    })
 
     service.dispose()
   })

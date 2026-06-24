@@ -104,6 +104,17 @@ describe('classifyReason', () => {
   it('maps source kinds onto search scopes', () => {
     expect(classifyReason(undefined)).toBe('session')
     expect(classifyReason({ field: 'content', snippet: '', sourceKind: 'block' })).toBe('message')
+    expect(
+      classifyReason({ field: 'content', role: 'user', snippet: '', sourceKind: 'block' }),
+    ).toBe('user-message')
+    expect(
+      classifyReason({
+        field: 'content',
+        role: 'assistant',
+        snippet: '',
+        sourceKind: 'block',
+      }),
+    ).toBe('assistant-message')
     expect(classifyReason({ field: 'tool', snippet: '', sourceKind: 'tool_call' })).toBe('tool')
     expect(classifyReason({ field: 'tool', snippet: '', sourceKind: 'tool_result' })).toBe('tool')
     expect(classifyReason({ field: 'file', snippet: '', sourceKind: 'file_snapshot' })).toBe('file')
@@ -190,9 +201,49 @@ describe('result items', () => {
     const items = createItemsFromMatches(matches, sessions)
 
     expect(filterResultItems(items, { scope: 'tool' })).toHaveLength(1)
+    expect(filterResultItems(items, { scope: 'message' })).toHaveLength(1)
     expect(filterResultItems(items, { scope: 'all', statuses: ['active'] })).toHaveLength(1)
     expect(filterResultItems(items, { scope: 'all', projects: ['missing'] })).toHaveLength(0)
     expect(filterResultItems(items, { scope: 'all', sources: ['tool_call'] })).toHaveLength(1)
+  })
+
+  it('splits message results by author role while preserving the aggregate message scope', () => {
+    const items = createItemsFromMatches(
+      [
+        {
+          sessionId: 'message-session',
+          score: 100,
+          reasons: [
+            {
+              field: 'content',
+              messageId: 'user-message-1',
+              role: 'user',
+              snippet: 'how do I search my prompts',
+              sourceId: 'user-message-1',
+              sourceKind: 'block',
+            },
+            {
+              field: 'content',
+              messageId: 'assistant-message-1',
+              role: 'assistant',
+              snippet: 'search can filter assistant answers',
+              sourceId: 'assistant-message-1',
+              sourceKind: 'block',
+            },
+          ],
+        },
+      ],
+      sessions,
+    )
+    const counts = countItemsByScope(items)
+
+    expect(items.map((item) => item.type)).toEqual(['user-message', 'assistant-message'])
+    expect(filterResultItems(items, { scope: 'message' })).toHaveLength(2)
+    expect(filterResultItems(items, { scope: 'user-message' })).toHaveLength(1)
+    expect(filterResultItems(items, { scope: 'assistant-message' })).toHaveLength(1)
+    expect(counts.message).toBe(2)
+    expect(counts['user-message']).toBe(1)
+    expect(counts['assistant-message']).toBe(1)
   })
 
   it('counts items per scope including the all scope', () => {
@@ -237,6 +288,43 @@ describe('result items', () => {
 
     expect(items).toHaveLength(2)
     expect(items.map((item) => item.reason?.snippet)).toEqual(['first path hit', 'second path hit'])
+  })
+
+  it('preserves backend hit order for diversified flat results', () => {
+    const items = createItemsFromHits(
+      [
+        {
+          id: 'old-session:block:message-1',
+          sessionId: 'old-session',
+          score: 10,
+          reason: {
+            field: 'content',
+            snippet: 'old session first from backend',
+            sourceKind: 'block',
+            sourceId: 'message-1',
+            messageId: 'message-1',
+          },
+        },
+        {
+          id: 'new-session:block:message-2',
+          sessionId: 'new-session',
+          score: 100,
+          reason: {
+            field: 'content',
+            snippet: 'new session second from backend',
+            sourceKind: 'block',
+            sourceId: 'message-2',
+            messageId: 'message-2',
+          },
+        },
+      ],
+      [
+        createSession({ id: 'old-session', lastActivityAt: '2026-06-01T00:00:00.000Z' }),
+        createSession({ id: 'new-session', lastActivityAt: '2026-06-11T00:00:00.000Z' }),
+      ],
+    )
+
+    expect(items.map((item) => item.session.id)).toEqual(['old-session', 'new-session'])
   })
 
   it('creates recency-sorted browse items', () => {
