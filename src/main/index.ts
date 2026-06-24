@@ -243,6 +243,8 @@ app.whenReady().then(async () => {
         getRuntimeInfo,
         createAppWindow: () => windowCoordinator.createAppWindow({ id: randomUUID() }),
         showOpenDialog: (ownerWindow, options) => dialog.showOpenDialog(ownerWindow, options),
+        startAccessingSecurityScopedResource: (bookmarkData) =>
+          app.startAccessingSecurityScopedResource(bookmarkData),
         resolveOwnerWindow: (sender) => BrowserWindow.fromWebContents(sender) ?? undefined,
         logTranscriptPerformance: transcriptPerformanceLogWriter.log,
       })

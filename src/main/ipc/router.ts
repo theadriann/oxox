@@ -1,3 +1,6 @@
+import { homedir } from 'node:os'
+import { relative, resolve } from 'node:path'
+
 import type {
   AppUpdateState,
   CreatePullRequestRequest,
@@ -31,6 +34,7 @@ interface IpcMainLike {
 interface DialogResultLike {
   canceled: boolean
   filePaths: string[]
+  bookmarks?: string[]
 }
 
 interface WebContentsLike {
@@ -61,9 +65,14 @@ export interface RegisterAppIpcHandlersOptions {
     options: {
       title: string
       buttonLabel: string
+      defaultPath?: string
+      message?: string
       properties: Array<'openDirectory' | 'createDirectory'>
+      securityScopedBookmarks?: boolean
     },
   ) => Promise<DialogResultLike>
+  startAccessingSecurityScopedResource?: (bookmarkData: string) => () => void
+  platform?: NodeJS.Platform
   resolveOwnerWindow: (sender: WebContentsLike) => unknown
   logTranscriptPerformance?: (events: TranscriptPerformanceEvent[]) => void
 }
@@ -79,12 +88,15 @@ export function registerAppIpcHandlers({
   getRuntimeInfo,
   createAppWindow,
   showOpenDialog,
+  startAccessingSecurityScopedResource,
+  platform = process.platform,
   resolveOwnerWindow,
   logTranscriptPerformance = () => undefined,
 }: RegisterAppIpcHandlersOptions): () => void {
   const registeredChannels: string[] = []
   const rendererCleanupRegistered = new Set<number>()
   let lastBootstrapSnapshot: ReturnType<FoundationService['getBootstrap']> | null = null
+  const authorizedDirectoryBookmarks = new Map<string, string | null>()
 
   const registerHandler = (channel: string, handler: (...args: unknown[]) => unknown): void => {
     ipcMain.handle(channel, handler)
@@ -108,6 +120,84 @@ export function registerAppIpcHandlers({
       rendererCleanupRegistered.delete(sender.id)
     })
   }
+
+  const rememberDirectoryAccess = (directoryPath: string, bookmark?: string | null): void => {
+    authorizedDirectoryBookmarks.set(resolveWorkspacePath(directoryPath), bookmark ?? null)
+  }
+
+  const findDirectoryAccessBookmark = (directoryPath: string): string | null | undefined => {
+    const normalizedPath = resolveWorkspacePath(directoryPath)
+
+    for (const [authorizedPath, bookmark] of authorizedDirectoryBookmarks) {
+      if (isSameOrDescendantPath(normalizedPath, authorizedPath)) {
+        return bookmark
+      }
+    }
+
+    return undefined
+  }
+
+  const requestDirectoryAccess = async (
+    ownerWindow: unknown,
+    directoryPath: string,
+  ): Promise<void> => {
+    const normalizedPath = resolveWorkspacePath(directoryPath)
+    const result = await showOpenDialog(ownerWindow, {
+      title: 'Allow workspace access',
+      buttonLabel: 'Allow access',
+      defaultPath: normalizedPath,
+      message: `OXOX needs permission to access ${normalizedPath} before starting Droid there.`,
+      properties: ['openDirectory'],
+      securityScopedBookmarks: true,
+    })
+
+    if (result.canceled) {
+      throw new Error(`OXOX needs permission to access ${normalizedPath}.`)
+    }
+
+    const selectedPath = result.filePaths[0]
+    if (
+      !selectedPath ||
+      !isSameOrDescendantPath(normalizedPath, resolveWorkspacePath(selectedPath))
+    ) {
+      throw new Error(`Please select ${normalizedPath} to allow OXOX to access this workspace.`)
+    }
+
+    rememberDirectoryAccess(selectedPath, result.bookmarks?.[0] ?? null)
+  }
+
+  const withWorkspaceAccess = async <T>(
+    ownerWindow: unknown,
+    workspacePath: string | null | undefined,
+    action: () => Promise<T>,
+  ): Promise<T> => {
+    if (!workspacePath || !shouldRequestMacosDirectoryAccess(platform, workspacePath)) {
+      return action()
+    }
+
+    const normalizedPath = resolveWorkspacePath(workspacePath)
+
+    if (findDirectoryAccessBookmark(normalizedPath) === undefined) {
+      await requestDirectoryAccess(ownerWindow, normalizedPath)
+    }
+
+    const bookmark = findDirectoryAccessBookmark(normalizedPath)
+    const stopAccessing =
+      bookmark && startAccessingSecurityScopedResource
+        ? startAccessingSecurityScopedResource(bookmark)
+        : null
+
+    try {
+      return await action()
+    } finally {
+      stopAccessing?.()
+    }
+  }
+
+  const getSessionWorkspacePath = (sessionId: string): string | null =>
+    service.getSessionSnapshot(sessionId)?.projectWorkspacePath ??
+    service.listSessions().find((session) => session.id === sessionId)?.projectWorkspacePath ??
+    null
 
   const handlers: Record<string, (...args: unknown[]) => unknown> = {
     [IPC_CHANNELS.runtimeInfo]: () => getRuntimeInfo(),
@@ -140,9 +230,19 @@ export function registerAppIpcHandlers({
         title: 'Select a workspace',
         buttonLabel: 'Use folder',
         properties: ['openDirectory', 'createDirectory'],
+        securityScopedBookmarks: true,
       })
 
-      return result.canceled ? null : (result.filePaths[0] ?? null)
+      if (result.canceled) {
+        return null
+      }
+
+      const selectedPath = result.filePaths[0] ?? null
+      if (selectedPath) {
+        rememberDirectoryAccess(selectedPath, result.bookmarks?.[0] ?? null)
+      }
+
+      return selectedPath
     },
     [IPC_CHANNELS.foundationBootstrap]: () => {
       const snapshot = service.getBootstrap()
@@ -251,7 +351,10 @@ export function registerAppIpcHandlers({
       request: LiveSessionCreateRequest,
     ) => {
       ensureSenderCleanup(event.sender)
-      const snapshot = await service.createSession(request, `renderer:${event.sender.id}`)
+      const ownerWindow = resolveOwnerWindow(event.sender)
+      const snapshot = await withWorkspaceAccess(ownerWindow, request.cwd, () =>
+        service.createSession(request, `renderer:${event.sender.id}`),
+      )
       registerRendererSessionAttachment(event.sender.id, snapshot.sessionId)
       return snapshot
     },
@@ -259,7 +362,11 @@ export function registerAppIpcHandlers({
       service.getSessionSnapshot(sessionId),
     [IPC_CHANNELS.sessionAttach]: async (event: IpcInvokeEventLike, sessionId: string) => {
       ensureSenderCleanup(event.sender)
-      const snapshot = await service.attachSession(sessionId, `renderer:${event.sender.id}`)
+      const ownerWindow = resolveOwnerWindow(event.sender)
+      const workspacePath = getSessionWorkspacePath(sessionId)
+      const snapshot = await withWorkspaceAccess(ownerWindow, workspacePath, () =>
+        service.attachSession(sessionId, `renderer:${event.sender.id}`),
+      )
       registerRendererSessionAttachment(event.sender.id, snapshot.sessionId)
       return snapshot
     },
@@ -432,4 +539,43 @@ export function registerAppIpcHandlers({
     }
     rendererCleanupRegistered.clear()
   }
+}
+
+const MACOS_PROTECTED_HOME_DIRECTORIES = new Set(['Desktop', 'Documents', 'Downloads'])
+
+function shouldRequestMacosDirectoryAccess(
+  platform: NodeJS.Platform,
+  workspacePath: string,
+): boolean {
+  if (platform !== 'darwin') {
+    return false
+  }
+
+  const normalizedPath = resolveWorkspacePath(workspacePath)
+  const homeDirectory = resolve(homedir())
+  const relativePath = relative(homeDirectory, normalizedPath)
+  const [topLevelDirectory] = relativePath.split(/[\\/]/u)
+
+  return (
+    Boolean(topLevelDirectory) &&
+    !relativePath.startsWith('..') &&
+    !relativePath.startsWith('/') &&
+    MACOS_PROTECTED_HOME_DIRECTORIES.has(topLevelDirectory)
+  )
+}
+
+function resolveWorkspacePath(workspacePath: string): string {
+  const trimmed = workspacePath.trim()
+
+  if (trimmed === '~' || trimmed.startsWith('~/')) {
+    return resolve(homedir(), trimmed.slice(1))
+  }
+
+  return resolve(trimmed)
+}
+
+function isSameOrDescendantPath(candidatePath: string, ancestorPath: string): boolean {
+  const relativePath = relative(ancestorPath, candidatePath)
+
+  return relativePath === '' || (!relativePath.startsWith('..') && !relativePath.startsWith('/'))
 }

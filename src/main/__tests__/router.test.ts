@@ -1,3 +1,6 @@
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { IPC_CHANNELS } from '../../shared/ipc/contracts'
@@ -604,6 +607,103 @@ describe('registerAppIpcHandlers', () => {
     await addUserMessageHandler?.({ sender }, 'session-1', messagePayload)
 
     expect(service.addUserMessage).toHaveBeenCalledWith('session-1', messagePayload)
+  })
+
+  it('requests macOS protected directory access before creating a Downloads session', async () => {
+    const ipcMain = createMockIpcMain()
+    const sender = { id: 42, once: vi.fn() }
+    const ownerWindow = { id: 'window-42' }
+    const downloadsPath = join(homedir(), 'Downloads')
+    const stopAccessing = vi.fn()
+    const service = {
+      createSession: vi.fn().mockResolvedValue({ sessionId: 'session-downloads' }),
+    }
+    const showOpenDialog = vi.fn().mockResolvedValue({
+      bookmarks: ['downloads-bookmark'],
+      canceled: false,
+      filePaths: [downloadsPath],
+    })
+    const startAccessingSecurityScopedResource = vi.fn(() => stopAccessing)
+
+    const cleanup = registerAppIpcHandlers({
+      ipcMain,
+      service: service as never,
+      updater: { getState: vi.fn(), checkForUpdates: vi.fn(), installUpdate: vi.fn() },
+      pluginRegistry: { listCapabilities: vi.fn().mockReturnValue([]) },
+      pluginHost: { listHosts: vi.fn().mockReturnValue([]) },
+      invokePluginCapability: vi.fn(),
+      getRuntimeInfo: vi.fn(),
+      createAppWindow: vi.fn(),
+      showOpenDialog,
+      startAccessingSecurityScopedResource,
+      platform: 'darwin',
+      resolveOwnerWindow: vi.fn().mockReturnValue(ownerWindow),
+    })
+
+    await ipcMain.handlers.get(IPC_CHANNELS.sessionCreate)?.({ sender }, { cwd: downloadsPath })
+
+    expect(showOpenDialog).toHaveBeenCalledWith(
+      ownerWindow,
+      expect.objectContaining({
+        buttonLabel: 'Allow access',
+        defaultPath: downloadsPath,
+        securityScopedBookmarks: true,
+      }),
+    )
+    expect(startAccessingSecurityScopedResource).toHaveBeenCalledWith('downloads-bookmark')
+    expect(service.createSession).toHaveBeenCalledWith({ cwd: downloadsPath }, 'renderer:42')
+    expect(stopAccessing).toHaveBeenCalledTimes(1)
+
+    cleanup()
+  })
+
+  it('requests macOS protected directory access before attaching a Downloads session', async () => {
+    const ipcMain = createMockIpcMain()
+    const sender = { id: 42, once: vi.fn() }
+    const ownerWindow = { id: 'window-42' }
+    const downloadsPath = join(homedir(), 'Downloads')
+    const service = {
+      attachSession: vi.fn().mockResolvedValue({ sessionId: 'session-downloads' }),
+      getSessionSnapshot: vi.fn().mockReturnValue(null),
+      listSessions: vi.fn().mockReturnValue([
+        {
+          id: 'session-downloads',
+          projectWorkspacePath: downloadsPath,
+        },
+      ]),
+    }
+    const showOpenDialog = vi.fn().mockResolvedValue({
+      bookmarks: ['downloads-bookmark'],
+      canceled: false,
+      filePaths: [downloadsPath],
+    })
+
+    const cleanup = registerAppIpcHandlers({
+      ipcMain,
+      service: service as never,
+      updater: { getState: vi.fn(), checkForUpdates: vi.fn(), installUpdate: vi.fn() },
+      pluginRegistry: { listCapabilities: vi.fn().mockReturnValue([]) },
+      pluginHost: { listHosts: vi.fn().mockReturnValue([]) },
+      invokePluginCapability: vi.fn(),
+      getRuntimeInfo: vi.fn(),
+      createAppWindow: vi.fn(),
+      showOpenDialog,
+      platform: 'darwin',
+      resolveOwnerWindow: vi.fn().mockReturnValue(ownerWindow),
+    })
+
+    await ipcMain.handlers.get(IPC_CHANNELS.sessionAttach)?.({ sender }, 'session-downloads')
+
+    expect(showOpenDialog).toHaveBeenCalledWith(
+      ownerWindow,
+      expect.objectContaining({
+        defaultPath: downloadsPath,
+        securityScopedBookmarks: true,
+      }),
+    )
+    expect(service.attachSession).toHaveBeenCalledWith('session-downloads', 'renderer:42')
+
+    cleanup()
   })
 
   it('keeps foundation bootstrap readable during shutdown cleanup when requested', async () => {
