@@ -74,6 +74,19 @@ describe('extractTranscriptSearchFragments', () => {
         title: 'Execute',
         body: expect.stringContaining('daemontransport.test.ts'),
       }),
+      expect.objectContaining({
+        id: 'session-1:tool-result:tool-1',
+        sessionId: 'session-1',
+        sourceKind: 'tool_result',
+        sourceId: 'tool-1',
+        messageId: null,
+        toolCallId: 'tool-1',
+        toolName: 'execute',
+        status: 'error',
+        title: 'Execute',
+        subtitle: 'Tool error',
+        body: expect.stringContaining('daemontransport.test.ts'),
+      }),
     ])
   })
 

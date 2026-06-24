@@ -562,6 +562,127 @@ describe('createSessionSearchService', () => {
     expect(service.searchSessions({ query: 'content:third' }).matches).toEqual([])
   })
 
+  it('returns flat hits for repeated extensionless path matches in one session', async () => {
+    const searchedPath = '/var/run/argo/ctr/ecs-deploy/combined'
+    const fillerEntries: SessionTranscript['entries'] = Array.from({ length: 620 }, (_, index) => ({
+      kind: 'message',
+      id: `filler-${index}`,
+      occurredAt: null,
+      role: 'assistant',
+      markdown: `unrelated hydration filler ${index}`,
+    }))
+    const targetEntries: SessionTranscript['entries'] = Array.from({ length: 10 }, (_, index) => ({
+      kind: 'tool_call',
+      toolUseId: `tool-${index}`,
+      occurredAt: `2026-03-24T20:${String(index).padStart(2, '0')}:00.000Z`,
+      toolName: 'Execute',
+      inputMarkdown: `{"command":"cat ${searchedPath}"}`,
+      resultMarkdown: `workflow_stage ecs-deploy path = "${searchedPath}" result ${index}`,
+      resultIsError: false,
+      status: 'completed',
+    }))
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'path-session' })]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [...fillerEntries, ...targetEntries]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    await service.waitForHydration()
+
+    const response = service.searchSessions({ query: searchedPath, limit: 20 })
+
+    expect(response.hits?.length).toBeGreaterThanOrEqual(10)
+    expect(response.matches).toHaveLength(1)
+    expect(response.matches[0]).toMatchObject({
+      hitCount: expect.any(Number),
+      sessionId: 'path-session',
+    })
+    expect(response.matches[0]?.hitCount ?? 0).toBeGreaterThanOrEqual(10)
+  })
+
+  it('indexes late path-like Execute output lines in tool calls and tool results', async () => {
+    const searchedPath = '/var/run/argo/ctr/ecs-deploy/combined'
+    const resultMarkdown = Array.from(
+      { length: 20 },
+      (_, index) => `/var/run/argo/ctr/other-stage-${index}/combined`,
+    )
+      .concat([searchedPath])
+      .join('\n')
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'late-output-session' })]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) =>
+        createTranscript(sessionId, [
+          {
+            kind: 'tool_call',
+            toolUseId: 'tool-execute',
+            occurredAt: null,
+            toolName: 'Execute',
+            inputMarkdown: '{"command":"cat /tmp/build.log"}',
+            resultMarkdown,
+            resultIsError: false,
+            status: 'completed',
+          },
+        ]),
+      ),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    await service.waitForHydration()
+
+    const response = service.searchSessions({ query: searchedPath, limit: 10 })
+    const sourceKinds = new Set(response.hits?.map((hit) => hit.reason.sourceKind))
+
+    expect(sourceKinds.has('tool_call')).toBe(true)
+    expect(sourceKinds.has('tool_result')).toBe(true)
+  })
+
+  it('diversifies flat hits across sessions before repeating one session', async () => {
+    const searchedPath = '/var/run/argo/ctr/ecs-deploy/combined'
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([
+        createSession({ id: 'session-a', lastActivityAt: '2026-03-24T20:10:00.000Z' }),
+        createSession({ id: 'session-b', lastActivityAt: '2026-03-24T20:09:00.000Z' }),
+        createSession({ id: 'session-c', lastActivityAt: '2026-03-24T20:08:00.000Z' }),
+      ]),
+      loadSessionTranscript: vi.fn(async (sessionId: string) => {
+        const count = sessionId === 'session-a' ? 12 : 1
+
+        return createTranscript(
+          sessionId,
+          Array.from({ length: count }, (_, index) => ({
+            kind: 'tool_call',
+            toolUseId: `${sessionId}-tool-${index}`,
+            occurredAt: `2026-03-24T20:${String(index).padStart(2, '0')}:00.000Z`,
+            toolName: 'Execute',
+            inputMarkdown: `{"command":"cat ${searchedPath}"}`,
+            resultMarkdown: `deployment output ${searchedPath} ${sessionId} ${index}`,
+            resultIsError: false,
+            status: 'completed',
+          })),
+        )
+      }),
+      backgroundHydrationDelayMs: 0,
+      hydrationYieldMs: 0,
+    })
+
+    await service.waitForHydration()
+
+    const response = service.searchSessions({ query: searchedPath, limit: 3 })
+
+    expect(new Set(response.hits?.map((hit) => hit.sessionId))).toEqual(
+      new Set(['session-a', 'session-b', 'session-c']),
+    )
+    expect(response.matches.map((match) => match.sessionId)).toEqual([
+      'session-a',
+      'session-b',
+      'session-c',
+    ])
+  })
+
   it('matches free-text terms across separate fragments in the same session', async () => {
     const service = createSessionSearchService({
       bootstrap: createBootstrap([

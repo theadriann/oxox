@@ -6,6 +6,7 @@ import {
   buildSearchQuery,
   countItemsByScope,
   createBrowseItems,
+  createItemsFromHits,
   createItemsFromMatches,
   type DatePreset,
   extractCompletedOperatorChips,
@@ -215,7 +216,9 @@ export class FullPageSearchController {
       state.datePreset !== 'any'
 
     const baseItems = hasQuery
-      ? createItemsFromMatches(state.matches, sessions)
+      ? state.hits.length > 0
+        ? createItemsFromHits(state.hits, sessions)
+        : createItemsFromMatches(state.matches, sessions)
       : hasBrowseFilters
         ? createBrowseItems(sessions)
         : []
@@ -288,6 +291,7 @@ export class FullPageSearchController {
     const sequence = this.requestSequence
 
     if (!query) {
+      this.state$.hits.set([])
       this.state$.matches.set([])
       this.state$.isSearching.set(false)
       this.state$.error.set(null)
@@ -298,6 +302,7 @@ export class FullPageSearchController {
 
     if (!this.searchSessions) {
       this.state$.matches.set([])
+      this.state$.hits.set([])
       this.state$.error.set('Search bridge unavailable.')
       return
     }
@@ -315,6 +320,7 @@ export class FullPageSearchController {
         return
       }
 
+      this.state$.hits.set(response.hits ?? [])
       this.state$.matches.set(response.matches)
     } catch (caughtError) {
       if (sequence !== this.requestSequence) {
@@ -322,6 +328,7 @@ export class FullPageSearchController {
       }
 
       this.state$.matches.set([])
+      this.state$.hits.set([])
       this.state$.error.set(caughtError instanceof Error ? caughtError.message : 'Search failed.')
     } finally {
       if (sequence === this.requestSequence) {

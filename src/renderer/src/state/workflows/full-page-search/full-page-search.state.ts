@@ -1,5 +1,5 @@
 import { type Observable, observable } from '@legendapp/state'
-import type { SessionSearchMatch } from '../../../../../shared/ipc/contracts'
+import type { SessionSearchHit, SessionSearchMatch } from '../../../../../shared/ipc/contracts'
 import type { DatePreset, OperatorChip, SearchScope } from './full-page-search.helpers'
 
 export interface FullPageSearchChip extends OperatorChip {
@@ -15,6 +15,7 @@ export interface FullPageSearchState {
   selectedSources: string[]
   datePreset: DatePreset
   projectSearchQuery: string
+  hits: SessionSearchHit[]
   matches: SessionSearchMatch[]
   isSearching: boolean
   error: string | null
@@ -33,6 +34,7 @@ export function createDefaultFullPageSearchState(): FullPageSearchState {
     selectedSources: [],
     datePreset: 'any',
     projectSearchQuery: '',
+    hits: [],
     matches: [],
     isSearching: false,
     error: null,

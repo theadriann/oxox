@@ -153,4 +153,45 @@ describe('createBackgroundSessionSearchHydrator', () => {
 
     expect(worker.terminate).toHaveBeenCalledTimes(1)
   })
+
+  it('runs search requests through the worker thread', async () => {
+    const worker = createWorkerDouble()
+    const hydrator = createBackgroundSessionSearchHydrator({
+      backgroundHydrationBatchDelayMs: 2_000,
+      backgroundHydrationBatchSize: 1,
+      backgroundHydrationLimit: 50,
+      bootstrap: createBootstrap(),
+      hydrationYieldMs: 250,
+      maxIndexedContentChars: 20_000,
+      maxIndexedFragmentsPerSession: 300,
+      maxIndexedSourceRecordsPerSession: 500,
+      maxIndexedToolChars: 10_000,
+      persistFoundationMetadata: false,
+      searchDatabasePath: '/tmp/session-search.db',
+      workerFactory: () => worker,
+    })
+
+    const searchPromise = hydrator.searchSessions({ query: 'needle', limit: 5 })
+
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      id: 1,
+      request: { query: 'needle', limit: 5 },
+      type: 'search',
+    })
+
+    worker.emitMessage({
+      id: 1,
+      response: {
+        hits: [],
+        matches: [{ sessionId: 'session-1', score: 1, reasons: [] }],
+        query: 'needle',
+      },
+      type: 'searchResult',
+    })
+
+    await expect(searchPromise).resolves.toMatchObject({
+      matches: [{ sessionId: 'session-1' }],
+      query: 'needle',
+    })
+  })
 })

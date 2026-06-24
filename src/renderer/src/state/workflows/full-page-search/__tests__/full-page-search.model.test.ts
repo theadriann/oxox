@@ -252,6 +252,66 @@ describe('FullPageSearchController', () => {
     expect(toolVm.visibleItems.map((item) => item.type)).toEqual(['tool'])
   })
 
+  it('prefers flat hits over grouped session matches for result rows', async () => {
+    vi.useFakeTimers()
+    const searchSessions = vi.fn(async (request: { query: string }) => ({
+      query: request.query,
+      hits: [
+        {
+          id: 'same-session:block:message-1',
+          sessionId: 'same-session',
+          score: 100,
+          reason: {
+            field: 'content',
+            snippet: 'first repeated path hit',
+            sourceKind: 'block' as const,
+            sourceId: 'message-1',
+            messageId: 'message-1',
+          },
+        },
+        {
+          id: 'same-session:block:message-2',
+          sessionId: 'same-session',
+          score: 99,
+          reason: {
+            field: 'content',
+            snippet: 'second repeated path hit',
+            sourceKind: 'block' as const,
+            sourceId: 'message-2',
+            messageId: 'message-2',
+          },
+        },
+      ],
+      matches: [
+        {
+          sessionId: 'same-session',
+          score: 100,
+          hitCount: 2,
+          reasons: [
+            {
+              field: 'content',
+              snippet: 'grouped summary',
+              sourceKind: 'block' as const,
+              sourceId: 'message-1',
+              messageId: 'message-1',
+            },
+          ],
+        },
+      ],
+    }))
+    const controller = new FullPageSearchController(searchSessions, { debounceMs: 10 })
+
+    controller.setInputText('path')
+    await vi.advanceTimersByTimeAsync(10)
+
+    const vm = controller.buildViewModel([createSession({ id: 'same-session' })])
+
+    expect(vm.visibleItems.map((item) => item.reason?.snippet)).toEqual([
+      'first repeated path hit',
+      'second repeated path hit',
+    ])
+  })
+
   it('moveSelection clamps to bounds and selects the next item', async () => {
     vi.useFakeTimers()
     const searchSessions = createSearchGateway({

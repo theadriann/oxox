@@ -7,6 +7,7 @@ import {
   classifyReason,
   countItemsByScope,
   createBrowseItems,
+  createItemsFromHits,
   createItemsFromMatches,
   extractCompletedOperatorChips,
   filterResultItems,
@@ -201,6 +202,41 @@ describe('result items', () => {
     expect(counts.message).toBe(1)
     expect(counts.tool).toBe(1)
     expect(counts.session).toBe(0)
+  })
+
+  it('creates one result item per flat search hit in the same session', () => {
+    const items = createItemsFromHits(
+      [
+        {
+          id: 'message-session:block:message-1',
+          sessionId: 'message-session',
+          score: 100,
+          reason: {
+            field: 'content',
+            snippet: 'first path hit',
+            sourceKind: 'block',
+            sourceId: 'message-1',
+            messageId: 'message-1',
+          },
+        },
+        {
+          id: 'message-session:block:message-2',
+          sessionId: 'message-session',
+          score: 90,
+          reason: {
+            field: 'content',
+            snippet: 'second path hit',
+            sourceKind: 'block',
+            sourceId: 'message-2',
+            messageId: 'message-2',
+          },
+        },
+      ],
+      sessions,
+    )
+
+    expect(items).toHaveLength(2)
+    expect(items.map((item) => item.reason?.snippet)).toEqual(['first path hit', 'second path hit'])
   })
 
   it('creates recency-sorted browse items', () => {

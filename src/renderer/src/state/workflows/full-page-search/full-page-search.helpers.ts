@@ -1,4 +1,5 @@
 import type {
+  SessionSearchHit,
   SessionSearchMatch,
   SessionSearchReason,
   SessionSearchTarget,
@@ -244,6 +245,30 @@ export function createItemsFromMatches(
   return uniqueItems(items).sort(sortItems)
 }
 
+export function createItemsFromHits(
+  hits: SessionSearchHit[],
+  sessions: SessionPreview[],
+): SearchResultItem[] {
+  const sessionsById = new Map(sessions.map((session) => [session.id, session]))
+
+  return uniqueItems(
+    hits.map((hit) => {
+      const session = sessionsById.get(hit.sessionId) ?? createFallbackSessionPreview(hit)
+      const recencyScore = calculateRecencyScore(session)
+
+      return {
+        id: hit.id,
+        reason: hit.reason,
+        recencyScore,
+        score: hit.score + recencyScore,
+        session,
+        target: createTarget(hit.sessionId, hit.reason),
+        type: classifyReason(hit.reason),
+      }
+    }),
+  ).sort(sortItems)
+}
+
 export function createBrowseItems(sessions: SessionPreview[]): SearchResultItem[] {
   return sessions
     .map((session) => {
@@ -330,7 +355,7 @@ export function countItemsByScope(items: SearchResultItem[]): Record<SearchScope
   return counts
 }
 
-function createFallbackSessionPreview(match: SessionSearchMatch): SessionPreview {
+function createFallbackSessionPreview(match: { sessionId: string }): SessionPreview {
   const now = new Date().toISOString()
 
   return {

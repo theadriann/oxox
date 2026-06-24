@@ -206,7 +206,7 @@ export interface FoundationService {
   getSessionTranscript: (sessionId: string) => Promise<SessionTranscript>
   getSessionTranscriptScrollState: (sessionId: string) => SessionTranscriptScrollState | null
   setSessionTranscriptScrollState: (state: SessionTranscriptScrollState) => void
-  searchSessions: (request: SessionSearchRequest) => SessionSearchResponse
+  searchSessions: (request: SessionSearchRequest) => Promise<SessionSearchResponse>
   getSearchIndexingProgress: () => SessionSearchIndexingProgress
   subscribeToFoundationUpdates: (
     listener: (payload: FoundationChangedPayload) => void,
@@ -375,8 +375,6 @@ export function createFoundationService(
     bootstrap: queries.getBootstrap(),
     hydrationYieldMs: 250,
     maxIndexedContentChars: 20_000,
-    maxIndexedFragmentsPerSession: 300,
-    maxIndexedSourceRecordsPerSession: 500,
     maxIndexedToolChars: 10_000,
     persistFoundationMetadata: false,
     searchDatabasePath,
@@ -391,8 +389,6 @@ export function createFoundationService(
         backgroundHydrationLimit: 0,
         hydrationYieldMs: searchHydrationOptions.hydrationYieldMs,
         maxIndexedContentChars: searchHydrationOptions.maxIndexedContentChars,
-        maxIndexedFragmentsPerSession: searchHydrationOptions.maxIndexedFragmentsPerSession,
-        maxIndexedSourceRecordsPerSession: searchHydrationOptions.maxIndexedSourceRecordsPerSession,
         maxIndexedToolChars: searchHydrationOptions.maxIndexedToolChars,
         searchDatabasePath,
       })
@@ -678,7 +674,13 @@ export function createFoundationService(
     getSessionTranscript: queries.getSessionTranscript,
     getSessionTranscriptScrollState: queries.getSessionTranscriptScrollState,
     setSessionTranscriptScrollState: queries.setSessionTranscriptScrollState,
-    searchSessions: searchService.searchSessions,
+    searchSessions: async (request) => {
+      try {
+        return await searchHydrator.searchSessions(request)
+      } catch {
+        return searchService.searchSessions(request)
+      }
+    },
     getSearchIndexingProgress: searchHydrator.getIndexingProgress,
     subscribeToFoundationUpdates: (listener) => {
       foundationUpdateListeners.add(listener)
@@ -859,6 +861,7 @@ function createErroredSessionReindexProgress(
 function createNoopSessionSearchService(): ReturnType<typeof createSessionSearchService> {
   return {
     searchSessions: (request) => ({
+      hits: [],
       query: request.query,
       matches: [],
     }),
@@ -887,6 +890,11 @@ function createNoopSessionSearchHydrator(): ReturnType<
       updatedAt: new Date().toISOString(),
     }),
     replaceFoundation: () => {},
+    searchSessions: async (request) => ({
+      hits: [],
+      matches: [],
+      query: request.query,
+    }),
     close: async () => {},
   }
 }

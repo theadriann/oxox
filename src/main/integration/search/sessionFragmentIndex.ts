@@ -46,6 +46,8 @@ export type SessionSettingsSearchSource = Record<string, unknown>
 const MAX_FRAGMENT_INPUT_CHARS = 4_000
 const MAX_FRAGMENT_MESSAGE_CHARS = 4_000
 const MAX_FRAGMENT_RESULT_CHARS = 8_000
+const FILE_WITH_EXTENSION_PATTERN = /[\w./@-]+\.[A-Za-z0-9]{1,12}/gu
+const PATH_LIKE_PATTERN = /\/(?:[\w@.-]+\/)+[\w@.-]+/gu
 
 export interface SessionFileSnapshotSearchSource {
   capturedAt?: number | string | null
@@ -118,8 +120,8 @@ export function extractTranscriptSearchFragments({
       }
 
       const isError = entry.resultIsError || entry.status === 'failed'
-
-      return [
+      const resultBody = normalizeSearchText(result)
+      const fragments: SearchFragmentDocument[] = [
         {
           id: `${sessionId}:tool:${entry.toolUseId}`,
           sessionId,
@@ -140,6 +142,30 @@ export function extractTranscriptSearchFragments({
           toolCallId: entry.toolUseId,
         },
       ]
+
+      if (resultBody) {
+        fragments.push({
+          id: `${sessionId}:tool-result:${entry.toolUseId}`,
+          sessionId,
+          projectId,
+          sourceKind: 'tool_result',
+          sourceId: entry.toolUseId,
+          title: entry.toolName,
+          subtitle: isError ? 'Tool error' : 'Tool result',
+          body: resultBody,
+          preview: createPreview(extractImportantToolText(entry.toolName, result) || result),
+          role: null,
+          toolName: normalizeSearchText(entry.toolName),
+          filePath: extractFilePath(result),
+          timestamp: entry.occurredAt,
+          status: isError ? 'error' : entry.status,
+          rankBoost: isError ? 1.1 : 0.65,
+          messageId: null,
+          toolCallId: entry.toolUseId,
+        })
+      }
+
+      return fragments
     }),
   ]
 }
@@ -461,14 +487,15 @@ function extractImportantToolText(toolName: string, result: string): string {
     return ''
   }
 
-  const importantLines = lines.filter((line) =>
-    /\b(error|failed|fail|exception|resizeobserver|exit code|enoent|eacces)\b|[\w./@-]+\.[A-Za-z0-9]{1,12}|[A-Z]+-\d+/iu.test(
-      line,
-    ),
+  const importantLines = lines.filter(
+    (line) =>
+      /\b(error|failed|fail|exception|resizeobserver|exit code|enoent|eacces)\b|[A-Z]+-\d+/iu.test(
+        line,
+      ) || hasPathLikeText(line),
   )
 
   if (importantLines.length > 0) {
-    return importantLines.slice(0, 12).join('\n')
+    return importantLines.join('\n')
   }
 
   if (normalizedToolName === 'execute') {
@@ -493,8 +520,8 @@ function extractFileMentions(value: string): string {
     collectFileMentions(parsed, mentions)
   }
 
-  for (const match of value.matchAll(/[\w./@-]+\.[A-Za-z0-9]{1,12}/gu)) {
-    mentions.add(match[0])
+  for (const match of extractPathLikeMatches(value)) {
+    mentions.add(match)
   }
 
   return [...mentions].join('\n')
@@ -502,8 +529,8 @@ function extractFileMentions(value: string): string {
 
 function collectFileMentions(value: unknown, mentions: Set<string>): void {
   if (typeof value === 'string') {
-    if (/[\w./@-]+\.[A-Za-z0-9]{1,12}/u.test(value)) {
-      mentions.add(value)
+    for (const match of extractPathLikeMatches(value)) {
+      mentions.add(match)
     }
     return
   }
@@ -526,8 +553,8 @@ function extractEntityLines(value: string): string {
   return value
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) =>
-      /[A-Z]+-\d+|https?:\/\/\S+|[\w./@-]+\.[A-Za-z0-9]{1,12}|[a-f0-9]{7,40}/u.test(line),
+    .filter(
+      (line) => /[A-Z]+-\d+|https?:\/\/\S+|[a-f0-9]{7,40}/u.test(line) || hasPathLikeText(line),
     )
     .slice(0, 16)
     .join('\n')
@@ -619,9 +646,19 @@ function parseJsonLike(value: string): unknown {
 }
 
 function extractFilePath(value: string): string | null {
-  const match = value.match(/(?:^|\s)([\w./@-]+\.[A-Za-z0-9]{1,12})(?=$|\s|:|,|\))/u)
+  const match = extractPathLikeMatches(value)[0]
 
-  return match?.[1] ? normalizeSearchText(match[1]) : null
+  return match ? normalizeSearchText(match) : null
+}
+
+function hasPathLikeText(value: string): boolean {
+  return extractPathLikeMatches(value).length > 0
+}
+
+function extractPathLikeMatches(value: string): string[] {
+  return [...value.matchAll(FILE_WITH_EXTENSION_PATTERN), ...value.matchAll(PATH_LIKE_PATTERN)]
+    .map((match) => match[0].replace(/[),:;]+$/u, ''))
+    .filter((match) => match.length > 1)
 }
 
 function capitalize(value: string): string {

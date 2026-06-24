@@ -7,6 +7,7 @@ import type {
   LiveSessionMessage,
   LiveSessionSnapshot,
   SessionRecord,
+  SessionSearchHit,
   SessionSearchIndexingProgress,
   SessionSearchMatch,
   SessionSearchRequest,
@@ -29,7 +30,7 @@ import {
   type SessionSettingsSearchSource,
 } from './sessionFragmentIndex'
 
-const SEARCH_SOURCE_SCHEMA_VERSION = 1
+const SEARCH_SOURCE_SCHEMA_VERSION = 3
 const SEARCH_DATABASE_SCHEMA_VERSION = 2
 
 type SearchSessionTranscript = SessionTranscript & {
@@ -138,8 +139,10 @@ const DEFAULT_HYDRATION_YIELD_MS = 25
 const DEFAULT_LIVE_UPDATE_DEBOUNCE_MS = 100
 const DEFAULT_MAX_INDEXED_CONTENT_CHARS = 80_000
 const DEFAULT_MAX_INDEXED_TOOL_CHARS = 40_000
-const MAX_ENTITY_SCAN_CHARS = 4_000
+const MAX_ENTITY_SCAN_CHARS = 20_000
 const MAX_ENTITIES_PER_FRAGMENT = 64
+const FILE_WITH_EXTENSION_ENTITY_PATTERN = /[\w@./-]+\.[A-Za-z0-9]{1,12}/gu
+const ABSOLUTE_PATH_ENTITY_PATTERN = /\/(?:[\w@.-]+\/)+[\w@.-]+/gu
 const require = createRequire(import.meta.url)
 
 export function createSessionSearchService({
@@ -423,12 +426,8 @@ export function createSessionSearchService({
         reasons: buildFragmentReasons(fragment, parsed),
       }))
     const sessionCoverageMatches = buildSessionCoverageMatches(parsed, fragmentsBySessionId)
-
-    const matches = mergeSearchMatches([
-      ...documentMatches,
-      ...fragmentMatches,
-      ...sessionCoverageMatches,
-    ])
+    const rankedMatches = [...documentMatches, ...fragmentMatches, ...sessionCoverageMatches]
+    const mergedMatches = mergeSearchMatches(rankedMatches)
       .filter((match) =>
         sessionMatchesQuery(
           match.sessionId,
@@ -444,9 +443,14 @@ export function createSessionSearchService({
             (documents.get(left.sessionId)?.lastActivityAt ?? 0) ||
           left.sessionId.localeCompare(right.sessionId),
       )
-      .slice(0, limit)
 
-    return { query: request.query, matches }
+    const matchingSessionIds = new Set(mergedMatches.map((match) => match.sessionId))
+    const hits = buildSearchHits(
+      rankedMatches.filter((match) => matchingSessionIds.has(match.sessionId)),
+    ).slice(0, limit)
+    const matches = mergedMatches.slice(0, limit)
+
+    return { hits, query: request.query, matches }
   }
 
   const scheduleLiveSnapshotUpdate = (snapshot: LiveSessionSnapshot) => {
@@ -1744,7 +1748,8 @@ function extractSearchEntities(fragment: SearchFragmentDocument): Array<{
     }
   }
 
-  addMatches('file_path', /[\w@./-]+\.[A-Za-z0-9]{1,12}/gu, 1.5)
+  addMatches('file_path', FILE_WITH_EXTENSION_ENTITY_PATTERN, 1.5)
+  addMatches('file_path', ABSOLUTE_PATH_ENTITY_PATTERN, 1.5)
   addMatches('issue_key', /\b[a-z][a-z0-9]+-\d+\b/giu, 1.4)
   addMatches('url', /https?:\/\/[^\s)]+/gu, 1.2)
   addMatches('commit', /\b[a-f0-9]{7,40}\b/giu, 1)
@@ -1923,8 +1928,9 @@ function buildFtsQueries(parsed: ParsedSessionSearchQuery): string[] {
   const modifierTerms = Object.values(parsed.modifiers).flatMap((values) => values ?? [])
   const preferredTerms = preferredSearchTerms(parsed)
   const queries = [
+    buildFtsQuery([...parsed.terms, ...modifierTerms]),
     buildFtsQuery([...preferredTerms, ...modifierTerms]),
-    ...searchTermGroups(parsed).map((group) => buildFtsQuery(preferredSearchVariant(group))),
+    ...searchTermGroups(parsed).flatMap((group) => group.map((variant) => buildFtsQuery(variant))),
   ]
 
   return [...new Set(queries.filter(Boolean))]
@@ -1939,6 +1945,7 @@ function buildFtsQuery(terms: string[]): string {
 
 function buildPathFacetQueries(parsed: ParsedSessionSearchQuery): string[] {
   return [
+    ...parsed.terms.filter(isPathLikeQuery),
     ...preferredSearchTerms(parsed).filter(isPathLikeQuery),
     ...(parsed.modifiers.path ?? []),
     ...(parsed.modifiers.file ?? []),
@@ -2878,6 +2885,65 @@ function findFragmentReasonField(
   return fields.find((field) => getFragmentFieldValue(fragment, field).includes(term)) ?? null
 }
 
+function buildSearchHits(matches: SessionSearchMatch[]): SessionSearchHit[] {
+  const hits = matches
+    .map((match) => {
+      const reason = match.reasons[0] ?? {
+        field: 'title' as const,
+        snippet: '',
+        sourceKind: 'session' as const,
+      }
+
+      return {
+        id: [
+          match.sessionId,
+          reason.sourceKind ?? 'session',
+          reason.sourceId ?? reason.messageId ?? reason.toolCallId ?? reason.field,
+        ].join(':'),
+        reason,
+        score: match.score,
+        sessionId: match.sessionId,
+      }
+    })
+    .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
+
+  return diversifySearchHits(hits)
+}
+
+function diversifySearchHits(hits: SessionSearchHit[]): SessionSearchHit[] {
+  const groups = new Map<string, SessionSearchHit[]>()
+
+  for (const hit of hits) {
+    groups.set(hit.sessionId, [...(groups.get(hit.sessionId) ?? []), hit])
+  }
+
+  const sessionIds = [...groups.keys()].sort((left, right) => {
+    const leftScore = groups.get(left)?.[0]?.score ?? 0
+    const rightScore = groups.get(right)?.[0]?.score ?? 0
+
+    return rightScore - leftScore || left.localeCompare(right)
+  })
+  const diversified: SessionSearchHit[] = []
+  let hasMoreHits = true
+
+  while (hasMoreHits) {
+    hasMoreHits = false
+
+    for (const sessionId of sessionIds) {
+      const hit = groups.get(sessionId)?.shift()
+
+      if (!hit) {
+        continue
+      }
+
+      diversified.push(hit)
+      hasMoreHits = true
+    }
+  }
+
+  return diversified
+}
+
 function mergeSearchMatches(matches: SessionSearchMatch[]): SessionSearchMatch[] {
   const bySessionId = new Map<string, SessionSearchMatch>()
 
@@ -2887,21 +2953,53 @@ function mergeSearchMatches(matches: SessionSearchMatch[]): SessionSearchMatch[]
     if (!existing) {
       bySessionId.set(match.sessionId, {
         ...match,
-        reasons: match.reasons.slice(0, 3),
+        hitCount: 1,
+        reasons: dedupeSearchReasons(match.reasons).slice(0, 3),
       })
       continue
     }
 
+    existing.hitCount = (existing.hitCount ?? 1) + 1
+
     if (match.score > existing.score) {
       existing.score = match.score
-      existing.reasons = [...match.reasons, ...existing.reasons].slice(0, 3)
+      existing.reasons = dedupeSearchReasons([...match.reasons, ...existing.reasons]).slice(0, 3)
       continue
     }
 
-    existing.reasons = prioritizeSourceReasons([...existing.reasons, ...match.reasons]).slice(0, 3)
+    existing.reasons = dedupeSearchReasons(
+      prioritizeSourceReasons([...existing.reasons, ...match.reasons]),
+    ).slice(0, 3)
   }
 
   return [...bySessionId.values()]
+}
+
+function dedupeSearchReasons(
+  reasons: SessionSearchMatch['reasons'],
+): SessionSearchMatch['reasons'] {
+  const seen = new Set<string>()
+  const deduped: SessionSearchMatch['reasons'] = []
+
+  for (const reason of reasons) {
+    const key = [
+      reason.field,
+      reason.sourceKind ?? 'session',
+      reason.sourceId ?? '',
+      reason.messageId ?? '',
+      reason.toolCallId ?? '',
+      reason.snippet,
+    ].join('\u0000')
+
+    if (seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    deduped.push(reason)
+  }
+
+  return deduped
 }
 
 function prioritizeSourceReasons(

@@ -651,11 +651,20 @@ export interface SessionSearchTarget {
 export interface SessionSearchMatch {
   sessionId: string
   score: number
+  hitCount?: number
   reasons: SessionSearchReason[]
+}
+
+export interface SessionSearchHit {
+  id: string
+  sessionId: string
+  score: number
+  reason: SessionSearchReason
 }
 
 export interface SessionSearchResponse {
   query: string
+  hits?: SessionSearchHit[]
   matches: SessionSearchMatch[]
 }
 
