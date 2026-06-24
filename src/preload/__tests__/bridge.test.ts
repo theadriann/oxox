@@ -416,6 +416,7 @@ describe('createOxoxBridge', () => {
           return Promise.resolve('/tmp/live-session')
         case IPC_CHANNELS.sessionAddUserMessage:
         case IPC_CHANNELS.sessionRename:
+        case IPC_CHANNELS.sessionMoveProject:
         case IPC_CHANNELS.sessionDelete:
         case IPC_CHANNELS.sessionUpdateSettings:
         case IPC_CHANNELS.sessionRenameViaDaemon:
@@ -649,6 +650,14 @@ describe('createOxoxBridge', () => {
       IPC_CHANNELS.sessionRename,
       'session-live-1',
       'Renamed live session',
+    )
+    await expect(
+      bridge.session.moveProject('session-live-1', '/tmp/target-project'),
+    ).resolves.toBeUndefined()
+    expect(invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.sessionMoveProject,
+      'session-live-1',
+      '/tmp/target-project',
     )
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionListTools, 'session-live-1')
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.sessionListSkills, 'session-live-1')

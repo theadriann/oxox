@@ -147,6 +147,7 @@ interface BuildAppShellSidebarPropsOptions {
   onCopySessionId: (sessionId: string) => void
   onDeleteSession: (sessionId: string) => void
   onForkSession: (sessionId: string) => void
+  onMoveSessionProject: (sessionId: string) => void
   onNewSession: (workspacePath?: string, folderId?: string | null) => void
   onRenameSession: (sessionId: string) => void
   onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void
@@ -181,6 +182,7 @@ export function buildAppShellSidebarProps({
   onCopySessionId,
   onDeleteSession,
   onForkSession,
+  onMoveSessionProject,
   onNewSession,
   onRenameSession,
   onResizeStart,
@@ -226,6 +228,7 @@ export function buildAppShellSidebarProps({
       onCopySessionId,
       onDeleteSession,
       onForkSession,
+      onMoveSessionProject,
       onRenameSession,
       onRewindSession,
       onTogglePinnedSession: sessionStore.togglePinnedSession,

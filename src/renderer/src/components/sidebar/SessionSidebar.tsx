@@ -58,6 +58,7 @@ export interface SessionSidebarProps {
   onCompactSession?: (sessionId: string) => void
   onDeleteSession?: (sessionId: string) => void
   onForkSession?: (sessionId: string) => void
+  onMoveSessionProject?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
   onCreateFolder?: (
@@ -105,6 +106,7 @@ export function SessionSidebar({
   onCompactSession,
   onDeleteSession,
   onForkSession,
+  onMoveSessionProject,
   onRenameSession,
   onRewindSession,
   onCreateFolder,
@@ -397,6 +399,7 @@ export function SessionSidebar({
               onCompactSession={onCompactSession}
               onDeleteSession={onDeleteSession}
               onForkSession={onForkSession}
+              onMoveSessionProject={onMoveSessionProject}
               onRenameSession={onRenameSession}
               onRewindSession={onRewindSession}
               onSelectSession={onSelectSession}

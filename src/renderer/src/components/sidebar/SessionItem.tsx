@@ -4,6 +4,7 @@ import {
   Archive,
   ClipboardCopy,
   Ellipsis,
+  FolderInput,
   GitBranch,
   Minimize2,
   Pencil,
@@ -55,6 +56,7 @@ interface SessionItemProps {
   onCompactSession?: (sessionId: string) => void
   onDeleteSession?: (sessionId: string) => void
   onForkSession?: (sessionId: string) => void
+  onMoveSessionProject?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
   onSelectSession: (sessionId: string) => void
@@ -78,6 +80,7 @@ export const SessionItem = memo(function SessionItem({
   onCompactSession,
   onDeleteSession,
   onForkSession,
+  onMoveSessionProject,
   onRenameSession,
   onRewindSession,
   onSelectSession,
@@ -106,6 +109,7 @@ export const SessionItem = memo(function SessionItem({
     onCopySessionId,
     onDeleteSession,
     onForkSession,
+    onMoveSessionProject,
     onRenameSession,
     onRewindSession,
     onTogglePinnedSession,
@@ -190,6 +194,7 @@ interface SessionActionItemsOptions {
   onCompactSession?: (sessionId: string) => void
   onDeleteSession?: (sessionId: string) => void
   onForkSession?: (sessionId: string) => void
+  onMoveSessionProject?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
   onTogglePinnedSession: (sessionId: string) => void
@@ -204,6 +209,7 @@ function renderSessionActionItems({
   onCopySessionId,
   onDeleteSession,
   onForkSession,
+  onMoveSessionProject,
   onRenameSession,
   onRewindSession,
   onTogglePinnedSession,
@@ -229,6 +235,12 @@ function renderSessionActionItems({
         <Item onClick={() => onCopySessionId(sessionId)}>
           <ClipboardCopy className="size-3.5" />
           Copy session ID
+        </Item>
+      ) : null}
+      {onMoveSessionProject ? (
+        <Item onClick={() => onMoveSessionProject(sessionId)}>
+          <FolderInput className="size-3.5" />
+          Move to project...
         </Item>
       ) : null}
       <Separator />

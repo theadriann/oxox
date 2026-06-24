@@ -56,6 +56,7 @@ import type {
 import type { PluginRegistry } from '../app/PluginRegistry'
 import { createBackgroundArtifactScanner } from './artifacts/backgroundScanner'
 import { deleteSessionArtifacts } from './artifacts/deleteSessionArtifacts'
+import { moveSessionArtifacts } from './artifacts/moveSessionArtifacts'
 import type { ArtifactScannerProgress } from './artifacts/scanner'
 import { createEnvironmentDaemonAuthProvider, type DaemonAuthProvider } from './daemon/auth'
 import { createDaemonSessionControl } from './daemon/sessionControl'
@@ -147,6 +148,7 @@ export interface FoundationService {
     settings: Partial<LiveSessionSettings>,
   ) => Promise<void>
   renameSession: (sessionId: string, title: string) => Promise<void>
+  moveSessionProject: (sessionId: string, targetWorkspacePath: string) => Promise<void>
   resolvePermissionRequest: (
     sessionId: string,
     requestId: string,
@@ -572,6 +574,25 @@ export function createFoundationService(
     getSessionContextStats: liveSessionRuntime.getSessionContextStats,
     renameSession: async (sessionId, title) => {
       await liveSessionRuntime.renameSession(sessionId, title)
+      emitFoundationChanged()
+    },
+    moveSessionProject: async (sessionId, targetWorkspacePath) => {
+      const liveSnapshot = liveSessionRuntime.getSessionSnapshot(sessionId)
+
+      if (liveSnapshot) {
+        throw new Error('Detach the session before moving it to another project.')
+      }
+
+      await moveSessionArtifacts({
+        sessionId,
+        sessionsRoot,
+        sourcePath:
+          database.listSyncMetadata().find((metadata) => metadata.sessionId === sessionId)
+            ?.sourcePath ?? null,
+        targetWorkspacePath,
+      })
+      await sessionCatalog.syncArtifacts()
+      searchService.deleteSession(sessionId)
       emitFoundationChanged()
     },
     deleteSession: async (sessionId) => {

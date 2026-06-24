@@ -87,6 +87,7 @@ export const IPC_CHANNELS = {
   sessionDetach: 'session:detach',
   sessionAddUserMessage: 'session:add-user-message',
   sessionRename: 'session:rename',
+  sessionMoveProject: 'session:move-project',
   sessionDelete: 'session:delete',
   sessionListTools: 'session:list-tools',
   sessionListSkills: 'session:list-skills',
@@ -1298,6 +1299,7 @@ export interface OxoxBridge {
       message: string | LiveSessionAddUserMessageRequest,
     ) => Promise<void>
     rename: (sessionId: string, title: string) => Promise<void>
+    moveProject: (sessionId: string, targetWorkspacePath: string) => Promise<void>
     listTools: (sessionId: string) => Promise<LiveSessionToolInfo[]>
     listSkills: (sessionId: string) => Promise<LiveSessionSkillInfo[]>
     listMcpServers: (sessionId: string) => Promise<LiveSessionMcpServerInfo[]>

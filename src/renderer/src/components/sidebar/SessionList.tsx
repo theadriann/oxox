@@ -95,6 +95,7 @@ interface SessionListProps {
   onCompactSession?: (sessionId: string) => void
   onDeleteSession?: (sessionId: string) => void
   onForkSession?: (sessionId: string) => void
+  onMoveSessionProject?: (sessionId: string) => void
   onRenameSession?: (sessionId: string) => void
   onRewindSession?: (sessionId: string) => void
   onSelectSession: (sessionId: string) => void
@@ -130,6 +131,7 @@ export function SessionList({
   onCompactSession,
   onDeleteSession,
   onForkSession,
+  onMoveSessionProject,
   onRenameSession,
   onRewindSession,
   onSelectSession,
@@ -258,6 +260,7 @@ export function SessionList({
                 onCompactSession={onCompactSession}
                 onDeleteSession={onDeleteSession}
                 onForkSession={onForkSession}
+                onMoveSessionProject={onMoveSessionProject}
                 onRenameSession={onRenameSession}
                 onRewindSession={onRewindSession}
                 onSelectSession={onSelectSession}

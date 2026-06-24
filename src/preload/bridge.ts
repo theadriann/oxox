@@ -302,6 +302,8 @@ export function createOxoxBridge(
         invokeTyped<void>(invoke, IPC_CHANNELS.sessionAddUserMessage, sessionId, text),
       rename: (sessionId, title) =>
         invokeTyped<void>(invoke, IPC_CHANNELS.sessionRename, sessionId, title),
+      moveProject: (sessionId, targetWorkspacePath) =>
+        invokeTyped<void>(invoke, IPC_CHANNELS.sessionMoveProject, sessionId, targetWorkspacePath),
       listTools: (sessionId) =>
         invokeTyped<LiveSessionToolInfo[]>(invoke, IPC_CHANNELS.sessionListTools, sessionId),
       listSkills: (sessionId) =>

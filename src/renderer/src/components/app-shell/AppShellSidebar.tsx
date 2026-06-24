@@ -73,6 +73,48 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
     [composerStore, sessionStore],
   )
 
+  const handleMoveSessionProject = useCallback(
+    (sessionId: string) => {
+      const moveProject = rootStore.api.session.moveProject
+      const selectDirectory = rootStore.api.dialog.selectDirectory
+
+      if (!moveProject || !selectDirectory) {
+        showAppNotification({
+          id: `session-move-unavailable-${sessionId}`,
+          kind: 'error',
+          title: 'Move unavailable',
+          description: 'This OXOX build does not expose session project moves.',
+        })
+        return
+      }
+
+      void (async () => {
+        const targetWorkspacePath = await selectDirectory()
+
+        if (!targetWorkspacePath) {
+          return
+        }
+
+        await moveProject(sessionId, targetWorkspacePath)
+        await foundationStore.refresh()
+        showAppNotification({
+          id: `session-move-success-${sessionId}`,
+          kind: 'success',
+          title: 'Session moved',
+          description: `Moved session to ${targetWorkspacePath}.`,
+        })
+      })().catch((error) => {
+        showAppNotification({
+          id: `session-move-failed-${sessionId}-${Date.now()}`,
+          kind: 'error',
+          title: 'Move failed',
+          description: error instanceof Error ? error.message : String(error),
+        })
+      })
+    },
+    [foundationStore, rootStore.api.dialog.selectDirectory, rootStore.api.session.moveProject],
+  )
+
   const handleRewindSession = useCallback(
     (sessionId: string) => {
       sessionStore.selectSession(sessionId)
@@ -133,6 +175,7 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
       onCopySessionId: handleCopySessionId,
       onDeleteSession: handleDeleteSession,
       onForkSession: handleForkSession,
+      onMoveSessionProject: handleMoveSessionProject,
       onNewSession: newSessionForm.openDraft,
       onRenameSession: handleRenameSession,
       onResizeStart: startSidebarResize,

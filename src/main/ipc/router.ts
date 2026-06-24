@@ -275,6 +275,8 @@ export function registerAppIpcHandlers({
     ) => service.addUserMessage(sessionId, message),
     [IPC_CHANNELS.sessionRename]: (_event, sessionId: string, title: string) =>
       service.renameSession(sessionId, title),
+    [IPC_CHANNELS.sessionMoveProject]: (_event, sessionId: string, targetWorkspacePath: string) =>
+      service.moveSessionProject(sessionId, targetWorkspacePath),
     [IPC_CHANNELS.sessionDelete]: (_event, sessionId: string) => service.deleteSession(sessionId),
     [IPC_CHANNELS.sessionListTools]: (_event, sessionId: string) =>
       service.listSessionTools(sessionId),
