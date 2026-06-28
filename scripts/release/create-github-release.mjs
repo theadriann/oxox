@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url'
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const projectRoot = resolve(scriptDirectory, '../..')
 const releaseDirectory = resolve(projectRoot, 'release')
-const packageJson = JSON.parse(readFileSync(resolve(projectRoot, 'package.json'), 'utf8'))
+const packageJson = JSON.parse(
+  readFileSync(resolve(projectRoot, 'apps/desktop/package.json'), 'utf8'),
+)
 const version = packageJson.version
 
 if (typeof version !== 'string' || version.length === 0) {

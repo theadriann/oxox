@@ -7,13 +7,25 @@ settings:
 importers:
 
   .:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: ^2.2.4
+        version: 2.4.8
+      '@changesets/cli':
+        specifier: ^2.30.0
+        version: 2.30.0(@types/node@25.5.0)
+      oxlint:
+        specifier: ^1.68.0
+        version: 1.68.0
+
+  apps/desktop:
     dependencies:
       '@base-ui/react':
         specifier: ^1.5.0
         version: 1.5.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@factory/droid-sdk':
-        specifier: link:../droid-sdk-typescript
-        version: link:../droid-sdk-typescript
+        specifier: link:../../../droid-sdk-typescript
+        version: link:../../../droid-sdk-typescript
       '@fontpkg/sf-mono':
         specifier: ^18.0.0
         version: 18.0.0
@@ -2441,6 +2453,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@vitejs/plugin-react@5.2.0':
     resolution: {integrity: sha512-YmKkfhOAi3wsB1PhJq5Scj3GXMn3WvtQ/JC0xoopuHoXSdmtdStOpFrYaT1kie2YgFBcIe64ROzMYRjCrYOdYw==}
@@ -2480,6 +2493,7 @@ packages:
   '@xmldom/xmldom@0.8.12':
     resolution: {integrity: sha512-9k/gHF6n/pAi/9tqr3m3aqkuiNosYTurLLUtc7xQ9sxB/wm7WPygCv8GYa6mS0fLJEHhqMC1ATYhz++U/lRHqg==}
     engines: {node: '>=10.0.0'}
+    deprecated: this version has critical issues, please update to the latest version
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}

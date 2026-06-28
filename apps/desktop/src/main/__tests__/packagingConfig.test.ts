@@ -72,14 +72,16 @@ describe('packaging configuration', () => {
     expect(packageJson.scripts?.['rebuild:native']).toBe('electron-rebuild -f -w better-sqlite3')
     expect(packageJson.scripts?.postinstall).toBe('pnpm run rebuild:native')
     expect(packageJson.scripts?.['release:metadata:mac']).toBe(
-      'node scripts/release/update-mac-release-metadata.mjs',
+      'node ../../scripts/release/update-mac-release-metadata.mjs',
     )
     expect(packageJson.scripts?.['release:artifacts']).toBe(
-      './package-mac-signed.sh dist:mac:all && pnpm run release:metadata:mac',
+      '../../package-mac-signed.sh dist:mac:all && pnpm run release:metadata:mac',
     )
-    expect(packageJson.scripts?.['release:tag']).toBe('node scripts/release/create-version-tag.mjs')
+    expect(packageJson.scripts?.['release:tag']).toBe(
+      'node ../../scripts/release/create-version-tag.mjs',
+    )
     expect(packageJson.scripts?.['release:github']).toBe(
-      'node scripts/release/create-github-release.mjs',
+      'node ../../scripts/release/create-github-release.mjs',
     )
     expect(packageJson.scripts?.package).not.toContain('--publish')
     expect(packageJson.scripts?.dist).not.toContain('--publish')
@@ -93,7 +95,7 @@ describe('packaging configuration', () => {
       productName: 'OXOX',
       directories: {
         buildResources: 'build',
-        output: 'release',
+        output: '../../release',
       },
       files: ['out/**', 'node_modules/**', 'package.json'],
       extraResources: [
