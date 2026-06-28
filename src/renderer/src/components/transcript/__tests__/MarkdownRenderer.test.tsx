@@ -40,4 +40,25 @@ describe('MarkdownRenderer', () => {
     fireEvent.click(screen.getByRole('button', { name: /wrap code text/i }))
     expect(codeBlock.getAttribute('data-wrap')).toBe('true')
   })
+
+  it('renders markdown tables as cards with a copy markdown action', async () => {
+    const markdown = [
+      '| Invoice | Status | Amount |',
+      '| --- | --- | ---: |',
+      '| INV001 | Paid | $250.00 |',
+      '| INV002 | Pending | $150.00 |',
+    ].join('\n')
+
+    render(<MarkdownRenderer markdown={markdown} />)
+
+    expect(screen.getByTestId('markdown-table')).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Invoice' })).toBeTruthy()
+    expect(screen.getByRole('cell', { name: 'INV001' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /copy table markdown/i }))
+
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(markdown)
+    })
+  })
 })

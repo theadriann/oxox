@@ -1,8 +1,17 @@
-import { Check, Copy, WrapText } from 'lucide-react'
-import { type ComponentPropsWithoutRef, memo, type ReactNode, useCallback, useState } from 'react'
+import { Check, Copy, Table2, WrapText } from 'lucide-react'
+import {
+  type ComponentPropsWithoutRef,
+  memo,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import Markdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import remarkGfm from 'remark-gfm'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 
 export interface MarkdownRendererProps {
   markdown: string
@@ -100,50 +109,157 @@ function MarkdownCodeBlock({ code, language }: { code: string; language: string 
   )
 }
 
-const mdComponents = {
-  h1: createHeading('text-[14px]'),
-  h2: createHeading('text-[14px]'),
-  h3: createHeading('text-[13.5px]'),
-  h4: createHeading('text-[13px]'),
-  p: ({ children }: { children?: ReactNode }) => (
-    <p className="my-2 text-[14px] leading-[1.7] text-fd-primary/95">{children}</p>
-  ),
-  a: ({ href, children }: { href?: string; children?: ReactNode }) => (
-    <a
-      className="text-fd-ember-400/90 underline decoration-fd-ember-400/30 underline-offset-2 transition-colors hover:text-fd-ember-400 hover:decoration-fd-ember-400/60"
-      href={href}
-      rel="noreferrer noopener"
-      target="_blank"
+function MarkdownTable({
+  children,
+  markdown,
+  node,
+  ...props
+}: ComponentPropsWithoutRef<'table'> & {
+  children?: ReactNode
+  markdown: string
+  node?: { position?: { start?: { offset?: number }; end?: { offset?: number } } }
+}) {
+  const tableRef = useRef<HTMLTableElement | null>(null)
+  const [hasCopied, setHasCopied] = useState(false)
+
+  const handleCopy = useCallback(async () => {
+    if (!navigator.clipboard?.writeText) return
+
+    const sourceMarkdown =
+      getMarkdownSourceForNode(markdown, node) ?? tableToMarkdown(tableRef.current)
+    if (!sourceMarkdown) return
+
+    await navigator.clipboard.writeText(sourceMarkdown)
+    setHasCopied(true)
+    window.setTimeout(() => setHasCopied(false), 1400)
+  }, [markdown, node])
+
+  return (
+    <figure
+      className="group/table my-4 overflow-hidden rounded-xl border border-fd-border-default bg-[color-mix(in_srgb,var(--fd-panel)_70%,var(--fd-canvas))] shadow-[0_14px_42px_rgba(0,0,0,0.2)]"
+      data-testid="markdown-table"
     >
-      {children}
-    </a>
-  ),
-  code: CodeBlock,
-  pre: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  ol: ({ children }: { children?: ReactNode }) => (
-    <ol className="my-2 ml-4 list-decimal space-y-1.5 text-[14px] leading-[1.7] text-fd-primary/95">
-      {children}
-    </ol>
-  ),
-  ul: ({ children }: { children?: ReactNode }) => (
-    <ul className="my-2 ml-4 list-disc space-y-1.5 text-[14px] leading-[1.7] text-fd-primary/95">
-      {children}
-    </ul>
-  ),
-  li: ({ children }: { children?: ReactNode }) => (
-    <li className="pl-1 marker:text-fd-tertiary/50">{children}</li>
-  ),
-  strong: ({ children }: { children?: ReactNode }) => (
-    <strong className="font-semibold text-fd-primary">{children}</strong>
-  ),
-  em: ({ children }: { children?: ReactNode }) => (
-    <em className="italic text-fd-secondary">{children}</em>
-  ),
-  blockquote: ({ children }: { children?: ReactNode }) => (
-    <blockquote className="my-2 border-l-2 border-fd-border-subtle pl-3 text-[14px] italic leading-[1.7] text-fd-secondary">
-      {children}
-    </blockquote>
-  ),
+      <figcaption className="flex min-h-9 items-center justify-between gap-3 border-b border-fd-border-subtle bg-fd-panel/60 px-3">
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.12em] text-fd-tertiary uppercase">
+          <Table2 className="size-3.5" />
+          Table
+        </span>
+        <button
+          aria-label="Copy table markdown to clipboard"
+          className="inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-1.5 text-[10px] font-medium text-fd-tertiary transition-colors hover:border-fd-border-default hover:bg-fd-elevated hover:text-fd-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fd-ember-400"
+          type="button"
+          onClick={() => void handleCopy()}
+        >
+          {hasCopied ? <Check className="size-3.5 text-fd-ready" /> : <Copy className="size-3.5" />}
+          <span>{hasCopied ? 'Copied' : 'Copy'}</span>
+        </button>
+      </figcaption>
+      <Table
+        {...props}
+        ref={tableRef}
+        className="min-w-max border-separate border-spacing-0 text-[13px] leading-[1.55]"
+      >
+        {children}
+      </Table>
+    </figure>
+  )
+}
+
+function createMarkdownComponents(markdown: string) {
+  return {
+    h1: createHeading('text-[14px]'),
+    h2: createHeading('text-[14px]'),
+    h3: createHeading('text-[13.5px]'),
+    h4: createHeading('text-[13px]'),
+    p: ({ children }: { children?: ReactNode }) => (
+      <p className="my-2 text-[14px] leading-[1.7] text-fd-primary/95">{children}</p>
+    ),
+    a: ({ href, children }: { href?: string; children?: ReactNode }) => (
+      <a
+        className="text-fd-ember-400/90 underline decoration-fd-ember-400/30 underline-offset-2 transition-colors hover:text-fd-ember-400 hover:decoration-fd-ember-400/60"
+        href={href}
+        rel="noreferrer noopener"
+        target="_blank"
+      >
+        {children}
+      </a>
+    ),
+    code: CodeBlock,
+    pre: ({ children }: { children?: ReactNode }) => <>{children}</>,
+    ol: ({ children }: { children?: ReactNode }) => (
+      <ol className="my-2 ml-4 list-decimal space-y-1.5 text-[14px] leading-[1.7] text-fd-primary/95">
+        {children}
+      </ol>
+    ),
+    ul: ({ children }: { children?: ReactNode }) => (
+      <ul className="my-2 ml-4 list-disc space-y-1.5 text-[14px] leading-[1.7] text-fd-primary/95">
+        {children}
+      </ul>
+    ),
+    li: ({ children }: { children?: ReactNode }) => (
+      <li className="pl-1 marker:text-fd-tertiary/50">{children}</li>
+    ),
+    strong: ({ children }: { children?: ReactNode }) => (
+      <strong className="font-semibold text-fd-primary">{children}</strong>
+    ),
+    em: ({ children }: { children?: ReactNode }) => (
+      <em className="italic text-fd-secondary">{children}</em>
+    ),
+    blockquote: ({ children }: { children?: ReactNode }) => (
+      <blockquote className="my-2 border-l-2 border-fd-border-subtle pl-3 text-[14px] italic leading-[1.7] text-fd-secondary">
+        {children}
+      </blockquote>
+    ),
+    table: ({
+      children,
+      node,
+      ...props
+    }: ComponentPropsWithoutRef<'table'> & {
+      children?: ReactNode
+      node?: { position?: { start?: { offset?: number }; end?: { offset?: number } } }
+    }) => (
+      <MarkdownTable markdown={markdown} node={node} {...props}>
+        {children}
+      </MarkdownTable>
+    ),
+    thead: ({
+      children,
+      ...props
+    }: ComponentPropsWithoutRef<'thead'> & { children?: ReactNode }) => (
+      <TableHeader {...props} className="bg-fd-elevated/55 [&_tr]:border-b-0">
+        {children}
+      </TableHeader>
+    ),
+    tbody: ({
+      children,
+      ...props
+    }: ComponentPropsWithoutRef<'tbody'> & { children?: ReactNode }) => (
+      <TableBody {...props} className="divide-y divide-fd-border-subtle/70">
+        {children}
+      </TableBody>
+    ),
+    tr: ({ children, ...props }: ComponentPropsWithoutRef<'tr'> & { children?: ReactNode }) => (
+      <TableRow {...props} className="border-0 transition-colors hover:bg-fd-elevated/45">
+        {children}
+      </TableRow>
+    ),
+    th: ({ children, ...props }: ComponentPropsWithoutRef<'th'> & { children?: ReactNode }) => (
+      <TableHead
+        {...props}
+        className="h-auto border-b border-fd-border-default px-3 py-2.5 text-left align-bottom font-semibold text-fd-primary whitespace-normal first:pl-3 last:pr-3"
+      >
+        {children}
+      </TableHead>
+    ),
+    td: ({ children, ...props }: ComponentPropsWithoutRef<'td'> & { children?: ReactNode }) => (
+      <TableCell
+        {...props}
+        className="px-3 py-2.5 align-top text-fd-secondary whitespace-normal first:pl-3 last:pr-3"
+      >
+        {children}
+      </TableCell>
+    ),
+  }
 }
 
 const factoryCodeTheme = {
@@ -251,6 +367,8 @@ const factoryCodeTheme = {
 export const MarkdownRenderer = memo(function MarkdownRenderer({
   markdown,
 }: MarkdownRendererProps) {
+  const mdComponents = useMemo(() => createMarkdownComponents(markdown), [markdown])
+
   return (
     <Markdown remarkPlugins={remarkPlugins} components={mdComponents}>
       {markdown}
@@ -272,4 +390,46 @@ function createHeading(sizeClassName: string) {
       </p>
     )
   }
+}
+
+function getMarkdownSourceForNode(
+  markdown: string,
+  node?: { position?: { start?: { offset?: number }; end?: { offset?: number } } },
+): string | null {
+  const startOffset = node?.position?.start?.offset
+  const endOffset = node?.position?.end?.offset
+
+  if (
+    typeof startOffset !== 'number' ||
+    typeof endOffset !== 'number' ||
+    startOffset < 0 ||
+    endOffset <= startOffset ||
+    endOffset > markdown.length
+  ) {
+    return null
+  }
+
+  return markdown.slice(startOffset, endOffset).trim()
+}
+
+function tableToMarkdown(table: HTMLTableElement | null): string | null {
+  if (!table) {
+    return null
+  }
+
+  const rows = [...table.rows].map((row) =>
+    [...row.cells].map((cell) => normalizeMarkdownTableCell(cell.textContent ?? '')),
+  )
+
+  if (rows.length === 0) {
+    return null
+  }
+
+  const [header, ...body] = rows
+  const separator = header.map(() => '---')
+  return [header, separator, ...body].map((row) => `| ${row.join(' | ')} |`).join('\n')
+}
+
+function normalizeMarkdownTableCell(value: string): string {
+  return value.trim().replace(/\s+/gu, ' ').replace(/\|/gu, '\\|')
 }
