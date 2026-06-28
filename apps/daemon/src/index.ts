@@ -47,6 +47,10 @@ type RuntimeCoordinator = (options: {
   startPluginBootstrap: () => void
 }) => () => void
 type RegisterIpcHandlers = (options: Record<string, unknown>) => (() => void) | undefined
+type AppPreferencesStoreLike = {
+  getPreferences: () => { isOxoxIntegrationEnabled: boolean }
+  updatePreferences: (update: unknown) => Promise<{ isOxoxIntegrationEnabled: boolean }>
+}
 type LoadLocalPluginsFromRoot = (options: {
   pluginRegistry: unknown
   pluginsRoot: string
@@ -320,6 +324,7 @@ const desktopModules = await Promise.all([
   import(new URL('main/integration/foundationService.ts', desktopSourceRoot).href),
   import(new URL('main/integration/plugins/localPluginCatalog.ts', desktopSourceRoot).href),
   import(new URL('main/ipc/router.ts', desktopSourceRoot).href),
+  import(new URL('main/app/appPreferences.ts', desktopSourceRoot).href),
 ])
 const AppKernel = desktopModules[0].AppKernel as AppKernelConstructor
 const startRuntimeCoordinator = desktopModules[1].startRuntimeCoordinator as RuntimeCoordinator
@@ -329,6 +334,10 @@ const createFoundationService = desktopModules[2].createFoundationService as (
 const loadLocalPluginsFromRoot = desktopModules[3]
   .loadLocalPluginsFromRoot as LoadLocalPluginsFromRoot
 const registerAppIpcHandlers = desktopModules[4].registerAppIpcHandlers as RegisterIpcHandlers
+const createAppPreferencesStore = desktopModules[5].createAppPreferencesStore as (options: {
+  userDataPath: string
+}) => AppPreferencesStoreLike
+const appPreferences = createAppPreferencesStore({ userDataPath })
 let appKernel: AppKernelLike
 
 appKernel = new AppKernel({
@@ -337,6 +346,7 @@ appKernel = new AppKernel({
     createFoundationService({
       ...options,
       databaseFactory: createNodeDatabaseConnection,
+      isOxoxIntegrationEnabled: () => appPreferences.getPreferences().isOxoxIntegrationEnabled,
     }),
   loadLocalPlugins: ({ pluginRegistry }) =>
     loadLocalPluginsFromRoot({
@@ -353,6 +363,7 @@ appKernel = new AppKernel({
         checkForUpdates: async () => createUnsupportedUpdateState(),
         installUpdate: () => undefined,
       },
+      appPreferences,
       pluginRegistry: appKernel.getPluginRegistry(),
       pluginHost: appKernel.getPluginHost(),
       invokePluginCapability: (capabilityId: string, payload?: unknown) =>

@@ -2,6 +2,8 @@ import { homedir } from 'node:os'
 import { relative, resolve } from 'node:path'
 
 import type {
+  AppPreferences,
+  AppPreferencesUpdate,
   AppUpdateState,
   CreatePullRequestRequest,
   GitCommitRequest,
@@ -16,6 +18,7 @@ import type {
   WorkspaceFilesSearchRequest,
 } from '../../shared/ipc/contracts'
 import { IPC_CHANNELS } from '../../shared/ipc/contracts'
+import { DEFAULT_APP_PREFERENCES } from '../app/appPreferences'
 import type { PluginRegistry } from '../app/PluginRegistry'
 import type { FoundationService } from '../integration/foundationService'
 import type { LocalPluginHostManager } from '../integration/plugins/localPluginHost'
@@ -54,6 +57,10 @@ export interface RegisterAppIpcHandlersOptions {
     checkForUpdates: () => Promise<AppUpdateState>
     installUpdate: () => void
   }
+  appPreferences?: {
+    getPreferences: () => AppPreferences
+    updatePreferences: (update: AppPreferencesUpdate) => Promise<AppPreferences>
+  }
   keepBootstrapHandlerOnCleanup?: boolean
   pluginRegistry: Pick<PluginRegistry, 'listCapabilities'>
   pluginHost: Pick<LocalPluginHostManager, 'listHosts'>
@@ -81,6 +88,7 @@ export function registerAppIpcHandlers({
   ipcMain,
   service,
   updater,
+  appPreferences,
   keepBootstrapHandlerOnCleanup = false,
   pluginRegistry,
   pluginHost,
@@ -97,6 +105,7 @@ export function registerAppIpcHandlers({
   const rendererCleanupRegistered = new Set<number>()
   let lastBootstrapSnapshot: ReturnType<FoundationService['getBootstrap']> | null = null
   const authorizedDirectoryBookmarks = new Map<string, string | null>()
+  let fallbackAppPreferences = DEFAULT_APP_PREFERENCES
 
   const registerHandler = (channel: string, handler: (...args: unknown[]) => unknown): void => {
     ipcMain.handle(channel, handler)
@@ -204,6 +213,21 @@ export function registerAppIpcHandlers({
     [IPC_CHANNELS.appGetUpdateState]: () => updater.getState(),
     [IPC_CHANNELS.appCheckForUpdates]: () => updater.checkForUpdates(),
     [IPC_CHANNELS.appInstallUpdate]: () => updater.installUpdate(),
+    [IPC_CHANNELS.appGetPreferences]: () =>
+      appPreferences?.getPreferences() ?? fallbackAppPreferences,
+    [IPC_CHANNELS.appSetPreferences]: async (_event, update: AppPreferencesUpdate) => {
+      if (appPreferences) {
+        return appPreferences.updatePreferences(update)
+      }
+
+      fallbackAppPreferences = {
+        ...fallbackAppPreferences,
+        ...(typeof update.isOxoxIntegrationEnabled === 'boolean'
+          ? { isOxoxIntegrationEnabled: update.isOxoxIntegrationEnabled }
+          : {}),
+      }
+      return fallbackAppPreferences
+    },
     [IPC_CHANNELS.appOpenWindow]: async () => {
       await createAppWindow()
     },

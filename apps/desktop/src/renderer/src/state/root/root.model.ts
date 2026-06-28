@@ -55,7 +55,10 @@ export class RootStore {
       this.api.transcript.setScrollState,
     )
     this.transportStore = new TransportStore()
-    this.uiStore = new UIStore(persistence)
+    this.uiStore = new UIStore(persistence, {
+      getPreferences: this.api.app.getPreferences,
+      setPreferences: this.api.app.setPreferences,
+    })
     const listCapabilities = this.api.plugin.listCapabilities
     const listHosts = this.api.plugin.listHosts
     const invokeCapability = this.api.plugin.invokeCapability

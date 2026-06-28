@@ -1,4 +1,5 @@
 import type {
+  AppPreferences,
   AppUpdateState,
   AppUpdateStateChangedPayload,
   CreatePullRequestResponse,
@@ -106,6 +107,9 @@ export function createOxoxBridge(
       getUpdateState: () => invokeTyped<AppUpdateState>(invoke, IPC_CHANNELS.appGetUpdateState),
       checkForUpdates: () => invokeTyped<AppUpdateState>(invoke, IPC_CHANNELS.appCheckForUpdates),
       installUpdate: () => invokeTyped<void>(invoke, IPC_CHANNELS.appInstallUpdate),
+      getPreferences: () => invokeTyped<AppPreferences>(invoke, IPC_CHANNELS.appGetPreferences),
+      setPreferences: (preferences) =>
+        invokeTyped<AppPreferences>(invoke, IPC_CHANNELS.appSetPreferences, preferences),
       onNotificationNavigation: (listener) =>
         subscribeTyped<NotificationNavigationPayload>(
           on,

@@ -4,10 +4,53 @@ import { PluginRegistry } from '../../app/PluginRegistry'
 import {
   createLocalPluginCapabilityProvider,
   createOxoxCapabilityGatewayServer,
+  createOxoxCapabilityGatewayServersIfAvailable,
   OXOX_CAPABILITY_GATEWAY_TOOL_NAMES,
 } from '../mcp/oxoxCapabilityGateway'
 
 describe('OXOX capability MCP gateway', () => {
+  it('skips starting the gateway when no session-action capabilities are available', () => {
+    const provider = {
+      discoverCapabilities: vi.fn(() => []),
+      describeCapability: vi.fn(),
+      executeCapability: vi.fn(),
+    }
+
+    expect(
+      createOxoxCapabilityGatewayServersIfAvailable({
+        provider,
+        getSessionId: () => 'session-1',
+      }),
+    ).toEqual([])
+    expect(provider.discoverCapabilities).toHaveBeenCalledWith({
+      kind: 'session-action',
+      limit: 1,
+    })
+  })
+
+  it('starts the gateway when session-action capabilities are available', () => {
+    const provider = {
+      discoverCapabilities: vi.fn(() => [
+        {
+          id: 'plugin.alpha:summarize',
+          kind: 'session-action' as const,
+          displayName: 'Summarize Session',
+          source: { type: 'local-plugin' as const, pluginId: 'plugin.alpha' },
+        },
+      ]),
+      describeCapability: vi.fn(),
+      executeCapability: vi.fn(),
+    }
+
+    const servers = createOxoxCapabilityGatewayServersIfAvailable({
+      provider,
+      getSessionId: () => 'session-1',
+    })
+
+    expect(servers).toHaveLength(1)
+    expect(servers[0]?.name).toBe('oxox')
+  })
+
   it('exposes a small fixed MCP tool surface regardless of plugin capability count', () => {
     const provider = {
       discoverCapabilities: vi.fn(() => []),

@@ -1,4 +1,5 @@
 import { batch, type Observable } from '@legendapp/state'
+import type { AppPreferences, AppPreferencesUpdate } from '../../../../shared/ipc/contracts'
 import { createLocalStoragePort, type PersistencePort } from '../../platform/persistence'
 import {
   type ChildSessionVisibilityMode,
@@ -32,15 +33,26 @@ export {
   MIN_SIDEBAR_WIDTH,
 } from './ui.state'
 
+export interface AppPreferencesBridge {
+  getPreferences?: () => Promise<AppPreferences>
+  setPreferences?: (preferences: AppPreferencesUpdate) => Promise<AppPreferences>
+}
+
 export class UIStore {
   readonly colorMode = 'dark'
   readonly isCommandPaletteReady = true
   readonly state$: Observable<UIState> = createUIState$()
   private readonly persistence: PersistencePort
+  private readonly appPreferencesBridge: AppPreferencesBridge
 
-  constructor(persistence: PersistencePort = createLocalStoragePort()) {
+  constructor(
+    persistence: PersistencePort = createLocalStoragePort(),
+    appPreferencesBridge: AppPreferencesBridge = {},
+  ) {
     this.persistence = persistence
+    this.appPreferencesBridge = appPreferencesBridge
     this.hydrate()
+    void this.hydrateAppPreferences()
   }
 
   setSidebarWidth = (width: number, windowWidth = getWindowWidth()): void => {
@@ -197,6 +209,25 @@ export class UIStore {
     this.persist()
   }
 
+  setOxoxIntegrationEnabled = async (enabled: boolean): Promise<void> => {
+    const previous = this.state$.isOxoxIntegrationEnabled.get()
+    this.state$.isOxoxIntegrationEnabled.set(enabled)
+
+    if (!this.appPreferencesBridge.setPreferences) {
+      return
+    }
+
+    try {
+      const preferences = await this.appPreferencesBridge.setPreferences({
+        isOxoxIntegrationEnabled: enabled,
+      })
+      this.state$.isOxoxIntegrationEnabled.set(preferences.isOxoxIntegrationEnabled)
+    } catch (error) {
+      this.state$.isOxoxIntegrationEnabled.set(previous)
+      console.warn('Failed to update OXOX integration preference.', error)
+    }
+  }
+
   isProjectCollapsed = (projectKey: string): boolean => {
     return this.state$.collapsedProjectKeys.get().includes(projectKey)
   }
@@ -255,6 +286,19 @@ export class UIStore {
         persistTranscriptScrollPerSession: nextState.persistTranscriptScrollPerSession === true,
       })
     })
+  }
+
+  private async hydrateAppPreferences(): Promise<void> {
+    if (!this.appPreferencesBridge.getPreferences) {
+      return
+    }
+
+    try {
+      const preferences = await this.appPreferencesBridge.getPreferences()
+      this.state$.isOxoxIntegrationEnabled.set(preferences.isOxoxIntegrationEnabled)
+    } catch (error) {
+      console.warn('Failed to load OXOX app preferences.', error)
+    }
   }
 
   private persist(): void {

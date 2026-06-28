@@ -42,6 +42,7 @@ export interface UIState {
   composerContextUsageDisplayMode: ComposerContextUsageDisplayMode
   childSessionVisibilityMode: ChildSessionVisibilityMode
   persistTranscriptScrollPerSession: boolean
+  isOxoxIntegrationEnabled: boolean
   activeView: AppView
   settingsSection: SettingsSection
 }
@@ -62,6 +63,7 @@ export function createDefaultUIState(): UIState {
     composerContextUsageDisplayMode: 'percentage',
     childSessionVisibilityMode: 'selected-parent',
     persistTranscriptScrollPerSession: false,
+    isOxoxIntegrationEnabled: false,
     activeView: 'sessions',
     settingsSection: 'general',
   }

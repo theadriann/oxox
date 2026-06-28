@@ -87,7 +87,7 @@ import {
 } from './git/localGitActions'
 import {
   createLocalPluginCapabilityProvider,
-  createOxoxCapabilityGatewayServer,
+  createOxoxCapabilityGatewayServersIfAvailable,
 } from './mcp/oxoxCapabilityGateway'
 import type { LocalPluginHostManager } from './plugins/localPluginHost'
 import { createLiveSessionSearchIndexScheduler } from './search/liveSessionSearchIndexScheduler'
@@ -224,6 +224,7 @@ export interface FoundationService {
 export interface CreateFoundationSessionTransportFactoryOptions {
   authProvider: DaemonAuthProvider
   createMcpServers?: DroidSdkMcpServerFactory
+  isOxoxIntegrationEnabled?: () => boolean
   daemonTransport: Pick<DaemonTransport, 'listSessions'>
   createDaemonSessionTransport?: (options: {
     authProvider: DaemonAuthProvider
@@ -238,6 +239,7 @@ export interface CreateFoundationSessionTransportFactoryOptions {
 export function createFoundationSessionTransportFactory({
   authProvider,
   createMcpServers,
+  isOxoxIntegrationEnabled = () => Boolean(createMcpServers),
   daemonTransport,
   createDaemonSessionTransport = (options) => new DroidSdkDaemonSessionTransport(options),
   createProcessSessionTransport = (config) => new DroidSdkSessionTransport(config),
@@ -261,7 +263,7 @@ export function createFoundationSessionTransportFactory({
 
     return createProcessSessionTransport({
       ...config,
-      ...(createMcpServers ? { createMcpServers } : {}),
+      ...(createMcpServers && isOxoxIntegrationEnabled() ? { createMcpServers } : {}),
     })
   }
 }
@@ -269,6 +271,7 @@ export function createFoundationSessionTransportFactory({
 export interface CreateFoundationServiceOptions extends CreateDatabaseServiceOptions {
   pluginHost?: Pick<LocalPluginHostManager, 'invokeCapability'>
   pluginRegistry?: PluginRegistry
+  isOxoxIntegrationEnabled?: () => boolean
 }
 
 export function createFoundationService(
@@ -334,12 +337,11 @@ export function createFoundationService(
         })
       : null
   const createMcpServers: DroidSdkMcpServerFactory | undefined = localPluginCapabilityProvider
-    ? ({ getSessionId }) => [
-        createOxoxCapabilityGatewayServer({
+    ? ({ getSessionId }) =>
+        createOxoxCapabilityGatewayServersIfAvailable({
           provider: localPluginCapabilityProvider,
           getSessionId,
-        }),
-      ]
+        })
     : undefined
   const sessionProcessManager = createSessionProcessManager({
     database,
@@ -348,6 +350,7 @@ export function createFoundationService(
     sessionTransportFactory: createFoundationSessionTransportFactory({
       authProvider: daemonAuthProvider,
       createMcpServers,
+      isOxoxIntegrationEnabled: options.isOxoxIntegrationEnabled ?? (() => false),
       daemonTransport,
     }),
   })

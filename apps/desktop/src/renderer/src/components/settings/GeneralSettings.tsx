@@ -13,6 +13,7 @@ export function GeneralSettings() {
   const persistTranscriptScrollPerSession = useValue(
     uiStore.state$.persistTranscriptScrollPerSession,
   )
+  const isOxoxIntegrationEnabled = useValue(uiStore.state$.isOxoxIntegrationEnabled)
   const isReindexingSessions = useValue(foundationStore.state$.isReindexingSessions)
   const sessionReindexError = useValue(foundationStore.state$.sessionReindexError)
   const sessionReindexProgress = useValue(foundationStore.state$.foundation.sessionReindexProgress)
@@ -113,6 +114,19 @@ export function GeneralSettings() {
               uiStore.setPersistTranscriptScrollPerSession(!persistTranscriptScrollPerSession)
             }
             label="Remember transcript position"
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          label="Enable OXOX integration"
+          description="Expose OXOX session capabilities to newly created or attached Droid sessions via MCP."
+        >
+          <ToggleSwitch
+            checked={isOxoxIntegrationEnabled}
+            onChange={() => {
+              void uiStore.setOxoxIntegrationEnabled(!isOxoxIntegrationEnabled)
+            }}
+            label="Enable OXOX integration"
           />
         </SettingsRow>
 

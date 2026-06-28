@@ -1,20 +1,26 @@
 // @vitest-environment jsdom
 
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { OxoxBridge } from '../../../../../shared/ipc/contracts'
 import { createPlatformApiClient } from '../../../platform/apiClient'
 import { PLACEHOLDER_FOUNDATION } from '../../../state/foundation/foundation.model'
 import { RootStore } from '../../../state/root/root.model'
 import { StoreProvider } from '../../../state/root/store-provider'
 import { GeneralSettings } from '../GeneralSettings'
 
-function renderGeneralSettings() {
+function renderGeneralSettings({
+  app = {},
+}: {
+  app?: Partial<NonNullable<OxoxBridge['app']>>
+} = {}) {
   const rootStore = new RootStore(
     createPlatformApiClient({
       oxox: {
         diagnostics: { logTranscriptPerformance: vi.fn() },
-      },
+        app,
+      } as unknown as OxoxBridge,
     }),
   )
   rootStore.foundationStore.foundation = {
@@ -83,6 +89,25 @@ describe('GeneralSettings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Remember transcript position' }))
 
     expect(rootStore.uiStore.state$.persistTranscriptScrollPerSession.get()).toBe(true)
+  })
+
+  it('lets users enable OXOX integration for future session loads', async () => {
+    const setPreferences = vi.fn().mockResolvedValue({ isOxoxIntegrationEnabled: true })
+    const { rootStore } = renderGeneralSettings({
+      app: {
+        getPreferences: vi.fn().mockResolvedValue({ isOxoxIntegrationEnabled: false }),
+        setPreferences,
+      },
+    })
+
+    expect(rootStore.uiStore.state$.isOxoxIntegrationEnabled.get()).toBe(false)
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable OXOX integration' }))
+
+    expect(rootStore.uiStore.state$.isOxoxIntegrationEnabled.get()).toBe(true)
+    await waitFor(() => {
+      expect(setPreferences).toHaveBeenCalledWith({ isOxoxIntegrationEnabled: true })
+    })
   })
 
   it('exposes a session reindex action', () => {

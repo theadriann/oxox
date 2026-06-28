@@ -44,6 +44,8 @@ export const IPC_CHANNELS = {
   appInstallUpdate: 'app:install-update',
   appUpdateStateChanged: 'app:update-state-changed',
   appOpenWindow: 'app:open-window',
+  appGetPreferences: 'app:get-preferences',
+  appSetPreferences: 'app:set-preferences',
   diagnosticsLogTranscriptPerformance: 'diagnostics:log-transcript-performance',
   pluginCapabilitiesChanged: 'plugin:capabilities-changed',
   pluginListCapabilities: 'plugin:list-capabilities',
@@ -143,6 +145,12 @@ export interface AppUpdateState {
   message: string | null
   canInstall: boolean
 }
+
+export interface AppPreferences {
+  isOxoxIntegrationEnabled: boolean
+}
+
+export type AppPreferencesUpdate = Partial<AppPreferences>
 
 export type RuntimePlatform = 'darwin' | 'linux' | 'win32'
 
@@ -1196,6 +1204,8 @@ export interface OxoxBridge {
     getUpdateState: () => Promise<AppUpdateState>
     checkForUpdates: () => Promise<AppUpdateState>
     installUpdate: () => Promise<void>
+    getPreferences?: () => Promise<AppPreferences>
+    setPreferences?: (preferences: AppPreferencesUpdate) => Promise<AppPreferences>
     onNotificationNavigation: (
       listener: (payload: NotificationNavigationPayload) => void,
     ) => (() => void) | undefined

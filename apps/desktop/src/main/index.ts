@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from 'electron'
 import { IPC_CHANNELS } from '../shared/ipc/contracts'
 import { AppKernel } from './app/AppKernel'
+import { createAppPreferencesStore } from './app/appPreferences'
 import { startPluginBootstrap } from './app/pluginBootstrap'
 import { startRuntimeCoordinator } from './app/runtimeCoordinator'
 import { createTranscriptPerformanceLogWriter } from './diagnostics/transcriptPerformanceLog'
@@ -199,6 +200,9 @@ if (hasSingleInstanceLock) {
 }
 
 app.whenReady().then(async () => {
+  const appPreferences = createAppPreferencesStore({
+    userDataPath: app.getPath('userData'),
+  })
   const transcriptPerformanceLogWriter = createTranscriptPerformanceLogWriter({
     userDataPath: app.getPath('userData'),
   })
@@ -211,7 +215,11 @@ app.whenReady().then(async () => {
   })
   appKernel ??= new AppKernel({
     userDataPath: app.getPath('userData'),
-    createFoundationService,
+    createFoundationService: (options) =>
+      createFoundationService({
+        ...options,
+        isOxoxIntegrationEnabled: () => appPreferences.getPreferences().isOxoxIntegrationEnabled,
+      }),
     loadLocalPlugins: ({ pluginRegistry, userDataPath }) =>
       loadLocalPluginsFromRoot({
         pluginRegistry,
@@ -235,6 +243,7 @@ app.whenReady().then(async () => {
           updater,
           requestQuit: gracefulQuitController.requestQuit,
         }),
+        appPreferences,
         keepBootstrapHandlerOnCleanup: true,
         pluginRegistry,
         pluginHost,

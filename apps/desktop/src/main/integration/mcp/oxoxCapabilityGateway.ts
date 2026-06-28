@@ -51,6 +51,18 @@ export interface CreateOxoxCapabilityGatewayServerOptions {
   getSessionId: () => string | null
 }
 
+export function createOxoxCapabilityGatewayServersIfAvailable(
+  options: CreateOxoxCapabilityGatewayServerOptions,
+): SdkMcpServer[] {
+  const hasSessionCapabilities =
+    options.provider.discoverCapabilities({
+      kind: 'session-action',
+      limit: 1,
+    }).length > 0
+
+  return hasSessionCapabilities ? [createOxoxCapabilityGatewayServer(options)] : []
+}
+
 export function createOxoxCapabilityGatewayServer({
   provider,
   getSessionId,

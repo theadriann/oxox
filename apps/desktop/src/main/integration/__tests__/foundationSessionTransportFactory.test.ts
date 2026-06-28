@@ -63,4 +63,53 @@ describe('createFoundationSessionTransportFactory', () => {
       sessionId: 'local-session-1',
     })
   })
+
+  it('omits MCP server creation when OXOX integration is disabled', () => {
+    const daemonTransport = {
+      listSessions: vi.fn(() => []),
+    }
+    const processSessionTransport = createTransport('process')
+    const createProcessSessionTransport = vi.fn(() => processSessionTransport)
+    const createMcpServers = vi.fn(() => [])
+    const factory = createFoundationSessionTransportFactory({
+      authProvider: { getApiKey: () => 'factory-key' },
+      daemonTransport,
+      createProcessSessionTransport,
+      createMcpServers,
+      isOxoxIntegrationEnabled: () => false,
+    })
+
+    expect(factory({ sessionId: 'local-session-1', cwd: '/tmp/project' })).toBe(
+      processSessionTransport,
+    )
+    expect(createProcessSessionTransport).toHaveBeenCalledWith({
+      cwd: '/tmp/project',
+      sessionId: 'local-session-1',
+    })
+  })
+
+  it('includes MCP server creation when OXOX integration is enabled', () => {
+    const daemonTransport = {
+      listSessions: vi.fn(() => []),
+    }
+    const processSessionTransport = createTransport('process')
+    const createProcessSessionTransport = vi.fn(() => processSessionTransport)
+    const createMcpServers = vi.fn(() => [])
+    const factory = createFoundationSessionTransportFactory({
+      authProvider: { getApiKey: () => 'factory-key' },
+      daemonTransport,
+      createProcessSessionTransport,
+      createMcpServers,
+      isOxoxIntegrationEnabled: () => true,
+    })
+
+    expect(factory({ sessionId: 'local-session-1', cwd: '/tmp/project' })).toBe(
+      processSessionTransport,
+    )
+    expect(createProcessSessionTransport).toHaveBeenCalledWith({
+      cwd: '/tmp/project',
+      createMcpServers,
+      sessionId: 'local-session-1',
+    })
+  })
 })

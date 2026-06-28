@@ -222,6 +222,16 @@ describe('registerAppIpcHandlers', () => {
       message: 'Checking for updates…',
       canInstall: false,
     })
+    expect(await ipcMain.handlers.get(IPC_CHANNELS.appGetPreferences)?.()).toEqual({
+      isOxoxIntegrationEnabled: false,
+    })
+    expect(
+      await ipcMain.handlers.get(IPC_CHANNELS.appSetPreferences)?.(null, {
+        isOxoxIntegrationEnabled: true,
+      }),
+    ).toEqual({
+      isOxoxIntegrationEnabled: true,
+    })
     expect(updater.getState).toHaveBeenCalledTimes(1)
     expect(updater.checkForUpdates).toHaveBeenCalledTimes(1)
     expect(await ipcMain.handlers.get(IPC_CHANNELS.pluginListCapabilities)?.()).toEqual([
