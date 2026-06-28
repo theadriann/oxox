@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { Worker } from 'node:worker_threads'
 
 import type {
@@ -74,7 +76,17 @@ export interface BackgroundSessionSearchHydrator {
   close: () => Promise<void>
 }
 
-const DEFAULT_WORKER_URL = new URL('./session-search-hydration-worker.js', import.meta.url)
+export function resolveSessionSearchHydrationWorkerUrl(): URL {
+  const bundledWorkerUrl = new URL('./session-search-hydration-worker.js', import.meta.url)
+
+  if (existsSync(fileURLToPath(bundledWorkerUrl))) {
+    return bundledWorkerUrl
+  }
+
+  return new URL('./sessionSearchHydrationWorkerMain.ts', import.meta.url)
+}
+
+const DEFAULT_WORKER_URL = resolveSessionSearchHydrationWorkerUrl()
 
 export function createBackgroundSessionSearchHydrator({
   workerFactory = (options) =>

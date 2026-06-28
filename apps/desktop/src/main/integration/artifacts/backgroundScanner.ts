@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { Worker } from 'node:worker_threads'
 
 import type {
@@ -56,7 +58,17 @@ interface CreateBackgroundArtifactScannerOptions {
   }) => ArtifactScannerWorkerLike
 }
 
-const DEFAULT_WORKER_URL = new URL('./artifact-scanner-worker.js', import.meta.url)
+export function resolveArtifactScannerWorkerUrl(): URL {
+  const bundledWorkerUrl = new URL('./artifact-scanner-worker.js', import.meta.url)
+
+  if (existsSync(fileURLToPath(bundledWorkerUrl))) {
+    return bundledWorkerUrl
+  }
+
+  return new URL('./worker.ts', import.meta.url)
+}
+
+const DEFAULT_WORKER_URL = resolveArtifactScannerWorkerUrl()
 
 export function createBackgroundArtifactScanner({
   userDataPath,

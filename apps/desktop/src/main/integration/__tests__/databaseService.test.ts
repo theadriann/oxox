@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { createDatabaseService } from '../database/service'
+import { createDatabaseService, resolveBetterSqlite3PackageName } from '../database/service'
 
 function createNodeSqliteDatabaseFactory() {
   return (databasePath: string) => {
@@ -67,6 +67,15 @@ describe('createDatabaseService', () => {
     while (cleanup.length > 0) {
       cleanup.pop()?.()
     }
+  })
+
+  it('allows daemon workers to select a Node-built better-sqlite3 package', () => {
+    expect(resolveBetterSqlite3PackageName({})).toBe('better-sqlite3')
+    expect(
+      resolveBetterSqlite3PackageName({
+        OXOX_BETTER_SQLITE3_PACKAGE: 'better-sqlite3-node',
+      }),
+    ).toBe('better-sqlite3-node')
   })
 
   it('creates a WAL-mode SQLite database with the foundation schema in userData', () => {

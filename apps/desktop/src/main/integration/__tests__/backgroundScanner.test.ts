@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createBackgroundArtifactScanner } from '../artifacts/backgroundScanner'
+import {
+  createBackgroundArtifactScanner,
+  resolveArtifactScannerWorkerUrl,
+} from '../artifacts/backgroundScanner'
 
 type MessageListener = (payload: unknown) => void
 type ErrorListener = (error: Error) => void
@@ -27,6 +30,10 @@ function createWorkerDouble() {
 }
 
 describe('createBackgroundArtifactScanner', () => {
+  it('resolves the TypeScript worker source when running unbundled source', () => {
+    expect(resolveArtifactScannerWorkerUrl().pathname).toMatch(/\/artifacts\/worker\.ts$/u)
+  })
+
   it('sends sync work to a worker and resolves the reported scan result', async () => {
     const worker = createWorkerDouble()
     const scanner = createBackgroundArtifactScanner({

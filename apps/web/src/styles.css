@@ -1,0 +1,4 @@
+@import "../../desktop/src/renderer/src/styles.css";
+
+@source "../../desktop/src/renderer/src";
+@source ".";

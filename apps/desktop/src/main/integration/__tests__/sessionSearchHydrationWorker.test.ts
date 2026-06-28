@@ -4,7 +4,10 @@ import type {
   FoundationBootstrap,
   SessionSearchIndexingProgress,
 } from '../../../shared/ipc/contracts'
-import { createBackgroundSessionSearchHydrator } from '../search/sessionSearchHydrationWorker'
+import {
+  createBackgroundSessionSearchHydrator,
+  resolveSessionSearchHydrationWorkerUrl,
+} from '../search/sessionSearchHydrationWorker'
 
 type MessageListener = (payload: unknown) => void
 type ErrorListener = (error: Error) => void
@@ -104,6 +107,12 @@ function createWorkerDouble() {
 }
 
 describe('createBackgroundSessionSearchHydrator', () => {
+  it('resolves the TypeScript worker source when running unbundled source', () => {
+    expect(resolveSessionSearchHydrationWorkerUrl().pathname).toMatch(
+      /\/search\/sessionSearchHydrationWorkerMain\.ts$/u,
+    )
+  })
+
   it('starts transcript hydration in a worker and tracks progress without main-process hydration', async () => {
     const worker = createWorkerDouble()
     const bootstrap = createBootstrap()

@@ -848,6 +848,19 @@ class ManagedDaemonTransport implements DaemonTransport {
       if (this.started) {
         this.scheduleReconnect()
       }
+    } catch (error) {
+      this.sessions = []
+      this.supportedMethods = null
+      this.updateState({
+        status: this.hasConnectedOnce ? 'reconnecting' : 'disconnected',
+        connectedPort: null,
+        lastError: error instanceof Error ? error.message : String(error),
+        nextRetryDelayMs: this.started ? this.calculateReconnectDelay() : null,
+      })
+
+      if (this.started) {
+        this.scheduleReconnect()
+      }
     } finally {
       this.connecting = false
     }

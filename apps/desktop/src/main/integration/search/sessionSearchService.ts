@@ -23,6 +23,7 @@ import {
   tokenizeSearchText,
 } from '../../../shared/search/sessionSearchQuery'
 import type { TranscriptRecord } from '../artifacts/jsonlParser'
+import { resolveBetterSqlite3PackageName } from '../database/service'
 import {
   extractTranscriptSearchFragments,
   type SearchFragmentDocument,
@@ -1666,7 +1667,7 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
 
 function createSqliteDatabase(databasePath: string): SqliteDatabase {
   try {
-    const BetterSqlite3 = require('better-sqlite3')
+    const BetterSqlite3 = require(resolveBetterSqlite3PackageName())
     return new BetterSqlite3(databasePath) as SqliteDatabase
   } catch {
     const { DatabaseSync } = require('node:sqlite') as {

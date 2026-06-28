@@ -51,7 +51,7 @@ function warnAboutRawWindowBridgeFallback(): void {
   )
 }
 
-function buildPlatformApiClient(bridge: OxoxBridge | null): PlatformApiClient {
+export function buildPlatformApiClient(bridge: OxoxBridge | null): PlatformApiClient {
   return {
     bridge,
     runtime: bridge?.runtime ?? {},

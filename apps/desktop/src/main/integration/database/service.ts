@@ -116,6 +116,14 @@ const CURRENT_SCHEMA_VERSION = 7
 
 const require = createRequire(import.meta.url)
 
+export function resolveBetterSqlite3PackageName(
+  environment: NodeJS.ProcessEnv = process.env,
+): string {
+  const packageName = environment.OXOX_BETTER_SQLITE3_PACKAGE?.trim()
+
+  return packageName && packageName.length > 0 ? packageName : 'better-sqlite3'
+}
+
 export interface StatementLike<TResult> {
   all: (...params: unknown[]) => TResult[]
   get: (...params: unknown[]) => TResult | undefined
@@ -264,7 +272,7 @@ type ProjectMutationInput = {
 }
 
 function defaultDatabaseFactory(databasePath: string): DatabaseConnection {
-  const BetterSqlite3 = require('better-sqlite3')
+  const BetterSqlite3 = require(resolveBetterSqlite3PackageName())
   const database = new BetterSqlite3(databasePath)
 
   return {

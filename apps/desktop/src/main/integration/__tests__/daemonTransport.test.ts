@@ -337,6 +337,29 @@ describe('createDaemonTransport', () => {
     expect(sdkTransport.close).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps running when default daemon auth credentials are unavailable', async () => {
+    const ensureLocalDaemon = vi.fn()
+    const transport = createDaemonTransport({
+      authProvider: {},
+      ensureLocalDaemon,
+      reconnectBaseDelayMs: 1_000,
+      refreshIntervalMs: 60_000,
+    })
+
+    transport.start()
+    await flushMicrotasks()
+
+    expect(ensureLocalDaemon).not.toHaveBeenCalled()
+    expect(transport.getStatus()).toMatchObject({
+      status: 'disconnected',
+      connectedPort: null,
+      lastError: 'Daemon authentication credentials are unavailable.',
+      nextRetryDelayMs: 1_000,
+    })
+
+    await transport.stop()
+  })
+
   it('connects to explicit daemon URLs without local daemon discovery and redacts target status', async () => {
     const sdkTransport = new MockSdkWebSocketTransport()
     const ensureLocalDaemon = vi.fn().mockResolvedValue({ port: 45678 })

@@ -1,0 +1,12 @@
+{
+  "extends": "../desktop/tsconfig.web.json",
+  "compilerOptions": {
+    "composite": false,
+    "baseUrl": ".",
+    "types": ["vite/client", "react", "react-dom", "node"],
+    "paths": {
+      "@/*": ["../desktop/src/renderer/src/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

@@ -5,13 +5,16 @@ const rendererRoot = resolve(__dirname, '../../')
 const stylesPath = resolve(rendererRoot, 'src/styles.css')
 const globalStylesPath = resolve(rendererRoot, 'src/styles/global.css')
 const htmlPath = resolve(rendererRoot, 'index.html')
+const webStylesPath = resolve(rendererRoot, '../../../web/src/styles.css')
+const webMainPath = resolve(rendererRoot, '../../../web/src/main.tsx')
 
 describe('design system configuration files', () => {
   it('defines the OXOX global design tokens and bridges legacy Factory tokens', () => {
     const styles = readFileSync(stylesPath, 'utf8')
     const globalStyles = readFileSync(globalStylesPath, 'utf8')
 
-    expect(styles).toContain('@import "tailwindcss";')
+    expect(styles).toContain('@import "tailwindcss" source(".");')
+    expect(styles).toContain('@source "../../../../web/src";')
     expect(styles).toContain('@import "./styles/global.css";')
     expect(styles).toContain('@theme inline')
     expect(globalStyles).toMatch(/--ox-canvas:\s*#[0-9a-f]{6};/i)
@@ -41,5 +44,15 @@ describe('design system configuration files', () => {
     expect(html).toContain('href="/fonts/DMSans-VariableFont_opsz,wght.ttf"')
     expect(html).toContain('href="/fonts/SF-Mono-Regular.otf"')
     expect(html).not.toMatch(/https?:\/\/.*(font|fonts|googleapis|gstatic)/i)
+  })
+
+  it('loads the shared renderer CSS through a web-local Tailwind source wrapper', () => {
+    const webMain = readFileSync(webMainPath, 'utf8')
+    const webStyles = readFileSync(webStylesPath, 'utf8')
+
+    expect(webMain).toContain("import './styles.css'")
+    expect(webStyles).toContain('@import "../../desktop/src/renderer/src/styles.css";')
+    expect(webStyles).toContain('@source "../../desktop/src/renderer/src";')
+    expect(webStyles).toContain('@source ".";')
   })
 })

@@ -30,6 +30,12 @@ import type {
   PluginHostSnapshot,
 } from '../plugins/contracts'
 
+export type {
+  PluginCapabilityInvokeResult,
+  PluginCapabilityRecord,
+  PluginHostSnapshot,
+} from '../plugins/contracts'
+
 export const IPC_CHANNELS = {
   runtimeInfo: 'app:runtime-info',
   appNotificationNavigation: 'app:notification-navigation',
