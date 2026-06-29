@@ -208,6 +208,7 @@ describe('TranscriptRenderer (live)', () => {
 
     expect(screen.getByLabelText('Session status: Compressing context')).toBeTruthy()
     expect(screen.getByText('Compressing context')).toBeTruthy()
+    expect(screen.getByRole('status').closest('.mx-auto')?.className).toContain('px-4')
     expect(
       Number.parseFloat(screen.getByTestId('live-transcript-virtual-spacer').style.height),
     ).toBeGreaterThan(56)

@@ -487,10 +487,12 @@ function LiveTranscriptView({
       />
       {statusIndicator ? (
         <div
-          className="pointer-events-none absolute left-2 z-10"
+          className="pointer-events-none absolute inset-x-0 z-10"
           style={{ bottom: `${bottomInsetPx + 8}px` }}
         >
-          <LiveSessionStatusPill status={statusIndicator} className="pointer-events-auto" />
+          <ContentContainer layout={contentLayout}>
+            <LiveSessionStatusPill status={statusIndicator} className="pointer-events-auto" />
+          </ContentContainer>
         </div>
       ) : null}
     </section>
