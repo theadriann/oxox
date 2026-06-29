@@ -6,6 +6,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:debug": "ELECTRON_ENABLE_LOGGING=1 ELECTRON_ENABLE_STACK_DUMPING=1 ELECTRON_ENABLE_SECURITY_WARNINGS=1 NODE_OPTIONS='--inspect=9229 --trace-warnings' electron-vite dev -- --remote-debugging-port=9222 --js-flags=--expose-gc",
     "postinstall": "pnpm run rebuild:native",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "build": "electron-vite build",

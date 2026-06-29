@@ -6,6 +6,7 @@
   "scripts": {
     "changeset": "changeset",
     "dev": "pnpm --filter @oxox/desktop dev",
+    "dev:debug": "pnpm --filter @oxox/desktop dev:debug",
     "dev:daemon": "pnpm --filter @oxox/daemon dev",
     "dev:web": "pnpm --parallel --filter @oxox/daemon --filter @oxox/web dev",
     "dev:web:ui": "pnpm --filter @oxox/web dev",
