@@ -213,6 +213,45 @@ describe('TranscriptRenderer (live)', () => {
     ).toBeGreaterThan(56)
   })
 
+  it('keeps the live transcript scroll hit area full width while constraining fixed content', async () => {
+    render(
+      <TranscriptRenderer
+        items={[
+          {
+            kind: 'message',
+            id: 'assistant-1',
+            messageId: 'assistant-1',
+            role: 'assistant',
+            content: 'Latest output.',
+            status: 'completed',
+            occurredAt: null,
+          },
+        ]}
+        isLive
+        isLoading={false}
+        contentLayout="fixed"
+        bottomInsetPx={80}
+      />,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const scrollRegion = screen.getByRole('region', { name: 'Live transcript events' })
+    const firstRow = screen.getAllByTestId('live-transcript-row')[0]
+    const contentFrame = firstRow.firstElementChild
+
+    expect(scrollRegion.className).toContain('overflow-y-auto')
+    expect(scrollRegion.className).toContain('[scrollbar-gutter:stable_both-edges]')
+    expect(scrollRegion.className).not.toContain('max-w-5xl')
+    expect(contentFrame?.className).toContain('max-w-5xl')
+    expect(contentFrame?.className).toContain('px-4')
+    expect(
+      Number.parseFloat(screen.getByTestId('live-transcript-virtual-spacer').style.height),
+    ).toBeGreaterThan(80)
+  })
+
   it('keeps thinking as a collapsible row and renders resumed assistant text after tool rows', () => {
     render(
       <TranscriptRenderer
@@ -1335,6 +1374,10 @@ describe('TranscriptRenderer (live)', () => {
 
     expect(screen.getByRole('button', { name: 'Scroll to latest' })).toBeTruthy()
 
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    })
+
     const callsWhilePaused = scrollToMock.mock.calls.length
     scrollHeight = 1560
 
@@ -1743,6 +1786,33 @@ describe('TranscriptRenderer (historical)', () => {
 
     expect(screen.getByText('Historical Answers')).toBeTruthy()
     expect(screen.getByText('<json-render>{not valid json}</json-render>')).toBeTruthy()
+  })
+
+  it('keeps the transcript scroll hit area full width while constraining fixed content', async () => {
+    render(
+      <TranscriptRenderer
+        items={buildHistoricalTimeline(createTranscript(2).entries)}
+        isLive={false}
+        isLoading={false}
+        contentLayout="fixed"
+        bottomInsetPx={96}
+      />,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const scrollRegion = screen.getByRole('region', { name: 'Transcript messages' })
+    const firstRow = screen.getAllByTestId('transcript-row')[0]
+    const contentFrame = firstRow.firstElementChild
+
+    expect(scrollRegion.className).toContain('overflow-y-auto')
+    expect(scrollRegion.className).toContain('[scrollbar-gutter:stable_both-edges]')
+    expect(scrollRegion.className).not.toContain('max-w-5xl')
+    expect(contentFrame?.className).toContain('max-w-5xl')
+    expect(contentFrame?.className).toContain('px-4')
+    expect(Number.parseFloat(firstRow.parentElement?.style.height ?? '0')).toBeGreaterThan(96)
   })
 
   it('renders loading and retry states before transcript data is available', async () => {

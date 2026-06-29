@@ -1,5 +1,5 @@
 import { AlertTriangle, ArrowRight, Database, FolderSearch, Search } from 'lucide-react'
-import { type RefObject, useMemo } from 'react'
+import { type ReactNode, type RefObject, useMemo } from 'react'
 
 import type {
   FoundationBootstrap,
@@ -10,6 +10,7 @@ import type {
   SessionTranscriptScrollState,
 } from '../../../../shared/ipc/contracts'
 import type { SessionPreview } from '../../state/sessions/session.model'
+import type { ContentLayout } from '../../state/ui/ui.model'
 import { buildHistoricalTimeline } from '../transcript/buildHistoricalTimeline'
 import { deriveLiveSessionStatusIndicator } from '../transcript/liveSessionStatusIndicator'
 import { TranscriptRenderer } from '../transcript/TranscriptRenderer'
@@ -17,6 +18,7 @@ import type { TimelineItem } from '../transcript/timelineTypes'
 import { Button } from '../ui/button'
 import { SkeletonBlock } from '../ui/skeleton'
 import { StateCard } from '../ui/state-card'
+import { ContentContainer } from './ContentContainer'
 
 const DETAIL_LOADING_ROW_IDS = [
   'detail-loading-row-a',
@@ -44,10 +46,12 @@ export interface DetailPanelProps {
   transcriptSearchTarget: SessionSearchTarget | null
   transcriptScrollPersistenceEnabled: boolean
   transcriptScrollState: SessionTranscriptScrollState | null | undefined
+  transcriptBottomInsetPx: number
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
   transportProtocol: string
+  contentLayout: ContentLayout
   onPickDirectory: () => void
   onRefreshFoundation: () => void
   onRetrySelectedTranscript: () => void
@@ -81,10 +85,12 @@ export function DetailPanel({
   transcriptSearchTarget,
   transcriptScrollPersistenceEnabled,
   transcriptScrollState,
+  transcriptBottomInsetPx,
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
   transcriptPrimaryActionRef,
   transportProtocol,
+  contentLayout,
   onPickDirectory,
   onRefreshFoundation,
   onRetrySelectedTranscript,
@@ -96,54 +102,56 @@ export function DetailPanel({
 }: DetailPanelProps) {
   if (showNewSessionForm) {
     return (
-      <div className="rounded-lg border border-fd-border-default bg-fd-surface px-3 py-3">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-semibold tracking-tight text-fd-primary">New session</h2>
-            <p className="text-sm text-fd-secondary">
-              Pick a workspace, then use the composer below to send the first message and kick off
-              the session only when you are ready.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label
-              className="text-[10px] font-medium uppercase tracking-wider text-fd-tertiary"
-              htmlFor="new-session-path"
-            >
-              Workspace directory
-            </label>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[18rem] flex-1">
-                <FolderSearch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fd-tertiary" />
-                <input
-                  id="new-session-path"
-                  readOnly
-                  className="h-8 w-full rounded-md border border-fd-border-default bg-fd-panel pl-10 pr-3 text-sm text-fd-primary outline-none"
-                  placeholder="Choose a workspace folder"
-                  value={newSessionPath}
-                />
-              </div>
-              <Button type="button" variant="secondary" onClick={onPickDirectory}>
-                <FolderSearch />
-                Choose folder
-              </Button>
+      <DetailPanelContentFrame contentLayout={contentLayout}>
+        <div className="rounded-lg border border-fd-border-default bg-fd-surface px-3 py-3">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-lg font-semibold tracking-tight text-fd-primary">New session</h2>
+              <p className="text-sm text-fd-secondary">
+                Pick a workspace, then use the composer below to send the first message and kick off
+                the session only when you are ready.
+              </p>
             </div>
-          </div>
 
-          {newSessionError ? (
-            <p className="rounded-md border border-fd-ember-400/30 bg-fd-ember-500/10 px-3 py-2 text-sm text-fd-ember-400">
-              {newSessionError}
-            </p>
-          ) : null}
+            <div className="flex flex-col gap-1.5">
+              <label
+                className="text-[10px] font-medium uppercase tracking-wider text-fd-tertiary"
+                htmlFor="new-session-path"
+              >
+                Workspace directory
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[18rem] flex-1">
+                  <FolderSearch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fd-tertiary" />
+                  <input
+                    id="new-session-path"
+                    readOnly
+                    className="h-8 w-full rounded-md border border-fd-border-default bg-fd-panel pl-10 pr-3 text-sm text-fd-primary outline-none"
+                    placeholder="Choose a workspace folder"
+                    value={newSessionPath}
+                  />
+                </div>
+                <Button type="button" variant="secondary" onClick={onPickDirectory}>
+                  <FolderSearch />
+                  Choose folder
+                </Button>
+              </div>
+            </div>
+
+            {newSessionError ? (
+              <p className="rounded-md border border-fd-ember-400/30 bg-fd-ember-500/10 px-3 py-2 text-sm text-fd-ember-400">
+                {newSessionError}
+              </p>
+            ) : null}
+          </div>
         </div>
-      </div>
+      </DetailPanelContentFrame>
     )
   }
 
   if (isFoundationLoading) {
     return (
-      <div className="flex flex-col gap-3">
+      <DetailPanelContentFrame contentLayout={contentLayout} className="flex flex-col gap-3">
         <div className="flex flex-col gap-2">
           <SkeletonBlock className="h-10 w-48" />
           <SkeletonBlock className="h-5 w-3/4" />
@@ -167,29 +175,31 @@ export function DetailPanel({
             </div>
           ))}
         </div>
-      </div>
+      </DetailPanelContentFrame>
     )
   }
 
   if (hasFoundationError) {
     return (
-      <StateCard
-        icon={AlertTriangle}
-        eyebrow="Recovery"
-        title="Unable to load session data"
-        description="OXOX could not refresh its session bootstrap. Retry to restore the latest sidebar, transcript, and context-panel data."
-        actions={
-          <Button type="button" onClick={onRefreshFoundation}>
-            Retry loading sessions
-          </Button>
-        }
-      />
+      <DetailPanelContentFrame contentLayout={contentLayout}>
+        <StateCard
+          icon={AlertTriangle}
+          eyebrow="Recovery"
+          title="Unable to load session data"
+          description="OXOX could not refresh its session bootstrap. Retry to restore the latest sidebar, transcript, and context-panel data."
+          actions={
+            <Button type="button" onClick={onRefreshFoundation}>
+              Retry loading sessions
+            </Button>
+          }
+        />
+      </DetailPanelContentFrame>
     )
   }
 
   if (isDroidMissing) {
     return (
-      <>
+      <DetailPanelContentFrame contentLayout={contentLayout} className="flex flex-col gap-3">
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-semibold tracking-tight text-fd-primary">
             Droid CLI required
@@ -225,7 +235,7 @@ export function DetailPanel({
             </div>
           </div>
         </div>
-      </>
+      </DetailPanelContentFrame>
     )
   }
 
@@ -240,6 +250,8 @@ export function DetailPanel({
         transcriptScrollSignal={transcriptScrollSignal}
         transcriptScrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
         transcriptScrollState={transcriptScrollState}
+        contentLayout={contentLayout}
+        bottomInsetPx={transcriptBottomInsetPx}
         pendingPermissionRequestIds={pendingPermissionRequestIds}
         pendingAskUserRequestIds={pendingAskUserRequestIds}
         onResolvePermissionRequest={onResolvePermissionRequest}
@@ -263,7 +275,7 @@ export function DetailPanel({
 
   if (!hasIndexedSessions) {
     return (
-      <>
+      <DetailPanelContentFrame contentLayout={contentLayout} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <h2 className="text-lg font-semibold tracking-tight text-fd-primary">
             Waiting for your first indexed session
@@ -283,23 +295,25 @@ export function DetailPanel({
             SQLite ready · {transportProtocol}
           </span>
         </div>
-      </>
+      </DetailPanelContentFrame>
     )
   }
 
   if (!selectedSession) {
     return (
-      <StateCard
-        icon={Search}
-        eyebrow="Detail"
-        title="Choose a session to inspect"
-        description="Select a session from the sidebar to open its transcript, see workspace details, and jump back into live controls."
-        actions={
-          <Button type="button" variant="secondary" onClick={onBrowseSessions}>
-            Focus session list
-          </Button>
-        }
-      />
+      <DetailPanelContentFrame contentLayout={contentLayout}>
+        <StateCard
+          icon={Search}
+          eyebrow="Detail"
+          title="Choose a session to inspect"
+          description="Select a session from the sidebar to open its transcript, see workspace details, and jump back into live controls."
+          actions={
+            <Button type="button" variant="secondary" onClick={onBrowseSessions}>
+              Focus session list
+            </Button>
+          }
+        />
+      </DetailPanelContentFrame>
     )
   }
 
@@ -312,6 +326,8 @@ export function DetailPanel({
       transcriptScrollSignal={transcriptScrollSignal}
       transcriptScrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
       transcriptScrollState={transcriptScrollState}
+      contentLayout={contentLayout}
+      bottomInsetPx={transcriptBottomInsetPx}
       isRefreshing={isRefreshingTranscript}
       refreshError={selectedTranscriptRefreshError}
       onRetry={onRetrySelectedTranscript}
@@ -330,6 +346,8 @@ function LiveSessionTranscriptView({
   transcriptScrollSignal,
   transcriptScrollPersistenceEnabled,
   transcriptScrollState,
+  contentLayout,
+  bottomInsetPx,
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
   onResolvePermissionRequest,
@@ -345,6 +363,8 @@ function LiveSessionTranscriptView({
   transcriptScrollSignal: number
   transcriptScrollPersistenceEnabled: boolean
   transcriptScrollState: SessionTranscriptScrollState | null | undefined
+  contentLayout: ContentLayout
+  bottomInsetPx: number
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
   onResolvePermissionRequest: (payload: { requestId: string; selectedOption: string }) => void
@@ -371,6 +391,8 @@ function LiveSessionTranscriptView({
       scrollToBottomSignal={transcriptScrollSignal}
       scrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
       scrollRestoreState={transcriptScrollState}
+      contentLayout={contentLayout}
+      bottomInsetPx={bottomInsetPx}
       primaryActionRef={transcriptPrimaryActionRef}
       pendingPermissionRequestIds={pendingPermissionRequestIds}
       pendingAskUserRequestIds={pendingAskUserRequestIds}
@@ -390,6 +412,8 @@ function HistoricalTranscriptView({
   transcriptScrollSignal,
   transcriptScrollPersistenceEnabled,
   transcriptScrollState,
+  contentLayout,
+  bottomInsetPx,
   isRefreshing,
   refreshError,
   onRetry,
@@ -403,6 +427,8 @@ function HistoricalTranscriptView({
   transcriptScrollSignal: number
   transcriptScrollPersistenceEnabled: boolean
   transcriptScrollState: SessionTranscriptScrollState | null | undefined
+  contentLayout: ContentLayout
+  bottomInsetPx: number
   isRefreshing: boolean
   refreshError: string | null
   onRetry: () => void
@@ -422,10 +448,28 @@ function HistoricalTranscriptView({
       scrollToBottomSignal={transcriptScrollSignal}
       scrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
       scrollRestoreState={transcriptScrollState}
+      contentLayout={contentLayout}
+      bottomInsetPx={bottomInsetPx}
       primaryActionRef={transcriptPrimaryActionRef}
       onForkFromMessage={onForkFromMessage}
       onScrollStateChange={onTranscriptScrollStateChange}
       onRetry={onRetry}
     />
+  )
+}
+
+function DetailPanelContentFrame({
+  contentLayout,
+  children,
+  className,
+}: {
+  contentLayout: ContentLayout
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <ContentContainer layout={contentLayout} className={className}>
+      {children}
+    </ContentContainer>
   )
 }

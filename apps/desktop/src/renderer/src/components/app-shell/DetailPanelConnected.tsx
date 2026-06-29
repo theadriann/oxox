@@ -24,6 +24,7 @@ interface DetailPanelConnectedProps {
   newSessionForm?: NewSessionFormState
   transcriptScrollSignal?: number
   transcriptPrimaryActionRef?: RefObject<HTMLElement | null>
+  transcriptBottomInsetPx?: number
   onBrowseSessions?: () => void
 }
 
@@ -31,6 +32,7 @@ export function DetailPanelConnected({
   newSessionForm,
   transcriptScrollSignal,
   transcriptPrimaryActionRef,
+  transcriptBottomInsetPx = 0,
   onBrowseSessions,
 }: DetailPanelConnectedProps) {
   const composerStore = useComposerStore()
@@ -118,6 +120,7 @@ export function DetailPanelConnected({
       onSubmitAskUserResponse={handleSubmitAskUserResponse}
       onForkFromMessage={handleForkFromMessage}
       onTranscriptScrollStateChange={handleTranscriptScrollStateChange}
+      transcriptBottomInsetPx={transcriptBottomInsetPx}
     />
   )
 }

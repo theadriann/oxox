@@ -22,6 +22,8 @@ import type {
   SessionTranscriptScrollState,
 } from '../../../../shared/ipc/contracts'
 import { logTranscriptPerformanceEvent } from '../../diagnostics/transcriptPerformance'
+import type { ContentLayout } from '../../state/ui/ui.model'
+import { ContentContainer } from '../app-shell/ContentContainer'
 import { Button } from '../ui/button'
 import { SkeletonBlock } from '../ui/skeleton'
 import { StateCard } from '../ui/state-card'
@@ -60,6 +62,8 @@ export interface TranscriptRendererProps {
   scrollContextKey?: string
   searchTarget?: SessionSearchTarget | null
   scrollToBottomSignal?: number
+  contentLayout?: ContentLayout
+  bottomInsetPx?: number
   scrollPersistenceEnabled?: boolean
   scrollRestoreState?: SessionTranscriptScrollState | null
   primaryActionRef?: MutableRefObject<HTMLElement | null>
@@ -84,6 +88,8 @@ export function TranscriptRenderer({
   scrollContextKey,
   searchTarget = null,
   scrollToBottomSignal = 0,
+  contentLayout = 'fixed',
+  bottomInsetPx = 0,
   scrollPersistenceEnabled = false,
   scrollRestoreState = null,
   primaryActionRef,
@@ -108,6 +114,8 @@ export function TranscriptRenderer({
         items={renderItems}
         scrollContextKey={resolvedScrollContextKey}
         scrollToBottomSignal={scrollToBottomSignal}
+        contentLayout={contentLayout}
+        bottomInsetPx={bottomInsetPx}
         scrollPersistenceEnabled={scrollPersistenceEnabled}
         scrollRestoreState={scrollRestoreState}
         searchTarget={searchTarget}
@@ -132,6 +140,8 @@ export function TranscriptRenderer({
       loadingError={loadingError}
       scrollContextKey={resolvedScrollContextKey}
       scrollToBottomSignal={scrollToBottomSignal}
+      contentLayout={contentLayout}
+      bottomInsetPx={bottomInsetPx}
       scrollPersistenceEnabled={scrollPersistenceEnabled}
       scrollRestoreState={scrollRestoreState}
       primaryActionRef={primaryActionRef}
@@ -291,6 +301,8 @@ function LiveTranscriptView({
   items,
   scrollContextKey,
   scrollToBottomSignal,
+  contentLayout,
+  bottomInsetPx,
   scrollPersistenceEnabled,
   scrollRestoreState,
   searchTarget,
@@ -306,6 +318,8 @@ function LiveTranscriptView({
   items: RenderItem[]
   scrollContextKey: string
   scrollToBottomSignal: number
+  contentLayout: ContentLayout
+  bottomInsetPx: number
   scrollPersistenceEnabled: boolean
   scrollRestoreState: SessionTranscriptScrollState | null
   searchTarget?: SessionSearchTarget | null
@@ -380,22 +394,28 @@ function LiveTranscriptView({
       <TranscriptInlineSearchBar search={inlineSearch} />
       <div
         aria-label="Live transcript events"
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
         role="region"
         tabIndex={0}
         ref={transcriptScroll.setScrollElement}
         onScroll={transcriptScroll.handleScroll}
       >
         {items.length === 0 ? (
-          <div className="flex items-center gap-2 py-8 text-fd-tertiary">
-            <span className="size-1.5 animate-pulse rounded-full bg-fd-session-active" />
-            <span className="text-sm">Waiting for output...</span>
-          </div>
+          <TranscriptContentFrame contentLayout={contentLayout}>
+            <div className="flex items-center gap-2 py-8 text-fd-tertiary">
+              <span className="size-1.5 animate-pulse rounded-full bg-fd-session-active" />
+              <span className="text-sm">Waiting for output...</span>
+            </div>
+          </TranscriptContentFrame>
         ) : (
           <div
             className="relative w-full"
             data-testid="live-transcript-virtual-spacer"
-            style={{ height: `${transcriptScroll.estimatedTotalHeight + statusReservedSpace}px` }}
+            style={{
+              height: `${
+                transcriptScroll.estimatedTotalHeight + statusReservedSpace + bottomInsetPx
+              }px`,
+            }}
           >
             {transcriptScroll.rowsToRender.map((virtualRow) => {
               const renderItem = items[virtualRow.index]
@@ -413,44 +433,46 @@ function LiveTranscriptView({
                   className="absolute left-0 top-0 w-full pb-1.5"
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
-                  {renderItem.kind === 'tool-group' ? (
-                    <ToolGroupRow
-                      group={renderItem}
-                      isLive
-                      expandedToolIds={expandedToolIds}
-                      expandedGroup={Boolean(expandedToolGroupIds[renderItem.id])}
-                      onToggleToolGroup={onToggleToolGroup}
-                      onToggleTool={onToggleTool}
-                    />
-                  ) : renderItem.kind === 'mcp-status-group' ? (
-                    <McpStatusGroupRow
-                      group={renderItem}
-                      expandedGroup={Boolean(expandedMcpStatusGroupIds[renderItem.id])}
-                      onToggleGroup={onToggleMcpStatusGroup}
-                    />
-                  ) : renderItem.item.kind === 'tool' ? (
-                    <StandaloneToolWrapper>
-                      <LiveToolRow
-                        item={renderItem.item}
-                        expanded={Boolean(expandedToolIds[renderItem.item.toolUseId])}
+                  <TranscriptContentFrame contentLayout={contentLayout}>
+                    {renderItem.kind === 'tool-group' ? (
+                      <ToolGroupRow
+                        group={renderItem}
+                        isLive
+                        expandedToolIds={expandedToolIds}
+                        expandedGroup={Boolean(expandedToolGroupIds[renderItem.id])}
+                        onToggleToolGroup={onToggleToolGroup}
                         onToggleTool={onToggleTool}
                       />
-                    </StandaloneToolWrapper>
-                  ) : (
-                    <TimelineItemRow
-                      item={renderItem.item}
-                      isPending={
-                        renderItem.item.kind === 'permission'
-                          ? pendingPermissionRequestIdSet.has(renderItem.item.requestId)
-                          : renderItem.item.kind === 'askUser'
-                            ? pendingAskUserRequestIdSet.has(renderItem.item.requestId)
-                            : false
-                      }
-                      onResolvePermissionRequest={onResolvePermissionRequest}
-                      onSubmitAskUserResponse={onSubmitAskUserResponse}
-                      onForkFromMessage={onForkFromMessage}
-                    />
-                  )}
+                    ) : renderItem.kind === 'mcp-status-group' ? (
+                      <McpStatusGroupRow
+                        group={renderItem}
+                        expandedGroup={Boolean(expandedMcpStatusGroupIds[renderItem.id])}
+                        onToggleGroup={onToggleMcpStatusGroup}
+                      />
+                    ) : renderItem.item.kind === 'tool' ? (
+                      <StandaloneToolWrapper>
+                        <LiveToolRow
+                          item={renderItem.item}
+                          expanded={Boolean(expandedToolIds[renderItem.item.toolUseId])}
+                          onToggleTool={onToggleTool}
+                        />
+                      </StandaloneToolWrapper>
+                    ) : (
+                      <TimelineItemRow
+                        item={renderItem.item}
+                        isPending={
+                          renderItem.item.kind === 'permission'
+                            ? pendingPermissionRequestIdSet.has(renderItem.item.requestId)
+                            : renderItem.item.kind === 'askUser'
+                              ? pendingAskUserRequestIdSet.has(renderItem.item.requestId)
+                              : false
+                        }
+                        onResolvePermissionRequest={onResolvePermissionRequest}
+                        onSubmitAskUserResponse={onSubmitAskUserResponse}
+                        onForkFromMessage={onForkFromMessage}
+                      />
+                    )}
+                  </TranscriptContentFrame>
                 </div>
               )
             })}
@@ -460,10 +482,14 @@ function LiveTranscriptView({
 
       <JumpToLatestButton
         visible={transcriptScroll.showJumpButton && items.length > 0}
+        bottomInsetPx={bottomInsetPx}
         onClick={() => transcriptScroll.scrollToLatest('smooth')}
       />
       {statusIndicator ? (
-        <div className="pointer-events-none absolute bottom-2 left-2 z-10">
+        <div
+          className="pointer-events-none absolute left-2 z-10"
+          style={{ bottom: `${bottomInsetPx + 8}px` }}
+        >
           <LiveSessionStatusPill status={statusIndicator} className="pointer-events-auto" />
         </div>
       ) : null}
@@ -478,6 +504,8 @@ function HistoricalTranscriptView({
   scrollContextKey,
   searchTarget,
   scrollToBottomSignal,
+  contentLayout,
+  bottomInsetPx,
   scrollPersistenceEnabled,
   scrollRestoreState,
   primaryActionRef,
@@ -491,6 +519,8 @@ function HistoricalTranscriptView({
   scrollContextKey: string
   searchTarget: SessionSearchTarget | null
   scrollToBottomSignal: number
+  contentLayout: ContentLayout
+  bottomInsetPx: number
   scrollPersistenceEnabled: boolean
   scrollRestoreState: SessionTranscriptScrollState | null
   primaryActionRef?: MutableRefObject<HTMLElement | null>
@@ -626,56 +656,62 @@ function HistoricalTranscriptView({
         ref={transcriptScroll.setScrollElement}
         role="region"
         aria-label="Transcript messages"
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
         onScroll={transcriptScroll.handleScroll}
       >
         {isLoading && !hasTranscript ? (
-          <div className="flex flex-col gap-3 px-3 py-3">
-            <div className="flex flex-col gap-1.5">
-              <SkeletonBlock className="h-5 w-1/3" />
-            </div>
-            {TRANSCRIPT_LOADING_ROW_IDS.map((rowId) => (
-              <div
-                key={rowId}
-                className="flex flex-col gap-2 rounded-md border border-fd-border-subtle bg-fd-panel px-3 py-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <SkeletonBlock className="h-4 w-16" />
-                  <SkeletonBlock className="h-3 w-24" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <SkeletonBlock className="h-3.5 w-full" />
-                  <SkeletonBlock className="h-3.5 w-5/6" />
-                  <SkeletonBlock className="h-3.5 w-2/3" />
-                </div>
+          <TranscriptContentFrame contentLayout={contentLayout}>
+            <div className="flex flex-col gap-3 px-3 py-3">
+              <div className="flex flex-col gap-1.5">
+                <SkeletonBlock className="h-5 w-1/3" />
               </div>
-            ))}
-          </div>
+              {TRANSCRIPT_LOADING_ROW_IDS.map((rowId) => (
+                <div
+                  key={rowId}
+                  className="flex flex-col gap-2 rounded-md border border-fd-border-subtle bg-fd-panel px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <SkeletonBlock className="h-4 w-16" />
+                    <SkeletonBlock className="h-3 w-24" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <SkeletonBlock className="h-3.5 w-full" />
+                    <SkeletonBlock className="h-3.5 w-5/6" />
+                    <SkeletonBlock className="h-3.5 w-2/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TranscriptContentFrame>
         ) : loadingError && !hasTranscript ? (
-          <StateCard
-            icon={AlertTriangle}
-            eyebrow="Recovery"
-            title="Unable to load transcript"
-            description="OXOX could not refresh the selected transcript. Retry to restore the cached conversation view."
-            actions={
-              onRetry ? (
-                <Button type="button" onClick={onRetry}>
-                  Retry transcript
-                </Button>
-              ) : null
-            }
-          />
+          <TranscriptContentFrame contentLayout={contentLayout}>
+            <StateCard
+              icon={AlertTriangle}
+              eyebrow="Recovery"
+              title="Unable to load transcript"
+              description="OXOX could not refresh the selected transcript. Retry to restore the cached conversation view."
+              actions={
+                onRetry ? (
+                  <Button type="button" onClick={onRetry}>
+                    Retry transcript
+                  </Button>
+                ) : null
+              }
+            />
+          </TranscriptContentFrame>
         ) : items.length === 0 ? (
-          <StateCard
-            icon={FileSearch}
-            eyebrow="Transcript"
-            title="Transcript unavailable"
-            description="Choose a session with artifact-backed transcript data to inspect its chronological conversation history."
-          />
+          <TranscriptContentFrame contentLayout={contentLayout}>
+            <StateCard
+              icon={FileSearch}
+              eyebrow="Transcript"
+              title="Transcript unavailable"
+              description="Choose a session with artifact-backed transcript data to inspect its chronological conversation history."
+            />
+          </TranscriptContentFrame>
         ) : (
           <div
             className="relative w-full"
-            style={{ height: `${transcriptScroll.estimatedTotalHeight}px` }}
+            style={{ height: `${transcriptScroll.estimatedTotalHeight + bottomInsetPx}px` }}
           >
             {transcriptScroll.rowsToRender.map((virtualRow) => {
               const entry = items[virtualRow.index]
@@ -699,36 +735,34 @@ function HistoricalTranscriptView({
                   }`}
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
-                  {entry.kind === 'tool-group' ? (
-                    <ToolGroupRow
-                      group={entry}
-                      isLive={false}
-                      expandedToolIds={expandedToolIds}
-                      expandedGroup={Boolean(expandedToolGroupIds[entry.id])}
-                      onToggleToolGroup={toggleToolGroup}
-                      onToggleTool={toggleToolCall}
-                    />
-                  ) : entry.kind === 'mcp-status-group' ? (
-                    <McpStatusGroupRow
-                      group={entry}
-                      expandedGroup={Boolean(expandedMcpStatusGroupIds[entry.id])}
-                      onToggleGroup={toggleMcpStatusGroup}
-                    />
-                  ) : entry.item.kind === 'tool' ? (
-                    <StandaloneToolWrapper>
-                      <HistoricalToolCallRow
-                        item={entry.item}
-                        expanded={Boolean(expandedToolIds[entry.item.toolUseId])}
-                        onToggle={toggleToolCall}
+                  <TranscriptContentFrame contentLayout={contentLayout}>
+                    {entry.kind === 'tool-group' ? (
+                      <ToolGroupRow
+                        group={entry}
+                        isLive={false}
+                        expandedToolIds={expandedToolIds}
+                        expandedGroup={Boolean(expandedToolGroupIds[entry.id])}
+                        onToggleToolGroup={toggleToolGroup}
+                        onToggleTool={toggleToolCall}
                       />
-                    </StandaloneToolWrapper>
-                  ) : (
-                    <TimelineItemRow
-                      item={entry.item}
-                      isPending={false}
-                      onForkFromMessage={onForkFromMessage}
-                    />
-                  )}
+                    ) : entry.kind === 'mcp-status-group' ? (
+                      <McpStatusGroupRow
+                        group={entry}
+                        expandedGroup={Boolean(expandedMcpStatusGroupIds[entry.id])}
+                        onToggleGroup={toggleMcpStatusGroup}
+                      />
+                    ) : entry.item.kind === 'tool' ? (
+                      <StandaloneToolWrapper>
+                        <HistoricalToolCallRow
+                          item={entry.item}
+                          expanded={Boolean(expandedToolIds[entry.item.toolUseId])}
+                          onToggle={toggleToolCall}
+                        />
+                      </StandaloneToolWrapper>
+                    ) : (
+                      <TimelineItemRow item={entry.item} onForkFromMessage={onForkFromMessage} />
+                    )}
+                  </TranscriptContentFrame>
                 </div>
               )
             })}
@@ -737,6 +771,7 @@ function HistoricalTranscriptView({
       </div>
       <JumpToLatestButton
         visible={transcriptScroll.showJumpButton && hasTranscript}
+        bottomInsetPx={bottomInsetPx}
         onClick={() => transcriptScroll.scrollToLatest('smooth')}
       />
     </section>
@@ -907,11 +942,22 @@ function StandaloneToolWrapper({ children }: { children: ReactNode }) {
   )
 }
 
-function JumpToLatestButton({ visible, onClick }: { visible: boolean; onClick: () => void }) {
+function JumpToLatestButton({
+  visible,
+  bottomInsetPx = 0,
+  onClick,
+}: {
+  visible: boolean
+  bottomInsetPx?: number
+  onClick: () => void
+}) {
   if (!visible) return null
 
   return (
-    <div className="pointer-events-none absolute bottom-3 right-3 z-10">
+    <div
+      className="pointer-events-none absolute right-3 z-10"
+      style={{ bottom: `${bottomInsetPx + 12}px` }}
+    >
       <Button
         type="button"
         size="icon-sm"
@@ -923,6 +969,20 @@ function JumpToLatestButton({ visible, onClick }: { visible: boolean; onClick: (
         <ArrowDown className="size-3.5" />
       </Button>
     </div>
+  )
+}
+
+function TranscriptContentFrame({
+  contentLayout,
+  children,
+}: {
+  contentLayout: ContentLayout
+  children: ReactNode
+}) {
+  return (
+    <ContentContainer layout={contentLayout} data-testid="transcript-content-frame">
+      {children}
+    </ContentContainer>
   )
 }
 

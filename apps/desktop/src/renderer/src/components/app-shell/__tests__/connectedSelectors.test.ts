@@ -96,6 +96,9 @@ describe('app-shell connected selectors', () => {
           persistTranscriptScrollPerSession: {
             get: () => true,
           },
+          contentLayout: {
+            get: () => 'fixed',
+          },
         },
       } as never,
     })
@@ -108,6 +111,7 @@ describe('app-shell connected selectors', () => {
     expect(props.selectedLiveTimeline).toEqual([])
     expect(props.transcriptSearchTarget?.messageId).toBe('message-1')
     expect(props.transcriptScrollPersistenceEnabled).toBe(true)
+    expect(props.contentLayout).toBe('fixed')
     expect(props.transcriptScrollState).toEqual(
       expect.objectContaining({ sessionId: 'session-1', scrollTop: 120 }),
     )

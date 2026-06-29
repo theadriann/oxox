@@ -1,5 +1,6 @@
 import { useValue } from '@legendapp/state/react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
 
 import { createLayoutTransition, createViewPresenceVariants } from '../../lib/motion'
 import {
@@ -24,6 +25,8 @@ interface AppShellMainContentProps {
   prefersReducedMotion: boolean
 }
 
+const TRANSCRIPT_COMPOSER_BOTTOM_GAP_PX = 28
+
 export function AppShellMainContent({ prefersReducedMotion }: AppShellMainContentProps) {
   const foundationStore = useFoundationStore()
   const liveSessionStore = useLiveSessionStore()
@@ -43,6 +46,9 @@ export function AppShellMainContent({ prefersReducedMotion }: AppShellMainConten
   const settingsSection = useValue(uiStore.state$.settingsSection)
   const isContextPanelHidden = useValue(uiStore.state$.isContextPanelHidden)
   const contentLayout = useValue(uiStore.state$.contentLayout)
+  const [composerContainer, setComposerContainer] = useState<HTMLDivElement | null>(null)
+  const composerBottomInsetPx =
+    useElementHeight(composerContainer) + TRANSCRIPT_COMPOSER_BOTTOM_GAP_PX
   const contextLayoutClass = isContextPanelHidden
     ? 'oxox-content-area--with-context-rail'
     : 'oxox-content-area--with-context'
@@ -73,11 +79,11 @@ export function AppShellMainContent({ prefersReducedMotion }: AppShellMainConten
           layout
           ref={detailPanelRef}
           aria-label="Session detail panel"
-          className="flex min-h-0 min-w-0 flex-col overflow-hidden"
+          className="relative min-h-0 min-w-0 overflow-hidden"
           transition={createLayoutTransition(prefersReducedMotion)}
         >
-          <div className="flex-1 min-h-0 overflow-hidden px-4 pt-2">
-            <ContentContainer layout={contentLayout} className="flex h-full min-h-0 flex-col">
+          <div className="absolute inset-0 overflow-hidden pt-2">
+            <div className="flex h-full min-h-0 w-full flex-col">
               <AnimatePresence initial={false} mode="wait">
                 <motion.div
                   key={detailViewKey}
@@ -89,20 +95,31 @@ export function AppShellMainContent({ prefersReducedMotion }: AppShellMainConten
                     shouldAnimate ? createViewPresenceVariants(prefersReducedMotion) : undefined
                   }
                 >
-                  <DetailPanelConnected />
+                  <DetailPanelConnected transcriptBottomInsetPx={composerBottomInsetPx} />
                 </motion.div>
               </AnimatePresence>
-            </ContentContainer>
+            </div>
           </div>
-          <div className="flex flex-col gap-2 pb-2">
-            <ContentContainer layout={contentLayout}>
-              <div className="ox-composer overflow-hidden rounded-lg">
+          <div
+            ref={setComposerContainer}
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 pb-2"
+          >
+            <ContentContainer
+              layout={contentLayout}
+              className="pointer-events-none absolute inset-x-0 bottom-2 z-0 h-[calc(100%+32px)]"
+              data-testid="composer-bottom-veil"
+            >
+              <div className="-mx-1 h-full rounded-xl bg-[linear-gradient(to_top,var(--fd-canvas)_0%,color-mix(in_srgb,var(--fd-canvas)_94%,transparent)_72%,transparent_100%)]" />
+            </ContentContainer>
+            <ContentContainer layout={contentLayout} className="relative z-10">
+              <div className="ox-composer pointer-events-auto overflow-hidden rounded-lg">
                 <TodoListConnected />
                 {shouldRenderComposer ? (
                   <SessionComposerConnected canComposeDetached={canComposeDetached} />
                 ) : null}
               </div>
             </ContentContainer>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2 bg-fd-canvas" />
           </div>
         </motion.section>
 
@@ -113,4 +130,32 @@ export function AppShellMainContent({ prefersReducedMotion }: AppShellMainConten
       </div>
     </>
   )
+}
+
+function useElementHeight(element: HTMLElement | null): number {
+  const [height, setHeight] = useState(0)
+
+  useEffect(() => {
+    if (!element) {
+      setHeight(0)
+      return
+    }
+
+    const updateHeight = () => {
+      setHeight(Math.ceil(element.getBoundingClientRect().height))
+    }
+
+    updateHeight()
+
+    if (typeof ResizeObserver === 'undefined') {
+      return
+    }
+
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(element)
+
+    return () => observer.disconnect()
+  }, [element])
+
+  return height
 }

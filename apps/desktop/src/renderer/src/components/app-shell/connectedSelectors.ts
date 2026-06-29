@@ -84,12 +84,14 @@ export function buildDetailPanelConnectedProps({
     ? transcriptStore.transcriptForSession(selectedSessionId)
     : null
   const transcriptScrollPersistenceEnabled = uiStore.state$.persistTranscriptScrollPerSession.get()
+  const contentLayout = uiStore.state$.contentLayout.get()
   const transcriptScrollState =
     selectedSessionId && transcriptScrollPersistenceEnabled
       ? transcriptStore.scrollStateForSession(selectedSessionId)
       : null
 
   return {
+    contentLayout,
     foundation: foundationStore.foundation,
     hasDeletedSelection: sessionStore.hasDeletedSelection,
     hasFoundationError: foundationStore.hasError,
@@ -134,6 +136,7 @@ export function buildDetailPanelConnectedProps({
     transcriptScrollPersistenceEnabled,
     transcriptScrollSignal,
     transcriptScrollState,
+    transcriptBottomInsetPx: 0,
     transportProtocol: transportStore.protocol,
   }
 }
