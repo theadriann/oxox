@@ -1816,6 +1816,53 @@ describe('TranscriptRenderer (historical)', () => {
     expect(Number.parseFloat(firstRow.parentElement?.style.height ?? '0')).toBeGreaterThan(96)
   })
 
+  it('shows user message timeline previews and scrolls to the selected message', async () => {
+    render(
+      <TranscriptRenderer
+        items={buildHistoricalTimeline(createTranscript(8).entries)}
+        isLive={false}
+        isLoading={false}
+      />,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const rail = screen.getByTestId('transcript-user-message-rail')
+    const track = screen.getByTestId('transcript-user-message-rail-track')
+    const markers = screen.getAllByTestId('transcript-user-message-marker')
+    const markerLines = screen.getAllByTestId('transcript-user-message-marker-line')
+    const marker = markers[0]
+
+    expect(rail).toBeTruthy()
+    expect(rail.className).toContain('-translate-y-1/2')
+    expect(rail.style.top).toContain('100% - 0px')
+    expect(track.style.gap).toBe('4px')
+    expect(markers).toHaveLength(4)
+    expect(markerLines.map((line) => line.style.width)).toEqual(['12px', '12px', '12px', '12px'])
+    expect(markerLines.map((line) => line.style.height)).toEqual(['3px', '3px', '3px', '3px'])
+    expect(rail.closest('[data-testid="transcript-row"]')).toBeNull()
+
+    fireEvent.mouseMove(track, { clientY: 7 })
+
+    const preview = screen.getByTestId('transcript-user-message-preview')
+    expect(preview).toBeTruthy()
+    expect(within(preview).getByText(/Virtualized row 1/)).toBeTruthy()
+    expect(within(preview).getByText(/Virtualized row 2/)).toBeTruthy()
+    expect(markerLines[0].style.width).toBe('42px')
+    expect(markerLines[1].style.width).toBe('32px')
+    expect(markerLines[2].style.width).toBe('22px')
+
+    fireEvent.click(marker)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(scrollToMock).toHaveBeenCalled()
+  })
+
   it('renders loading and retry states before transcript data is available', async () => {
     const onRetry = vi.fn()
 

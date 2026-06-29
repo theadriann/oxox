@@ -37,6 +37,10 @@ import { SystemEventCard } from './SystemEventCard'
 import { ThinkingCard } from './ThinkingCard'
 import { ToolCallCard } from './ToolCallCard'
 import { ToolCallGroup } from './ToolCallGroup'
+import {
+  buildTranscriptUserMessageMarkers,
+  TranscriptUserMessageRail,
+} from './TranscriptUserMessageRail'
 import type { TimelineItem, ToolTimelineItem } from './timelineTypes'
 import { groupConsecutiveToolItems } from './toolCallGrouping'
 import {
@@ -370,6 +374,7 @@ function LiveTranscriptView({
     searchTexts: inlineSearchTexts,
     onNavigateToRow: transcriptScroll.navigateToRow,
   })
+  const userMessageMarkers = useMemo(() => buildTranscriptUserMessageMarkers(items), [items])
   const statusReservedSpace = statusIndicator ? LIVE_STATUS_RESERVED_SPACE_PX : 0
   useTranscriptInlineSearchHighlights({
     containerRef: transcriptScroll.scrollAreaRef,
@@ -479,6 +484,13 @@ function LiveTranscriptView({
           </div>
         )}
       </div>
+      {items.length > 0 ? (
+        <TranscriptUserMessageRail
+          markers={userMessageMarkers}
+          bottomInsetPx={bottomInsetPx}
+          onNavigate={transcriptScroll.navigateToRow}
+        />
+      ) : null}
 
       <JumpToLatestButton
         visible={transcriptScroll.showJumpButton && items.length > 0}
@@ -574,6 +586,7 @@ function HistoricalTranscriptView({
     searchTexts: inlineSearchTexts,
     onNavigateToRow: transcriptScroll.navigateToRow,
   })
+  const userMessageMarkers = useMemo(() => buildTranscriptUserMessageMarkers(items), [items])
   useTranscriptInlineSearchHighlights({
     containerRef: transcriptScroll.scrollAreaRef,
     isOpen: inlineSearch.isOpen,
@@ -771,6 +784,13 @@ function HistoricalTranscriptView({
           </div>
         )}
       </div>
+      {hasTranscript ? (
+        <TranscriptUserMessageRail
+          markers={userMessageMarkers}
+          bottomInsetPx={bottomInsetPx}
+          onNavigate={transcriptScroll.navigateToRow}
+        />
+      ) : null}
       <JumpToLatestButton
         visible={transcriptScroll.showJumpButton && hasTranscript}
         bottomInsetPx={bottomInsetPx}
