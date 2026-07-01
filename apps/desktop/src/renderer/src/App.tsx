@@ -10,6 +10,16 @@ import {
   getDebugHelpCommands,
   getInitialDebugLabRoute,
 } from './components/debug/DebugLab'
+import {
+  clearTranscriptScrollDebugEvents,
+  getTranscriptScrollDebugEvents,
+  setTranscriptScrollDebugEnabled,
+} from './components/transcript/transcriptScrollDebug'
+import {
+  clearTranscriptSizeProfile,
+  getTranscriptSizeProfile,
+  setTranscriptSizeProfilingEnabled,
+} from './components/transcript/transcriptSizeProfile'
 import { Toaster } from './components/ui/sonner'
 import { MOTION_DURATION_SECONDS, MOTION_EASING } from './lib/motion'
 
@@ -22,6 +32,14 @@ function App() {
   useEffect(() => {
     window.oxoxDebug = {
       close: () => setDebugRoute(null),
+      clearTranscriptSizeProfile,
+      clearTranscriptScrollDebugEvents,
+      disableTranscriptSizeProfiling: () => setTranscriptSizeProfilingEnabled(false),
+      disableTranscriptScrollDebug: () => setTranscriptScrollDebugEnabled(false),
+      enableTranscriptSizeProfiling: () => setTranscriptSizeProfilingEnabled(true),
+      enableTranscriptScrollDebug: () => setTranscriptScrollDebugEnabled(true),
+      getTranscriptScrollDebugEvents,
+      getTranscriptSizeProfile,
       help: getDebugHelpCommands,
       open: () => setDebugRoute({ view: 'home' }),
       renderBakedTranscript: (request: Omit<DebugTranscriptRequest, 'entries' | 'items'> = {}) =>

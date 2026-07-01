@@ -1009,12 +1009,53 @@ describe('TranscriptRenderer (live)', () => {
     expect(screen.queryByText('Scanning session artifact\u2026')).toBeNull()
 
     fireEvent.click(groupToggle)
+    expect(screen.getByTestId('live-transcript-row').dataset.transcriptExpandedToolCount).toBe('1')
     fireEvent.click(screen.getByRole('button', { name: /toggle details for read/i }))
 
     expect(screen.getByText('Scanning session artifact\u2026')).toBeTruthy()
     expect(
       screen.getAllByText((_, node) => node?.textContent?.includes('"loaded": true') ?? false)[0],
     ).toBeTruthy()
+  })
+
+  it('opens grouped tool rows for tool scroll targets', async () => {
+    render(
+      <TranscriptRenderer
+        items={buildLiveTimeline(
+          createSnapshot({
+            events: [
+              {
+                type: 'tool.progress',
+                toolUseId: 'tool-1',
+                toolName: 'Read',
+                status: 'running',
+                detail: 'Scanning session artifact\u2026',
+              },
+              {
+                type: 'tool.progress',
+                toolUseId: 'tool-2',
+                toolName: 'TodoWrite',
+                status: 'running',
+                detail: 'Recording implementation progress\u2026',
+              },
+            ],
+          }),
+        )}
+        isLive
+        isLoading={false}
+        scrollTargetRequest={{
+          requestId: 'target-tool-2',
+          target: { kind: 'tool', toolUseId: 'tool-2' },
+        }}
+      />,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('button', { name: /toggle details for todowrite/i })).toBeTruthy()
+    expect(screen.getByText('Recording implementation progress\u2026')).toBeTruthy()
   })
 
   it('renders recoverable stream errors as a connection-lost state with reconnect guidance', () => {

@@ -8,11 +8,14 @@ import {
   ServerCog,
 } from 'lucide-react'
 import {
+  type Dispatch,
   type MutableRefObject,
   memo,
   type ReactNode,
+  type SetStateAction,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from 'react'
@@ -33,6 +36,7 @@ import { LiveToolRow } from './LiveToolRow'
 import type { LiveSessionStatusIndicator } from './liveSessionStatusIndicator'
 import { MessageCard } from './MessageCard'
 import { PermissionCard } from './PermissionCard'
+import { parseMessageSegments } from './parseMessageSegments'
 import { SystemEventCard } from './SystemEventCard'
 import { ThinkingCard } from './ThinkingCard'
 import { ToolCallCard } from './ToolCallCard'
@@ -49,6 +53,11 @@ import {
   useTranscriptInlineSearch,
   useTranscriptInlineSearchHighlights,
 } from './transcriptInlineSearch'
+import {
+  getTranscriptScrollRequestKey,
+  type TranscriptScrollRequest,
+  type TranscriptScrollTarget,
+} from './transcriptScrollTarget'
 import { useTranscriptVirtualScroll } from './useTranscriptVirtualScroll'
 
 const TRANSCRIPT_LOADING_ROW_IDS = [
@@ -57,6 +66,7 @@ const TRANSCRIPT_LOADING_ROW_IDS = [
   'transcript-loading-c',
 ]
 const LIVE_STATUS_RESERVED_SPACE_PX = 56
+const COLLAPSED_DISCLOSURE_ROW_ESTIMATE_PX = 42
 
 export interface TranscriptRendererProps {
   items: TimelineItem[]
@@ -65,6 +75,7 @@ export interface TranscriptRendererProps {
   loadingError?: string | null
   scrollContextKey?: string
   searchTarget?: SessionSearchTarget | null
+  scrollTargetRequest?: TranscriptScrollRequest | null
   scrollToBottomSignal?: number
   contentLayout?: ContentLayout
   bottomInsetPx?: number
@@ -91,6 +102,7 @@ export function TranscriptRenderer({
   loadingError = null,
   scrollContextKey,
   searchTarget = null,
+  scrollTargetRequest = null,
   scrollToBottomSignal = 0,
   contentLayout = 'fixed',
   bottomInsetPx = 0,
@@ -123,6 +135,7 @@ export function TranscriptRenderer({
         scrollPersistenceEnabled={scrollPersistenceEnabled}
         scrollRestoreState={scrollRestoreState}
         searchTarget={searchTarget}
+        scrollTargetRequest={scrollTargetRequest}
         primaryActionRef={primaryActionRef}
         pendingPermissionRequestIds={pendingPermissionRequestIds}
         pendingAskUserRequestIds={pendingAskUserRequestIds}
@@ -141,6 +154,7 @@ export function TranscriptRenderer({
       items={renderItems}
       isLoading={isLoading}
       searchTarget={searchTarget}
+      scrollTargetRequest={scrollTargetRequest}
       loadingError={loadingError}
       scrollContextKey={resolvedScrollContextKey}
       scrollToBottomSignal={scrollToBottomSignal}
@@ -223,12 +237,121 @@ function buildRenderItems(items: TimelineItem[]): RenderItem[] {
   return result
 }
 
-function estimateRenderItemSize(item: RenderItem | undefined): number {
+export function estimateRenderItemSize(item: RenderItem | undefined): number {
   if (!item) {
-    return 180
+    return 220
   }
 
-  return item.kind === 'tool-group' || item.kind === 'mcp-status-group' ? 72 : 180
+  if (item.kind === 'tool-group') {
+    return COLLAPSED_DISCLOSURE_ROW_ESTIMATE_PX
+  }
+
+  if (item.kind === 'mcp-status-group') {
+    return COLLAPSED_DISCLOSURE_ROW_ESTIMATE_PX
+  }
+
+  switch (item.item.kind) {
+    case 'message':
+      return estimateMessageRenderItemSize(item.item)
+    case 'thinking':
+      return 128
+    case 'tool':
+      return COLLAPSED_DISCLOSURE_ROW_ESTIMATE_PX
+    case 'permission':
+      return 230
+    case 'askUser':
+      return 240
+    case 'event':
+      return item.item.layout === 'compact' ? 64 : 104
+    default:
+      return 200
+  }
+}
+
+function estimateMessageRenderItemSize(item: Extract<TimelineItem, { kind: 'message' }>): number {
+  const textContent = getMessageTextContent(item)
+  const segments = item.role === 'user' ? parseMessageSegments(textContent) : []
+  const visibleTextLength =
+    item.role === 'user'
+      ? segments
+          .filter((segment) => segment.kind === 'text')
+          .reduce((total, segment) => total + segment.content.length, 0)
+      : textContent.length
+  const collapsedReminderCount =
+    item.role === 'user'
+      ? segments.filter((segment) => segment.kind === 'system-reminder').length
+      : 0
+  const lineEstimate = Math.max(
+    visibleTextLength > 0 ? 1 : 0,
+    Math.ceil(visibleTextLength / (item.role === 'user' ? 64 : 82)),
+  )
+  const imageBlockCount = item.contentBlocks?.filter((block) => block.type === 'image').length ?? 0
+  const thinkingBlockCount =
+    item.contentBlocks?.filter((block) => block.type === 'thinking').length ?? 0
+  const markdownHeight =
+    item.role === 'assistant' || item.role === 'system'
+      ? estimateMarkdownRenderHeight(textContent)
+      : null
+  const base = item.role === 'user' ? 76 : 96
+  const lineHeight = item.role === 'user' ? 24 : 24
+  const collapsedReminderHeight = collapsedReminderCount * 28
+  const plainTextHeight = base + lineEstimate * lineHeight
+  const textHeight =
+    markdownHeight === null ? plainTextHeight : Math.max(plainTextHeight, markdownHeight)
+
+  return Math.min(
+    item.role === 'user' ? 3600 : 4800,
+    textHeight + thinkingBlockCount * 28 + imageBlockCount * 220 + collapsedReminderHeight,
+  )
+}
+
+function estimateMarkdownRenderHeight(markdown: string): number {
+  const fencedBlocks = getFencedCodeBlocks(markdown)
+  const markdownWithoutFences = fencedBlocks.reduce(
+    (content, block) => content.replace(block.fullMatch, '\n'),
+    markdown,
+  )
+  const textHeight = estimateMarkdownTextHeight(markdownWithoutFences)
+  const codeHeight = fencedBlocks.reduce(
+    (total, block) => total + estimateCodeBlockHeight(block.code),
+    0,
+  )
+
+  return 72 + textHeight + codeHeight
+}
+
+function getFencedCodeBlocks(markdown: string): Array<{ fullMatch: string; code: string }> {
+  return [...markdown.matchAll(/```[^\n]*\n([\s\S]*?)```/gu)].map((match) => ({
+    fullMatch: match[0],
+    code: match[1] ?? '',
+  }))
+}
+
+function estimateCodeBlockHeight(code: string): number {
+  const lines = code.length > 0 ? code.split('\n') : ['']
+  const wrappedLineCount = lines.reduce(
+    (total, line) => total + Math.max(1, Math.ceil(line.length / 92)),
+    0,
+  )
+
+  return 72 + wrappedLineCount * 20
+}
+
+function estimateMarkdownTextHeight(markdown: string): number {
+  const visibleLength = markdown.replace(/\s+/gu, ' ').trim().length
+  const explicitLineCount = markdown.split('\n').filter((line) => line.trim()).length
+  const wrappedLineCount = Math.ceil(visibleLength / 76)
+  const lineCount = Math.max(explicitLineCount, wrappedLineCount)
+
+  return lineCount * 24
+}
+
+function getMessageTextContent(item: Extract<TimelineItem, { kind: 'message' }>): string {
+  const textFromBlocks = item.contentBlocks
+    ?.flatMap((block) => (block.type === 'text' ? [block.text] : []))
+    .join('\n\n')
+
+  return textFromBlocks && textFromBlocks.length > 0 ? textFromBlocks : item.content
 }
 
 function isMcpStatusEvent(item: TimelineItem): item is Extract<TimelineItem, { kind: 'event' }> {
@@ -243,6 +366,10 @@ function getRenderItemSearchText(item: RenderItem): string {
   return getTimelineItemSearchText(item.item)
 }
 
+function getRenderItemKey(item: RenderItem | undefined, index: number): string | number {
+  return item?.id ?? index
+}
+
 function renderItemMatchesSearchTarget(item: RenderItem, target: SessionSearchTarget): boolean {
   if (target.messageId && getRenderItemMessageId(item) === target.messageId) {
     return true
@@ -255,8 +382,36 @@ function renderItemMatchesSearchTarget(item: RenderItem, target: SessionSearchTa
   return item.id === target.sourceId
 }
 
+function renderItemMatchesScrollTarget(item: RenderItem, target: TranscriptScrollTarget): boolean {
+  switch (target.kind) {
+    case 'message':
+      return getRenderItemMessageId(item) === target.messageId
+    case 'tool':
+      return Boolean(getRenderItemToolCallId(item)?.split(' ').includes(target.toolUseId))
+    case 'timelineItem':
+      return item.id === target.id || (item.kind === 'timeline-item' && item.item.id === target.id)
+    case 'row':
+      return false
+    default:
+      return false
+  }
+}
+
 function findRenderItemSearchTargetIndex(items: RenderItem[], target: SessionSearchTarget): number {
   return items.findIndex((item) => renderItemMatchesSearchTarget(item, target))
+}
+
+function findRenderItemScrollTargetIndex(
+  items: RenderItem[],
+  request: TranscriptScrollRequest,
+): number {
+  if (request.target.kind === 'row') {
+    return request.target.index >= 0 && request.target.index < items.length
+      ? request.target.index
+      : -1
+  }
+
+  return items.findIndex((item) => renderItemMatchesScrollTarget(item, request.target))
 }
 
 function getRenderItemMessageId(item: RenderItem): string | null {
@@ -273,6 +428,65 @@ function getRenderItemToolCallId(item: RenderItem): string | null {
   }
 
   return item.kind === 'timeline-item' && item.item.kind === 'tool' ? item.item.toolUseId : null
+}
+
+function getRenderItemProfileKind(item: RenderItem): string {
+  if (item.kind === 'tool-group' || item.kind === 'mcp-status-group') {
+    return item.kind
+  }
+
+  return item.item.kind
+}
+
+function getRenderItemToolCount(item: RenderItem): number | undefined {
+  if (item.kind === 'tool-group' || item.kind === 'mcp-status-group') {
+    return item.items.length
+  }
+
+  return item.item.kind === 'tool' ? 1 : undefined
+}
+
+function getRenderItemExpandedState(
+  item: RenderItem,
+  expandedToolGroupIds: Record<string, boolean>,
+  expandedToolIds: Record<string, boolean>,
+  expandedMcpStatusGroupIds: Record<string, boolean>,
+): boolean | undefined {
+  if (item.kind === 'tool-group') {
+    return Boolean(expandedToolGroupIds[item.id])
+  }
+
+  if (item.kind === 'mcp-status-group') {
+    return Boolean(expandedMcpStatusGroupIds[item.id])
+  }
+
+  if (item.item.kind === 'tool') {
+    return Boolean(expandedToolIds[item.item.toolUseId])
+  }
+
+  return undefined
+}
+
+function getExpandedToolCount(
+  item: RenderItem,
+  expandedToolGroupIds: Record<string, boolean>,
+  expandedToolIds: Record<string, boolean>,
+  expandedMcpStatusGroupIds: Record<string, boolean>,
+): number | undefined {
+  if (item.kind === 'tool-group') {
+    if (!expandedToolGroupIds[item.id]) return 0
+    return Math.max(1, item.items.filter((toolItem) => expandedToolIds[toolItem.toolUseId]).length)
+  }
+
+  if (item.kind === 'mcp-status-group') {
+    return expandedMcpStatusGroupIds[item.id] ? item.items.length : 0
+  }
+
+  if (item.item.kind === 'tool') {
+    return expandedToolIds[item.item.toolUseId] ? 1 : 0
+  }
+
+  return undefined
 }
 
 function rowDatasetMatchesSearchTarget(row: HTMLElement, target: SessionSearchTarget): boolean {
@@ -301,6 +515,96 @@ function getRenderedSearchTargetKey(target: SessionSearchTarget, scrollContextKe
   ].join(':')
 }
 
+function getScrollTargetToolUseId(
+  scrollTargetRequest: TranscriptScrollRequest | null | undefined,
+): string | null {
+  return scrollTargetRequest?.target.kind === 'tool' ? scrollTargetRequest.target.toolUseId : null
+}
+
+function findContainingToolGroup(
+  items: RenderItem[],
+  toolUseId: string,
+): Extract<RenderItem, { kind: 'tool-group' }> | null {
+  return (
+    items.find(
+      (item): item is Extract<RenderItem, { kind: 'tool-group' }> =>
+        item.kind === 'tool-group' &&
+        item.items.some((toolItem) => toolItem.toolUseId === toolUseId),
+    ) ?? null
+  )
+}
+
+function useOpenToolTarget({
+  items,
+  setExpandedToolGroupIds,
+  setExpandedToolIds,
+  toolUseId,
+}: {
+  items: RenderItem[]
+  setExpandedToolGroupIds: Dispatch<SetStateAction<Record<string, boolean>>>
+  setExpandedToolIds: Dispatch<SetStateAction<Record<string, boolean>>>
+  toolUseId: string | null | undefined
+}) {
+  useLayoutEffect(() => {
+    if (!toolUseId) return
+
+    setExpandedToolIds((current) => ({ ...current, [toolUseId]: true }))
+
+    const containingGroup = findContainingToolGroup(items, toolUseId)
+    if (containingGroup) {
+      setExpandedToolGroupIds((current) => ({ ...current, [containingGroup.id]: true }))
+    }
+  }, [items, setExpandedToolGroupIds, setExpandedToolIds, toolUseId])
+}
+
+function useRevealRenderedToolTarget({
+  behavior,
+  requestKey,
+  scrollAreaRef,
+  toolUseId,
+}: {
+  behavior?: ScrollBehavior
+  requestKey: string | null
+  scrollAreaRef: MutableRefObject<HTMLDivElement | null>
+  toolUseId: string | null
+}) {
+  useEffect(() => {
+    if (!requestKey || !toolUseId) return
+
+    let frame = 0
+    let attempts = 0
+    const scrollRenderedToolIntoView = () => {
+      const scrollArea = scrollAreaRef.current
+      const targetTool = scrollArea ? findRenderedToolElement(scrollArea, toolUseId) : null
+
+      if (targetTool) {
+        targetTool.scrollIntoView?.({
+          block: 'center',
+          behavior: behavior ?? 'auto',
+        })
+        return
+      }
+
+      attempts += 1
+      if (attempts < 6) {
+        frame = requestAnimationFrame(scrollRenderedToolIntoView)
+      }
+    }
+
+    frame = requestAnimationFrame(scrollRenderedToolIntoView)
+
+    return () => cancelAnimationFrame(frame)
+  }, [behavior, requestKey, scrollAreaRef, toolUseId])
+}
+
+function findRenderedToolElement(scrollArea: HTMLElement, toolUseId: string): HTMLElement | null {
+  return (
+    Array.from(scrollArea.querySelectorAll<HTMLElement>('[data-transcript-tool-use-id]')).find(
+      (element) => element.dataset.transcriptToolUseId === toolUseId,
+    ) ?? null
+  )
+}
+
 function LiveTranscriptView({
   items,
   scrollContextKey,
@@ -310,6 +614,7 @@ function LiveTranscriptView({
   scrollPersistenceEnabled,
   scrollRestoreState,
   searchTarget,
+  scrollTargetRequest,
   primaryActionRef,
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
@@ -327,6 +632,7 @@ function LiveTranscriptView({
   scrollPersistenceEnabled: boolean
   scrollRestoreState: SessionTranscriptScrollState | null
   searchTarget?: SessionSearchTarget | null
+  scrollTargetRequest?: TranscriptScrollRequest | null
   primaryActionRef?: MutableRefObject<HTMLElement | null>
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
@@ -352,12 +658,24 @@ function LiveTranscriptView({
     () => new Set(pendingAskUserRequestIds),
     [pendingAskUserRequestIds],
   )
+  const scrollTargetToolUseId = getScrollTargetToolUseId(scrollTargetRequest)
+  const scrollTargetRequestKey = getTranscriptScrollRequestKey(scrollTargetRequest)
+
+  useOpenToolTarget({
+    items,
+    setExpandedToolGroupIds,
+    setExpandedToolIds,
+    toolUseId: scrollTargetToolUseId,
+  })
 
   const latestTimelineMarker = useMemo(() => getLatestTimelineMarker(items), [items])
+  const statusReservedSpace = statusIndicator ? LIVE_STATUS_RESERVED_SPACE_PX : 0
   const transcriptScroll = useTranscriptVirtualScroll({
+    endPaddingPx: statusReservedSpace + bottomInsetPx,
     estimateSize: estimateRenderItemSize,
     findSearchTargetIndex: findRenderItemSearchTargetIndex,
-    getItemKey: (item, index) => item?.id ?? index,
+    findScrollTargetIndex: findRenderItemScrollTargetIndex,
+    getItemKey: getRenderItemKey,
     items,
     latestTimelineMarker,
     onScrollStateChange,
@@ -368,6 +686,7 @@ function LiveTranscriptView({
     scrollRestoreState,
     scrollToBottomSignal,
     searchTarget,
+    scrollTargetRequest,
   })
   const inlineSearchTexts = useMemo(() => items.map(getRenderItemSearchText), [items])
   const inlineSearch = useTranscriptInlineSearch({
@@ -375,11 +694,16 @@ function LiveTranscriptView({
     onNavigateToRow: transcriptScroll.navigateToRow,
   })
   const userMessageMarkers = useMemo(() => buildTranscriptUserMessageMarkers(items), [items])
-  const statusReservedSpace = statusIndicator ? LIVE_STATUS_RESERVED_SPACE_PX : 0
   useTranscriptInlineSearchHighlights({
     containerRef: transcriptScroll.scrollAreaRef,
     isOpen: inlineSearch.isOpen,
     query: inlineSearch.query,
+  })
+  useRevealRenderedToolTarget({
+    behavior: scrollTargetRequest?.behavior,
+    requestKey: scrollTargetRequestKey,
+    scrollAreaRef: transcriptScroll.scrollAreaRef,
+    toolUseId: scrollTargetToolUseId,
   })
 
   const onToggleTool = useCallback((toolUseId: string) => {
@@ -399,7 +723,7 @@ function LiveTranscriptView({
       <TranscriptInlineSearchBar search={inlineSearch} />
       <div
         aria-label="Live transcript events"
-        className="flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
+        className="flex-1 overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]"
         role="region"
         tabIndex={0}
         ref={transcriptScroll.setScrollElement}
@@ -416,11 +740,7 @@ function LiveTranscriptView({
           <div
             className="relative w-full"
             data-testid="live-transcript-virtual-spacer"
-            style={{
-              height: `${
-                transcriptScroll.estimatedTotalHeight + statusReservedSpace + bottomInsetPx
-              }px`,
-            }}
+            style={{ height: `${transcriptScroll.estimatedTotalHeight}px` }}
           >
             {transcriptScroll.rowsToRender.map((virtualRow) => {
               const renderItem = items[virtualRow.index]
@@ -432,8 +752,23 @@ function LiveTranscriptView({
               return (
                 <div
                   key={virtualRow.key}
-                  ref={transcriptScroll.virtualizer.measureElement}
+                  ref={transcriptScroll.measureElement}
                   data-index={virtualRow.index}
+                  data-transcript-expanded-tool-count={getExpandedToolCount(
+                    renderItem,
+                    expandedToolGroupIds,
+                    expandedToolIds,
+                    expandedMcpStatusGroupIds,
+                  )}
+                  data-transcript-row-expanded={getRenderItemExpandedState(
+                    renderItem,
+                    expandedToolGroupIds,
+                    expandedToolIds,
+                    expandedMcpStatusGroupIds,
+                  )}
+                  data-transcript-row-kind={getRenderItemProfileKind(renderItem)}
+                  data-transcript-source-id={renderItem.id}
+                  data-transcript-tool-count={getRenderItemToolCount(renderItem)}
                   data-testid="live-transcript-row"
                   className="absolute left-0 top-0 w-full pb-1.5"
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
@@ -455,7 +790,7 @@ function LiveTranscriptView({
                         onToggleGroup={onToggleMcpStatusGroup}
                       />
                     ) : renderItem.item.kind === 'tool' ? (
-                      <StandaloneToolWrapper>
+                      <StandaloneToolWrapper toolUseId={renderItem.item.toolUseId}>
                         <LiveToolRow
                           item={renderItem.item}
                           expanded={Boolean(expandedToolIds[renderItem.item.toolUseId])}
@@ -517,6 +852,7 @@ function HistoricalTranscriptView({
   loadingError,
   scrollContextKey,
   searchTarget,
+  scrollTargetRequest,
   scrollToBottomSignal,
   contentLayout,
   bottomInsetPx,
@@ -532,6 +868,7 @@ function HistoricalTranscriptView({
   loadingError: string | null
   scrollContextKey: string
   searchTarget: SessionSearchTarget | null
+  scrollTargetRequest: TranscriptScrollRequest | null
   scrollToBottomSignal: number
   contentLayout: ContentLayout
   bottomInsetPx: number
@@ -548,29 +885,28 @@ function HistoricalTranscriptView({
     Record<string, boolean>
   >({})
   const hasTranscript = items.length > 0
+  const scrollTargetToolUseId = getScrollTargetToolUseId(scrollTargetRequest)
+  const scrollTargetRequestKey = getTranscriptScrollRequestKey(scrollTargetRequest)
 
-  useEffect(() => {
-    if (!searchTarget?.toolCallId) {
-      return
-    }
-
-    setExpandedToolIds((current) => ({ ...current, [searchTarget.toolCallId as string]: true }))
-
-    const containingGroup = items.find(
-      (item): item is Extract<RenderItem, { kind: 'tool-group' }> =>
-        item.kind === 'tool-group' &&
-        item.items.some((toolItem) => toolItem.toolUseId === searchTarget.toolCallId),
-    )
-
-    if (containingGroup) {
-      setExpandedToolGroupIds((current) => ({ ...current, [containingGroup.id]: true }))
-    }
-  }, [items, searchTarget?.toolCallId])
+  useOpenToolTarget({
+    items,
+    setExpandedToolGroupIds,
+    setExpandedToolIds,
+    toolUseId: searchTarget?.toolCallId,
+  })
+  useOpenToolTarget({
+    items,
+    setExpandedToolGroupIds,
+    setExpandedToolIds,
+    toolUseId: scrollTargetToolUseId,
+  })
 
   const transcriptScroll = useTranscriptVirtualScroll({
+    endPaddingPx: bottomInsetPx,
     estimateSize: estimateRenderItemSize,
     findSearchTargetIndex: findRenderItemSearchTargetIndex,
-    getItemKey: (item, index) => item?.id ?? index,
+    findScrollTargetIndex: findRenderItemScrollTargetIndex,
+    getItemKey: getRenderItemKey,
     items,
     onScrollStateChange,
     overscan: 8,
@@ -580,6 +916,7 @@ function HistoricalTranscriptView({
     scrollRestoreState,
     scrollToBottomSignal,
     searchTarget,
+    scrollTargetRequest,
   })
   const inlineSearchTexts = useMemo(() => items.map(getRenderItemSearchText), [items])
   const inlineSearch = useTranscriptInlineSearch({
@@ -591,6 +928,12 @@ function HistoricalTranscriptView({
     containerRef: transcriptScroll.scrollAreaRef,
     isOpen: inlineSearch.isOpen,
     query: inlineSearch.query,
+  })
+  useRevealRenderedToolTarget({
+    behavior: scrollTargetRequest?.behavior,
+    requestKey: scrollTargetRequestKey,
+    scrollAreaRef: transcriptScroll.scrollAreaRef,
+    toolUseId: scrollTargetToolUseId,
   })
   const renderedSearchTargetKey = searchTarget
     ? getRenderedSearchTargetKey(searchTarget, scrollContextKey)
@@ -671,7 +1014,7 @@ function HistoricalTranscriptView({
         ref={transcriptScroll.setScrollElement}
         role="region"
         aria-label="Transcript messages"
-        className="flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
+        className="flex-1 overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]"
         onScroll={transcriptScroll.handleScroll}
       >
         {isLoading && !hasTranscript ? (
@@ -726,7 +1069,7 @@ function HistoricalTranscriptView({
         ) : (
           <div
             className="relative w-full"
-            style={{ height: `${transcriptScroll.estimatedTotalHeight + bottomInsetPx}px` }}
+            style={{ height: `${transcriptScroll.estimatedTotalHeight}px` }}
           >
             {transcriptScroll.rowsToRender.map((virtualRow) => {
               const entry = items[virtualRow.index]
@@ -738,10 +1081,25 @@ function HistoricalTranscriptView({
               return (
                 <div
                   key={virtualRow.key}
-                  ref={transcriptScroll.virtualizer.measureElement}
+                  ref={transcriptScroll.measureElement}
                   data-index={virtualRow.index}
                   data-search-message-id={getRenderItemMessageId(entry) ?? undefined}
                   data-search-tool-call-id={getRenderItemToolCallId(entry) ?? undefined}
+                  data-transcript-expanded-tool-count={getExpandedToolCount(
+                    entry,
+                    expandedToolGroupIds,
+                    expandedToolIds,
+                    expandedMcpStatusGroupIds,
+                  )}
+                  data-transcript-row-expanded={getRenderItemExpandedState(
+                    entry,
+                    expandedToolGroupIds,
+                    expandedToolIds,
+                    expandedMcpStatusGroupIds,
+                  )}
+                  data-transcript-row-kind={getRenderItemProfileKind(entry)}
+                  data-transcript-source-id={entry.id}
+                  data-transcript-tool-count={getRenderItemToolCount(entry)}
                   data-testid="transcript-row"
                   className={`absolute left-0 top-0 w-full pb-1.5 ${
                     isSearchTargetMatch
@@ -767,7 +1125,7 @@ function HistoricalTranscriptView({
                         onToggleGroup={toggleMcpStatusGroup}
                       />
                     ) : entry.item.kind === 'tool' ? (
-                      <StandaloneToolWrapper>
+                      <StandaloneToolWrapper toolUseId={entry.item.toolUseId}>
                         <HistoricalToolCallRow
                           item={entry.item}
                           expanded={Boolean(expandedToolIds[entry.item.toolUseId])}
@@ -824,19 +1182,21 @@ const ToolGroupRow = memo(function ToolGroupRow({
     >
       {group.items.map((toolItem) =>
         isLive ? (
-          <LiveToolRow
-            key={toolItem.id}
-            item={toolItem}
-            expanded={Boolean(expandedToolIds[toolItem.toolUseId])}
-            onToggleTool={onToggleTool}
-          />
+          <div key={toolItem.id} data-transcript-tool-use-id={toolItem.toolUseId}>
+            <LiveToolRow
+              item={toolItem}
+              expanded={Boolean(expandedToolIds[toolItem.toolUseId])}
+              onToggleTool={onToggleTool}
+            />
+          </div>
         ) : (
-          <HistoricalToolCallRow
-            key={toolItem.id}
-            item={toolItem}
-            expanded={Boolean(expandedToolIds[toolItem.toolUseId])}
-            onToggle={onToggleTool}
-          />
+          <div key={toolItem.id} data-transcript-tool-use-id={toolItem.toolUseId}>
+            <HistoricalToolCallRow
+              item={toolItem}
+              expanded={Boolean(expandedToolIds[toolItem.toolUseId])}
+              onToggle={onToggleTool}
+            />
+          </div>
         ),
       )}
     </ToolCallGroup>
@@ -956,9 +1316,18 @@ const TimelineItemRow = memo(function TimelineItemRow({
   }
 })
 
-function StandaloneToolWrapper({ children }: { children: ReactNode }) {
+function StandaloneToolWrapper({
+  children,
+  toolUseId,
+}: {
+  children: ReactNode
+  toolUseId: string
+}) {
   return (
-    <div className="my-0.5 overflow-hidden rounded-md border border-fd-border-subtle bg-fd-surface/20 hover:border-fd-border-default transition-colors">
+    <div
+      className="my-0.5 overflow-hidden rounded-md border border-fd-border-subtle bg-fd-surface/20 hover:border-fd-border-default transition-colors"
+      data-transcript-tool-use-id={toolUseId}
+    >
       {children}
     </div>
   )

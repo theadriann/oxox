@@ -4,11 +4,18 @@ import type { SessionTranscript, TranscriptEntry } from '../../../../shared/ipc/
 import { buildHistoricalTimeline } from '../transcript/buildHistoricalTimeline'
 import { TranscriptRenderer } from '../transcript/TranscriptRenderer'
 import type { TimelineItem } from '../transcript/timelineTypes'
+import type {
+  TranscriptScrollAlign,
+  TranscriptScrollRequest,
+  TranscriptScrollTarget,
+} from '../transcript/transcriptScrollTarget'
 
 export interface DebugTranscriptRequest {
   entries?: TranscriptEntry[]
   items?: TimelineItem[]
   sessionId?: string
+  scrollAlign?: TranscriptScrollAlign
+  scrollTarget?: TranscriptScrollTarget
   title?: string
   turnCount?: number
 }
@@ -78,6 +85,37 @@ function DebugTranscriptPane({ request }: { request: DebugTranscriptRequest }) {
   const [state, setState] = useState<DebugTranscriptState>(() =>
     createInitialTranscriptState(request),
   )
+  const [scrollRequest, setScrollRequest] = useState<TranscriptScrollRequest | null>(() =>
+    request.scrollTarget
+      ? {
+          align: request.scrollAlign,
+          requestId: 0,
+          target: request.scrollTarget,
+        }
+      : null,
+  )
+
+  useEffect(() => {
+    if (!window.oxoxDebug) return
+
+    window.oxoxDebug.scrollTranscriptTo = (
+      target: TranscriptScrollTarget,
+      options: { align?: TranscriptScrollAlign; behavior?: ScrollBehavior } = {},
+    ) => {
+      setScrollRequest({
+        align: options.align,
+        behavior: options.behavior,
+        requestId: performance.now(),
+        target,
+      })
+    }
+
+    return () => {
+      if (window.oxoxDebug) {
+        delete window.oxoxDebug.scrollTranscriptTo
+      }
+    }
+  }, [])
 
   useEffect(() => {
     let isMounted = true
@@ -108,6 +146,15 @@ function DebugTranscriptPane({ request }: { request: DebugTranscriptRequest }) {
     }
 
     setState(createInitialTranscriptState(request))
+    setScrollRequest(
+      request.scrollTarget
+        ? {
+            align: request.scrollAlign,
+            requestId: performance.now(),
+            target: request.scrollTarget,
+          }
+        : null,
+    )
     return () => {
       isMounted = false
     }
@@ -138,6 +185,7 @@ function DebugTranscriptPane({ request }: { request: DebugTranscriptRequest }) {
           isLoading={state.isLoading}
           loadingError={state.error}
           scrollContextKey={`debug:${sourceLabel}`}
+          scrollTargetRequest={scrollRequest}
           contentLayout="fixed"
           bottomInsetPx={0}
         />
@@ -229,6 +277,7 @@ export function getInitialDebugLabRoute(): DebugLabRoute | null {
 
   return createDebugLabRoute({
     sessionId: params.get('sessionId') ?? undefined,
+    scrollTarget: parseDebugScrollTarget(params),
     title: params.get('title') ?? undefined,
   })
 }
@@ -239,8 +288,38 @@ export function getDebugHelpCommands(): string[] {
     'window.oxoxDebug.renderBakedTranscript({ turnCount: 24 })',
     'window.oxoxDebug.renderTranscript({ sessionId: "session-id" })',
     'window.oxoxDebug.renderTranscript({ entries: [...] })',
+    'window.oxoxDebug.scrollTranscriptTo({ kind: "message", messageId: "debug-user-8" }, { align: "center" })',
+    'window.oxoxDebug.scrollTranscriptTo({ kind: "tool", toolUseId: "tool-id" }, { align: { offsetRatio: 0.2 } })',
+    'window.oxoxDebug.enableTranscriptScrollDebug()',
+    'window.oxoxDebug.getTranscriptScrollDebugEvents()',
+    'console.table(window.oxoxDebug.getTranscriptScrollDebugEvents().map(({ stack, ...event }) => event))',
+    'window.oxoxDebug.clearTranscriptScrollDebugEvents()',
+    'window.oxoxDebug.disableTranscriptScrollDebug()',
+    'window.oxoxDebug.enableTranscriptSizeProfiling()',
+    'window.oxoxDebug.getTranscriptSizeProfile()',
+    'console.table(window.oxoxDebug.getTranscriptSizeProfile()?.rows.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 20))',
+    'window.oxoxDebug.disableTranscriptSizeProfiling()',
+    'window.oxoxDebug.clearTranscriptSizeProfile()',
     'window.oxoxDebug.close()',
   ]
+}
+
+function parseDebugScrollTarget(params: URLSearchParams): TranscriptScrollTarget | undefined {
+  const messageId = params.get('messageId')?.trim()
+  if (messageId) return { kind: 'message', messageId }
+
+  const toolUseId = params.get('toolUseId')?.trim()
+  if (toolUseId) return { kind: 'tool', toolUseId }
+
+  const timelineItemId = params.get('timelineItemId')?.trim()
+  if (timelineItemId) return { kind: 'timelineItem', id: timelineItemId }
+
+  const rowIndex = params.get('rowIndex')?.trim()
+  if (rowIndex && Number.isInteger(Number(rowIndex))) {
+    return { kind: 'row', index: Number(rowIndex) }
+  }
+
+  return undefined
 }
 
 export { DEBUG_TRANSCRIPT_SESSION_ID }

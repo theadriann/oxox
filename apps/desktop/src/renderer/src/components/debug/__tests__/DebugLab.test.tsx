@@ -25,12 +25,19 @@ describe('DebugLab', () => {
   })
 
   it('registers a console API that opens a baked transcript lab', async () => {
+    const scrollToMock = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: scrollToMock,
+    })
+
     render(<App />)
 
     expect(screen.getByTestId('app-shell')).toBeTruthy()
     expect(window.oxoxDebug?.help()).toContain(
       'window.oxoxDebug.renderBakedTranscript({ turnCount: 24 })',
     )
+    expect(window.oxoxDebug?.getTranscriptSizeProfile()).toBeNull()
 
     act(() => {
       window.oxoxDebug?.renderBakedTranscript({ turnCount: 3, title: 'Scroll debug' })
@@ -39,6 +46,17 @@ describe('DebugLab', () => {
     expect(await screen.findByText('OXOX Debug Lab')).toBeTruthy()
     expect(screen.getByText('Scroll debug')).toBeTruthy()
     expect(screen.getByText('6 timeline items')).toBeTruthy()
+
+    act(() => {
+      window.oxoxDebug?.scrollTranscriptTo?.(
+        { kind: 'message', messageId: 'debug-user-2' },
+        { align: 'start' },
+      )
+    })
+
+    await waitFor(() => {
+      expect(scrollToMock).toHaveBeenCalled()
+    })
 
     act(() => {
       window.oxoxDebug?.close()
