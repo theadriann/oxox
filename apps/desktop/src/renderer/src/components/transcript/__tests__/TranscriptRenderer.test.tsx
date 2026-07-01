@@ -968,6 +968,48 @@ describe('TranscriptRenderer (live)', () => {
     expect(screen.getByText(/Recoverable stream hiccup/)).toBeTruthy()
   })
 
+  it('renders repeated hook execution events as separate compact cards', () => {
+    const hookCommand = '/Users/brojbean/.factory/hooks/ancestor_agents_context.py'
+    const items = buildLiveTimeline(
+      createSnapshot({
+        events: [
+          {
+            type: 'hook.execution',
+            hookId: 'hook-started',
+            eventName: 'SessionStart',
+            command: hookCommand,
+            timeout: 5,
+            status: 'started',
+          },
+          {
+            type: 'hook.execution',
+            hookId: 'hook-failed',
+            eventName: 'SessionStart',
+            command: hookCommand,
+            timeout: 5,
+            status: 'failed',
+            exitCode: 1,
+            stderr:
+              'Traceback (most recent call last): unsupported operand type(s) for |: type and NoneType',
+          },
+        ],
+      }),
+    )
+
+    expect(items.map((item) => item.id)).toEqual(['hook.execution:0', 'hook.execution:1'])
+
+    render(<TranscriptRenderer items={items} isLive isLoading={false} />)
+
+    expect(screen.getByText('Hook started')).toBeTruthy()
+    expect(screen.getByText('Hook failed')).toBeTruthy()
+    expect(screen.getAllByText(hookCommand)).toHaveLength(2)
+    expect(screen.queryByText(/unsupported operand type/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Show details for Hook failed/i }))
+
+    expect(screen.getByText(/unsupported operand type/)).toBeTruthy()
+  })
+
   it('groups consecutive tool calls behind a collapsed summary and reveals nested tool details progressively', () => {
     render(
       <TranscriptRenderer

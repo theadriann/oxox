@@ -257,17 +257,18 @@ function indexEventBackedMessageIds(target: Set<string>, events: LiveSessionEven
 }
 
 function setItem(accumulator: LiveTimelineAccumulator, key: string, item: TimelineItem): void {
+  const itemWithStableId = item.kind === 'event' ? { ...item, id: key } : item
   const existingIndex = accumulator.keyIndexByKey.get(key)
 
   if (typeof existingIndex === 'number') {
-    accumulator.timelineItems[existingIndex] = item
-    accumulator.itemsByKey.set(key, item)
+    accumulator.timelineItems[existingIndex] = itemWithStableId
+    accumulator.itemsByKey.set(key, itemWithStableId)
     return
   }
 
   accumulator.keyIndexByKey.set(key, accumulator.timelineItems.length)
-  accumulator.timelineItems.push(item)
-  accumulator.itemsByKey.set(key, item)
+  accumulator.timelineItems.push(itemWithStableId)
+  accumulator.itemsByKey.set(key, itemWithStableId)
 }
 
 function applyEvent(accumulator: LiveTimelineAccumulator, event: LiveSessionEventRecord): void {

@@ -38,10 +38,12 @@ export function buildLiveTimeline(snapshot: LiveSessionSnapshot): TimelineItem[]
   )
 
   const setItem = (key: string, item: TimelineItem) => {
+    const itemWithStableId = item.kind === 'event' ? { ...item, id: key } : item
+
     if (!itemsByKey.has(key)) {
       orderedKeys.push(key)
     }
-    itemsByKey.set(key, item)
+    itemsByKey.set(key, itemWithStableId)
   }
 
   const completeThinking = () => {

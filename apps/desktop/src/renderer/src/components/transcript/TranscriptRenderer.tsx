@@ -262,10 +262,22 @@ export function estimateRenderItemSize(item: RenderItem | undefined): number {
     case 'askUser':
       return 240
     case 'event':
-      return item.item.layout === 'compact' ? 64 : 104
+      return estimateEventRenderItemSize(item.item)
     default:
       return 200
   }
+}
+
+function estimateEventRenderItemSize(item: Extract<TimelineItem, { kind: 'event' }>): number {
+  const bodyLineCount = item.body ? Math.max(1, Math.ceil(item.body.length / 96)) : 0
+  const inlineDetailCount =
+    item.detailsLayout === 'disclosure'
+      ? 0
+      : item.details.filter((detail) => detail.length <= 120 && !detail.includes('\n')).length
+  const chipRows = Math.ceil(Math.min(inlineDetailCount, 4) / 3)
+  const baseHeight = item.layout === 'compact' ? 44 : 54
+
+  return Math.min(180, baseHeight + bodyLineCount * 16 + chipRows * 18)
 }
 
 function estimateMessageRenderItemSize(item: Extract<TimelineItem, { kind: 'message' }>): number {

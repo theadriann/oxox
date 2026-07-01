@@ -151,6 +151,39 @@ describe('liveTimelineAccumulator', () => {
     expect(item.details).toEqual(['Summary: summary-1', 'Visible boundary: message-5'])
   })
 
+  it('keeps repeated hook execution rows distinct when commands match', () => {
+    const accumulator = createLiveTimelineAccumulator(createSnapshot())
+
+    const result = appendLiveTimelineEvents(accumulator, createSnapshot(), [
+      {
+        type: 'hook.execution',
+        hookId: 'hook-1',
+        eventName: 'SessionStart',
+        command: '/Users/brojbean/.factory/hooks/ancestor_agents_context.py',
+        timeout: 5,
+        status: 'started',
+      },
+      {
+        type: 'hook.execution',
+        hookId: 'hook-2',
+        eventName: 'SessionStart',
+        command: '/Users/brojbean/.factory/hooks/ancestor_agents_context.py',
+        timeout: 5,
+        status: 'failed',
+        exitCode: 1,
+        stderr: 'Traceback (most recent call last): unsupported operand type(s)',
+      },
+    ])
+
+    expect(result.items).toHaveLength(2)
+    expect(result.items.map((item) => item.id)).toEqual(['hook.execution:0', 'hook.execution:1'])
+    expect(new Set(result.items.map((item) => item.id)).size).toBe(2)
+    expect(result.items.map((item) => (item.kind === 'event' ? item.title : null))).toEqual([
+      'Hook started',
+      'Hook failed',
+    ])
+  })
+
   it('replaces empty live tool input with later structured input updates', () => {
     const accumulator = createLiveTimelineAccumulator(createSnapshot())
 
