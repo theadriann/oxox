@@ -1,4 +1,5 @@
-import { Check, Copy, Terminal } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { memo, useCallback, useMemo, useState } from 'react'
 
 // biome-ignore lint/complexity/useRegexLiterals: the escaped constructor form avoids control-character lint noise here
@@ -41,14 +42,28 @@ export const TerminalOutput = memo(function TerminalOutput({
   }, [cleanOutput])
 
   return (
-    <div className="overflow-hidden rounded-md border border-fd-border-subtle">
+    <div className="min-w-0 pl-3">
       {command ? (
-        <div className="group/cmd flex items-center gap-2 border-b border-fd-border-subtle bg-fd-panel/60 px-3 py-1.5">
-          <Terminal className="size-3 shrink-0 text-fd-tertiary" />
-          <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-fd-secondary select-text">
+        <section className="group/cmd min-w-0">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <SectionLabel>Command</SectionLabel>
+            <CopyButton
+              label="Copy command"
+              copied={copiedCommand}
+              disabled={!command}
+              onClick={handleCopyCommand}
+            />
+          </div>
+          <pre className="min-w-0 overflow-x-auto rounded-sm bg-fd-surface/25 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-fd-secondary whitespace-pre-wrap break-words select-text">
             {command}
-          </code>
-          <div className="flex shrink-0 items-center gap-1.5">
+          </pre>
+        </section>
+      ) : null}
+
+      <section className={command ? 'group/output mt-2.5 min-w-0' : 'group/output min-w-0'}>
+        <div className="mb-1 flex items-center justify-between gap-2 border-t border-fd-border-subtle/60 pt-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <SectionLabel>Output</SectionLabel>
             {exitCode !== null && exitCode !== undefined ? (
               <span
                 className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-medium ${
@@ -58,40 +73,47 @@ export const TerminalOutput = memo(function TerminalOutput({
                 exit {exitCode}
               </span>
             ) : null}
-            <button
-              type="button"
-              aria-label="Copy command"
-              className="rounded p-0.5 text-fd-tertiary opacity-0 transition-all hover:bg-fd-surface hover:text-fd-secondary group-hover/cmd:opacity-100"
-              onClick={handleCopyCommand}
-            >
-              {copiedCommand ? (
-                <Check className="size-3 text-fd-ready" />
-              ) : (
-                <Copy className="size-3" />
-              )}
-            </button>
           </div>
+          {cleanOutput ? (
+            <CopyButton label="Copy output" copied={copiedOutput} onClick={handleCopyOutput} />
+          ) : null}
         </div>
-      ) : null}
-      <div className="group/output relative">
-        <pre className="overflow-x-auto bg-fd-canvas px-3 py-2 font-mono text-[11px] leading-relaxed text-fd-secondary whitespace-pre-wrap break-words">
+        <pre className="min-w-0 overflow-x-auto px-0 py-0.5 font-mono text-[11px] leading-relaxed text-fd-secondary whitespace-pre-wrap break-words select-text">
           {cleanOutput || 'No output'}
         </pre>
-        {cleanOutput ? (
-          <button
-            type="button"
-            aria-label="Copy output"
-            className="absolute top-1.5 right-1.5 rounded p-0.5 text-fd-tertiary opacity-0 transition-all hover:bg-fd-surface hover:text-fd-secondary group-hover/output:opacity-100"
-            onClick={handleCopyOutput}
-          >
-            {copiedOutput ? (
-              <Check className="size-3 text-fd-ready" />
-            ) : (
-              <Copy className="size-3" />
-            )}
-          </button>
-        ) : null}
-      </div>
+      </section>
     </div>
   )
 })
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="font-mono text-[10px] font-medium tracking-[0.12em] text-fd-tertiary uppercase">
+      {children}
+    </span>
+  )
+}
+
+function CopyButton({
+  label,
+  copied,
+  disabled = false,
+  onClick,
+}: {
+  label: string
+  copied: boolean
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      className="inline-flex size-6 shrink-0 items-center justify-center rounded text-fd-tertiary opacity-70 transition-colors hover:bg-fd-surface hover:text-fd-secondary hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fd-ember-400 disabled:pointer-events-none disabled:opacity-30"
+      onClick={onClick}
+    >
+      {copied ? <Check className="size-3 text-fd-ready" /> : <Copy className="size-3" />}
+    </button>
+  )
+}

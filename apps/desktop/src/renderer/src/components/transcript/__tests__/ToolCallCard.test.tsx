@@ -1,12 +1,25 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
+import { beforeEach, vi } from 'vitest'
 
 import { ToolCallCard } from '../ToolCallCard'
 
 describe('ToolCallCard', () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    })
+  })
+
   it('renders ApplyPatch tool calls with PatchDiffPreview', () => {
+    const patchText =
+      '*** Begin Patch\n*** Update File: /tmp/example.tsx\n@@\n-const oldValue = 1\n+const nextValue = 1\n console.log(nextValue)\n*** End Patch\n'
+
     function TestHarness() {
       const [expanded, setExpanded] = useState(false)
 
@@ -37,6 +50,8 @@ describe('ToolCallCard', () => {
 
     // Should show the patch summary badge
     expect(screen.getByText('Edited')).toBeTruthy()
+    expect(screen.getByText('1 file')).toBeTruthy()
+    expect(screen.getByText('updated')).toBeTruthy()
     // Should show the file name in the diff header
     expect(screen.getAllByText('example.tsx').length).toBeGreaterThanOrEqual(1)
     // Should show the full file path
@@ -45,6 +60,12 @@ describe('ToolCallCard', () => {
     expect(screen.queryByText('Input')).toBeNull()
     // Should show success status instead of raw result JSON
     expect(screen.getByText('Applied successfully')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /copy patch/i }))
+
+    return waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(patchText)
+    })
   })
 
   it('renders Edit tool calls with EditDiffView', () => {
