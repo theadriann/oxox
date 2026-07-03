@@ -4,6 +4,7 @@ import { Worker } from 'node:worker_threads'
 
 import type {
   FoundationBootstrap,
+  LiveSessionSnapshot,
   SessionSearchIndexingProgress,
   SessionSearchRequest,
   SessionSearchResponse,
@@ -27,6 +28,14 @@ type WorkerRequestMessage =
   | {
       type: 'replaceFoundation'
       bootstrap: FoundationBootstrap
+    }
+  | {
+      type: 'deleteSession'
+      sessionId: string
+    }
+  | {
+      type: 'liveSnapshotUpdate'
+      snapshot: LiveSessionSnapshot
     }
   | {
       type: 'search'
@@ -70,8 +79,10 @@ interface CreateBackgroundSessionSearchHydratorOptions extends SessionSearchHydr
 }
 
 export interface BackgroundSessionSearchHydrator {
+  deleteSession: (sessionId: string) => void
   getIndexingProgress: () => SessionSearchIndexingProgress
   replaceFoundation: (bootstrap: FoundationBootstrap) => void
+  scheduleLiveSnapshotUpdate: (snapshot: LiveSessionSnapshot) => void
   searchSessions: (request: SessionSearchRequest) => Promise<SessionSearchResponse>
   close: () => Promise<void>
 }
@@ -137,11 +148,23 @@ export function createBackgroundSessionSearchHydrator({
   })
 
   return {
+    deleteSession: (sessionId) => {
+      worker?.postMessage({
+        type: 'deleteSession',
+        sessionId,
+      })
+    },
     getIndexingProgress: () => progress,
     replaceFoundation: (bootstrap) => {
       worker?.postMessage({
         type: 'replaceFoundation',
         bootstrap,
+      })
+    },
+    scheduleLiveSnapshotUpdate: (snapshot) => {
+      worker?.postMessage({
+        type: 'liveSnapshotUpdate',
+        snapshot,
       })
     },
     searchSessions: (request) => {

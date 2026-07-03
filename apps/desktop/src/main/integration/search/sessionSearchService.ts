@@ -138,6 +138,9 @@ const DEFAULT_LIMIT = 100
 const DEFAULT_BACKGROUND_HYDRATION_DELAY_MS = 2_000
 const DEFAULT_HYDRATION_YIELD_MS = 25
 const DEFAULT_LIVE_UPDATE_DEBOUNCE_MS = 100
+const SQLITE_BUSY_TIMEOUT_MS = 10_000
+const SQLITE_BUSY_RETRY_DELAY_MS = 250
+const SQLITE_BUSY_MAX_RETRIES = 8
 const DEFAULT_MAX_INDEXED_CONTENT_CHARS = 80_000
 const DEFAULT_MAX_INDEXED_TOOL_CHARS = 40_000
 const MAX_SEARCH_CANDIDATES = 2_500
@@ -464,9 +467,11 @@ export function createSessionSearchService({
     }
   }
 
-  const scheduleLiveSnapshotUpdate = (snapshot: LiveSessionSnapshot) => {
-    pendingLiveSnapshots.set(snapshot.sessionId, snapshot)
-
+  const scheduleLiveSnapshotWrite = (
+    snapshot: LiveSessionSnapshot,
+    delayMs: number,
+    attempt = 0,
+  ) => {
     const existingTimer = liveTimers.get(snapshot.sessionId)
     if (existingTimer) {
       clearTimeout(existingTimer)
@@ -490,9 +495,24 @@ export function createSessionSearchService({
           maxIndexedContentChars,
           maxIndexedToolChars,
         )
-        upsertIndexedDocument(liveDocument)
-      }, liveUpdateDebounceMs),
+        try {
+          upsertIndexedDocument(liveDocument)
+        } catch (error) {
+          if (!disposed && attempt < SQLITE_BUSY_MAX_RETRIES && isSqliteBusyError(error)) {
+            pendingLiveSnapshots.set(latestSnapshot.sessionId, latestSnapshot)
+            scheduleLiveSnapshotWrite(latestSnapshot, SQLITE_BUSY_RETRY_DELAY_MS, attempt + 1)
+            return
+          }
+
+          console.error('Live session search indexing failed', error)
+        }
+      }, delayMs),
     )
+  }
+
+  const scheduleLiveSnapshotUpdate = (snapshot: LiveSessionSnapshot) => {
+    pendingLiveSnapshots.set(snapshot.sessionId, snapshot)
+    scheduleLiveSnapshotWrite(snapshot, liveUpdateDebounceMs)
   }
 
   const deleteSession = (sessionId: string): void => {
@@ -1668,7 +1688,7 @@ function createSqliteSessionSearchStore(databasePath: string): SessionSearchStor
 function createSqliteDatabase(databasePath: string): SqliteDatabase {
   try {
     const BetterSqlite3 = require(resolveBetterSqlite3PackageName())
-    return new BetterSqlite3(databasePath) as SqliteDatabase
+    return new BetterSqlite3(databasePath, { timeout: SQLITE_BUSY_TIMEOUT_MS }) as SqliteDatabase
   } catch {
     const { DatabaseSync } = require('node:sqlite') as {
       DatabaseSync: new (
@@ -1712,6 +1732,18 @@ function createSqliteDatabase(databasePath: string): SqliteDatabase {
         }) as T,
     }
   }
+}
+
+function isSqliteBusyError(error: unknown): boolean {
+  const code =
+    typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : null
+  const message = error instanceof Error ? error.message : String(error)
+
+  return (
+    code === 'SQLITE_BUSY' ||
+    code === 'SQLITE_LOCKED' ||
+    /database (?:is |table is )?locked/iu.test(message)
+  )
 }
 
 function ensureTableColumn(

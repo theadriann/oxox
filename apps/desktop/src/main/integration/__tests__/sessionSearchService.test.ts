@@ -2062,4 +2062,40 @@ describe('createSessionSearchService', () => {
     ).toBe('live-session')
     vi.useRealTimers()
   })
+
+  it('retries live snapshot indexing when SQLite is temporarily locked', async () => {
+    vi.useFakeTimers()
+    const { store, upsertDocument } = createRecordingSearchStore()
+    const busyError = Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' })
+    upsertDocument.mockImplementationOnce(() => {
+      throw busyError
+    })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const service = createSessionSearchService({
+      bootstrap: createBootstrap([createSession({ id: 'locked-live-session', title: 'Locked' })]),
+      createSearchStore: () => store,
+      loadSessionTranscript: vi.fn(),
+      liveUpdateDebounceMs: 25,
+    })
+
+    service.scheduleLiveSnapshotUpdate(
+      createLiveSnapshot({
+        sessionId: 'locked-live-session',
+        messages: [{ id: 'm1', role: 'assistant', content: 'retried live content' }],
+      }),
+    )
+
+    await vi.advanceTimersByTimeAsync(25)
+    expect(service.searchSessions({ query: 'retried' }).matches).toEqual([])
+
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(upsertDocument).toHaveBeenCalledTimes(2)
+    expect(service.searchSessions({ query: 'retried' }).matches[0]?.sessionId).toBe(
+      'locked-live-session',
+    )
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
+    vi.useRealTimers()
+  })
 })

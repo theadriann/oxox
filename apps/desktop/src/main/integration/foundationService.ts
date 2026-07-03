@@ -387,7 +387,7 @@ export function createFoundationService(
     hydrationYieldMs: 250,
     maxIndexedContentChars: 20_000,
     maxIndexedToolChars: 10_000,
-    persistFoundationMetadata: false,
+    persistFoundationMetadata: true,
     searchDatabasePath,
   }
   const searchService = disableSearchService
@@ -401,14 +401,13 @@ export function createFoundationService(
         hydrationYieldMs: searchHydrationOptions.hydrationYieldMs,
         maxIndexedContentChars: searchHydrationOptions.maxIndexedContentChars,
         maxIndexedToolChars: searchHydrationOptions.maxIndexedToolChars,
-        searchDatabasePath,
       })
   const searchHydrator = disableSearchService
     ? createNoopSessionSearchHydrator()
     : createBackgroundSessionSearchHydrator(searchHydrationOptions)
   const liveSearchIndexScheduler = createLiveSessionSearchIndexScheduler({
     getSessionSnapshot: liveSessionRuntime.getSessionSnapshot,
-    scheduleLiveSnapshotUpdate: searchService.scheduleLiveSnapshotUpdate,
+    scheduleLiveSnapshotUpdate: searchHydrator.scheduleLiveSnapshotUpdate,
   })
   foundationChangeBroadcaster = createFoundationChangeBroadcaster({
     getSnapshot: queries.getBootstrap,
@@ -602,6 +601,7 @@ export function createFoundationService(
       })
       await sessionCatalog.syncArtifacts()
       searchService.deleteSession(sessionId)
+      searchHydrator.deleteSession(sessionId)
       emitFoundationChanged()
     },
     deleteSession: async (sessionId) => {
@@ -616,6 +616,7 @@ export function createFoundationService(
         sourcePath,
       })
       searchService.deleteSession(sessionId)
+      searchHydrator.deleteSession(sessionId)
       database.removeSession(sessionId)
       emitFoundationChanged()
     },
@@ -920,7 +921,9 @@ function createNoopSessionSearchHydrator(): ReturnType<
       isIndexing: false,
       updatedAt: new Date().toISOString(),
     }),
+    deleteSession: () => {},
     replaceFoundation: () => {},
+    scheduleLiveSnapshotUpdate: () => {},
     searchSessions: async (request) => ({
       hits: [],
       matches: [],

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type {
   FoundationBootstrap,
+  LiveSessionSnapshot,
   SessionSearchIndexingProgress,
 } from '../../../shared/ipc/contracts'
 import {
@@ -86,6 +87,23 @@ function createProgress(overrides: Partial<SessionSearchIndexingProgress> = {}) 
   }
 }
 
+function createLiveSnapshot(sessionId = 'session-1'): LiveSessionSnapshot {
+  return {
+    availableModels: [],
+    events: [],
+    messages: [],
+    parentSessionId: null,
+    processId: 123,
+    projectWorkspacePath: '/tmp/project',
+    sessionId,
+    settings: {},
+    status: 'active',
+    title: 'Live session',
+    transport: 'stream-jsonrpc',
+    viewerCount: 1,
+  }
+}
+
 function createWorkerDouble() {
   let messageListener: MessageListener | undefined
   let errorListener: ErrorListener | undefined
@@ -156,6 +174,18 @@ describe('createBackgroundSessionSearchHydrator', () => {
     expect(worker.postMessage).toHaveBeenCalledWith({
       type: 'replaceFoundation',
       bootstrap: nextBootstrap,
+    })
+
+    hydrator.scheduleLiveSnapshotUpdate(createLiveSnapshot('session-2'))
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'liveSnapshotUpdate',
+      snapshot: createLiveSnapshot('session-2'),
+    })
+
+    hydrator.deleteSession('session-2')
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: 'deleteSession',
+      sessionId: 'session-2',
     })
 
     await hydrator.close()

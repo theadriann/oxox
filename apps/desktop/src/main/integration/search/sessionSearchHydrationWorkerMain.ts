@@ -1,6 +1,10 @@
 import { parentPort, workerData } from 'node:worker_threads'
 
-import type { FoundationBootstrap, SessionSearchRequest } from '../../../shared/ipc/contracts'
+import type {
+  FoundationBootstrap,
+  LiveSessionSnapshot,
+  SessionSearchRequest,
+} from '../../../shared/ipc/contracts'
 import { loadSessionTranscriptFromFile } from '../transcripts/service'
 import type { SessionSearchHydrationWorkerOptions } from './sessionSearchHydrationWorker'
 import { createSessionSearchService } from './sessionSearchService'
@@ -9,6 +13,14 @@ type WorkerRequestMessage =
   | {
       type: 'replaceFoundation'
       bootstrap: FoundationBootstrap
+    }
+  | {
+      type: 'deleteSession'
+      sessionId: string
+    }
+  | {
+      type: 'liveSnapshotUpdate'
+      snapshot: LiveSessionSnapshot
     }
   | {
       type: 'search'
@@ -49,30 +61,43 @@ const progressTimer = setInterval(postProgress, 500)
 postProgressUntilCurrentHydrationCompletes()
 
 parentPort?.on('message', (message: WorkerRequestMessage) => {
-  if (message.type === 'search') {
-    try {
+  try {
+    if (message.type === 'search') {
       parentPort?.postMessage({
         type: 'searchResult',
         id: message.id,
         response: service.searchSessions(message.request),
       })
-    } catch (error) {
+
+      return
+    }
+
+    if (message.type === 'deleteSession') {
+      service.deleteSession(message.sessionId)
+      return
+    }
+
+    if (message.type === 'liveSnapshotUpdate') {
+      service.scheduleLiveSnapshotUpdate(message.snapshot)
+      return
+    }
+
+    if (message.type === 'replaceFoundation') {
+      service.replaceFoundation(message.bootstrap)
+      postProgressUntilCurrentHydrationCompletes()
+    }
+  } catch (error) {
+    if (message.type === 'search') {
       parentPort?.postMessage({
         type: 'searchError',
         id: message.id,
         error: error instanceof Error ? error.message : String(error),
       })
+      return
     }
 
-    return
+    console.error('Search hydration worker request failed', error)
   }
-
-  if (message.type !== 'replaceFoundation') {
-    return
-  }
-
-  service.replaceFoundation(message.bootstrap)
-  postProgressUntilCurrentHydrationCompletes()
 })
 
 process.on('exit', () => {
