@@ -114,7 +114,11 @@ describe('createFoundationLiveSessionRuntime', () => {
       restoredCount: 2,
     })
     await expect(
-      runtime.compactSession('session-parent', 'Keep only the latest context', 'renderer:4'),
+      runtime.compactSession(
+        'session-parent',
+        { customInstructions: 'Keep only the latest context' },
+        'renderer:4',
+      ),
     ).resolves.toMatchObject({
       snapshot: { sessionId: 'session-compact' },
       removedCount: 3,
@@ -314,7 +318,7 @@ describe('createFoundationLiveSessionRuntime', () => {
       },
       'renderer:5',
     )
-    await runtime.compactSession('session-1', 'Trim context', 'renderer:6')
+    await runtime.compactSession('session-1', { customInstructions: 'Trim context' }, 'renderer:6')
     await runtime.addUserMessage('session-1', 'hello')
     await runtime.updateSessionSettings('session-1', { modelId: 'gpt-5.4-mini' })
     await runtime.resolvePermissionRequest('session-1', 'request-1', 'allow')

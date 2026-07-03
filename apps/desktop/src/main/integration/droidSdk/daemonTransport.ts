@@ -21,6 +21,7 @@ import type {
   LiveSessionAddUserMessageRequest,
   LiveSessionBugReportRequest,
   LiveSessionBugReportResult,
+  LiveSessionCompactRequest,
   LiveSessionContextStatsInfo,
   LiveSessionMcpAuthCodeRequest,
   LiveSessionMcpRegistryServerInfo,
@@ -524,10 +525,12 @@ export class DroidSdkDaemonSessionTransport implements StreamJsonRpcProcessTrans
 
   async compactSession(
     _requestId: RequestId,
-    customInstructions?: string,
+    request?: LiveSessionCompactRequest,
   ): Promise<Omit<LiveSessionCompactResult, 'snapshot'>> {
     const client = await this.client
-    return client.compactSession(customInstructions ? { customInstructions } : {})
+    return client.compactSession(
+      request?.customInstructions ? { customInstructions: request.customInstructions } : {},
+    )
   }
 
   async renameSession(_requestId: RequestId, title: string): Promise<void> {

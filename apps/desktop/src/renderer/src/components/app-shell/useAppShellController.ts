@@ -121,9 +121,8 @@ export function useAppShellController({
     composerStore.forkWorkflow.openForkDialog()
   }, [composerStore])
 
-  const handleCompactSelectedSession = useCallback(async () => {
-    await composerStore.compactSelected()
-    setTranscriptScrollSignal((current) => current + 1)
+  const handleCompactSelectedSession = useCallback(() => {
+    composerStore.compactWorkflow.openCompactDialog()
   }, [composerStore])
 
   const handleRenameSelectedSession = useCallback(() => {

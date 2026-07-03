@@ -409,12 +409,12 @@ export function createOxoxBridge(
           sessionId,
           params,
         ),
-      compact: (sessionId, customInstructions) =>
+      compact: (sessionId, request) =>
         invokeTyped<LiveSessionCompactResult>(
           invoke,
           IPC_CHANNELS.sessionCompact,
           sessionId,
-          customInstructions,
+          request,
         ),
       resolvePermissionRequest: (sessionId, requestId, selectedOption) =>
         invokeTyped<void>(

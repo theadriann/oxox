@@ -4,6 +4,7 @@ import type {
   LiveSessionAskUserAnswerRecord,
   LiveSessionBugReportRequest,
   LiveSessionBugReportResult,
+  LiveSessionCompactRequest,
   LiveSessionCompactResult,
   LiveSessionContextStatsInfo,
   LiveSessionCreateSettings,
@@ -175,8 +176,7 @@ export interface ForkSessionRequest {
   viewerId?: string
 }
 
-export interface CompactSessionRequest {
-  customInstructions?: string
+export interface CompactSessionRequest extends LiveSessionCompactRequest {
   viewerId?: string
 }
 
@@ -258,7 +258,7 @@ export interface StreamJsonRpcProcessTransportLike {
   ): Promise<Omit<LiveSessionExecuteRewindResult, 'snapshot'>>
   compactSession(
     requestId: RequestId,
-    customInstructions?: string,
+    request?: LiveSessionCompactRequest,
   ): Promise<Omit<LiveSessionCompactResult, 'snapshot'>>
   renameSession?(requestId: RequestId, title: string): Promise<void>
   listTools?(requestId: RequestId): Promise<LiveSessionToolInfo[]>

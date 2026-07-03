@@ -16,6 +16,7 @@ import type {
   LiveSessionAskUserAnswerRecord,
   LiveSessionBugReportRequest,
   LiveSessionBugReportResult,
+  LiveSessionCompactRequest,
   LiveSessionCompactResult,
   LiveSessionContextStatsInfo,
   LiveSessionCreateRequest,
@@ -170,7 +171,7 @@ export interface FoundationService {
   ) => Promise<LiveSessionExecuteRewindResult>
   compactSession: (
     sessionId: string,
-    customInstructions?: string,
+    request?: LiveSessionCompactRequest,
     viewerId?: string,
   ) => Promise<LiveSessionCompactResult>
   forkSession: (
@@ -629,12 +630,8 @@ export function createFoundationService(
       emitFoundationChanged()
       return result
     },
-    compactSession: async (sessionId, customInstructions, viewerId) => {
-      const result = await liveSessionRuntime.compactSession(
-        sessionId,
-        customInstructions,
-        viewerId,
-      )
+    compactSession: async (sessionId, request, viewerId) => {
+      const result = await liveSessionRuntime.compactSession(sessionId, request, viewerId)
       emitFoundationChanged()
       return result
     },

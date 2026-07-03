@@ -1,4 +1,5 @@
 import type {
+  LiveSessionCompactRequest,
   LiveSessionCompactResult,
   LiveSessionExecuteRewindResult,
   LiveSessionRewindInfo,
@@ -82,6 +83,40 @@ export function createSessionDerivationManager(options: SessionDerivationManager
     return { managedSession, result }
   }
 
+  const restoreParentSessionTransport = async (
+    parentSession: ManagedSession,
+    staleTransport: StreamJsonRpcProcessTransportLike,
+    requestIdPrefix: string,
+  ): Promise<void> => {
+    const transport = options.createTransport(parentSession.sessionId, parentSession.cwd)
+
+    try {
+      const result = await transport.loadSession(
+        options.nextRequestId(requestIdPrefix),
+        parentSession.sessionId,
+      )
+      options.hydrateManagedSession(parentSession, result)
+      options.bindTransport(parentSession, transport)
+      options.persistManagedSession(parentSession)
+    } catch (error) {
+      await Promise.resolve(transport.dispose()).catch(() => undefined)
+
+      if (parentSession.transport === staleTransport) {
+        parentSession.transport = null
+        parentSession.processId = null
+        parentSession.workingStatus = 'error'
+        parentSession.updatedAt = options.now()
+        options.persistManagedSession(parentSession)
+      }
+
+      throw error
+    } finally {
+      if (staleTransport !== transport) {
+        await Promise.resolve(staleTransport.dispose()).catch(() => undefined)
+      }
+    }
+  }
+
   const fork = async (parentSession: ManagedSession, request: { viewerId?: string } = {}) => {
     const transport = parentSession.transport
     if (!transport) {
@@ -90,15 +125,20 @@ export function createSessionDerivationManager(options: SessionDerivationManager
       )
     }
     const { newSessionId } = await transport.forkSession(options.nextRequestId('session:fork'))
-    const { managedSession } = await attachDerivedSession({
-      newSessionId,
-      parentSession,
-      viewerId: request.viewerId,
-      requestIdPrefix: 'session:fork:attach',
-      derivationType: 'fork',
-    })
 
-    return toSnapshotFromManaged(managedSession)
+    try {
+      const { managedSession } = await attachDerivedSession({
+        newSessionId,
+        parentSession,
+        viewerId: request.viewerId,
+        requestIdPrefix: 'session:fork:attach',
+        derivationType: 'fork',
+      })
+
+      return toSnapshotFromManaged(managedSession)
+    } finally {
+      await restoreParentSessionTransport(parentSession, transport, 'session:fork:restore-parent')
+    }
   }
 
   const executeRewind = async (
@@ -122,26 +162,31 @@ export function createSessionDerivationManager(options: SessionDerivationManager
       options.nextRequestId('session:rewind:execute'),
       params,
     )
-    const { managedSession } = await attachDerivedSession({
-      newSessionId: result.newSessionId,
-      parentSession,
-      viewerId,
-      requestIdPrefix: 'session:rewind:attach',
-      derivationType: 'fork',
-    })
 
-    return {
-      snapshot: toSnapshotFromManaged(managedSession),
-      restoredCount: result.restoredCount,
-      deletedCount: result.deletedCount,
-      failedRestoreCount: result.failedRestoreCount,
-      failedDeleteCount: result.failedDeleteCount,
-    } satisfies LiveSessionExecuteRewindResult
+    try {
+      const { managedSession } = await attachDerivedSession({
+        newSessionId: result.newSessionId,
+        parentSession,
+        viewerId,
+        requestIdPrefix: 'session:rewind:attach',
+        derivationType: 'fork',
+      })
+
+      return {
+        snapshot: toSnapshotFromManaged(managedSession),
+        restoredCount: result.restoredCount,
+        deletedCount: result.deletedCount,
+        failedRestoreCount: result.failedRestoreCount,
+        failedDeleteCount: result.failedDeleteCount,
+      } satisfies LiveSessionExecuteRewindResult
+    } finally {
+      await restoreParentSessionTransport(parentSession, transport, 'session:rewind:restore-parent')
+    }
   }
 
   const compact = async (
     parentSession: ManagedSession,
-    request: { customInstructions?: string; viewerId?: string } = {},
+    request: LiveSessionCompactRequest & { viewerId?: string } = {},
   ) => {
     const transport = parentSession.transport
     if (!transport) {
@@ -149,22 +194,42 @@ export function createSessionDerivationManager(options: SessionDerivationManager
         `Session "${parentSession.sessionId}" is not currently attached. Reconnect to continue.`,
       )
     }
-    const result = await transport.compactSession(
-      options.nextRequestId('session:compact'),
-      request.customInstructions,
-    )
-    const { managedSession } = await attachDerivedSession({
-      newSessionId: result.newSessionId,
-      parentSession,
-      viewerId: request.viewerId,
-      requestIdPrefix: 'session:compact:attach',
-      derivationType: 'compact',
+    if (request.compactionModel) {
+      await transport.updateSessionSettings(options.nextRequestId('session:compact:settings'), {
+        compactionModel: request.compactionModel,
+      })
+      parentSession.settings = {
+        ...parentSession.settings,
+        compactionModel: request.compactionModel,
+      }
+      parentSession.updatedAt = options.now()
+      options.persistManagedSession(parentSession)
+    }
+
+    const result = await transport.compactSession(options.nextRequestId('session:compact'), {
+      customInstructions: request.customInstructions,
     })
 
-    return {
-      snapshot: toSnapshotFromManaged(managedSession),
-      removedCount: result.removedCount,
-    } satisfies LiveSessionCompactResult
+    try {
+      const { managedSession } = await attachDerivedSession({
+        newSessionId: result.newSessionId,
+        parentSession,
+        viewerId: request.viewerId,
+        requestIdPrefix: 'session:compact:attach',
+        derivationType: 'compact',
+      })
+
+      return {
+        snapshot: toSnapshotFromManaged(managedSession),
+        removedCount: result.removedCount,
+      } satisfies LiveSessionCompactResult
+    } finally {
+      await restoreParentSessionTransport(
+        parentSession,
+        transport,
+        'session:compact:restore-parent',
+      )
+    }
   }
 
   return { fork, executeRewind, compact }

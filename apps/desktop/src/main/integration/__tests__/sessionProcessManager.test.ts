@@ -1096,7 +1096,14 @@ describe('createSessionProcessManager', () => {
     const secondProcess = new FakeChildProcess(5_002)
     const thirdProcess = new FakeChildProcess(5_003)
     const forkProcess = new FakeChildProcess(5_004)
-    const processes = [firstProcess, secondProcess, thirdProcess, forkProcess]
+    const restoredParentProcess = new FakeChildProcess(5_005)
+    const processes = [
+      firstProcess,
+      secondProcess,
+      thirdProcess,
+      forkProcess,
+      restoredParentProcess,
+    ]
     const spawnProcess = vi.fn(() => {
       const next = processes.shift()
 
@@ -1187,11 +1194,39 @@ describe('createSessionProcessManager', () => {
       }),
     )
 
+    await waitFor(() => restoredParentProcess.writes.length === 1)
+    restoredParentProcess.emitStdout(
+      createResponse(getRequestId(restoredParentProcess), {
+        session: { messages: [] },
+        settings: { modelId: 'gpt-5.4', reasoningEffort: 'medium' },
+        cwd: '/tmp/one',
+      }),
+    )
+
     const forked = await forkPromise
 
     expect(forked.parentSessionId).toBe('session-one')
     expect(forked.processId).toBe(5_004)
-    expect(spawnProcess).toHaveBeenCalledTimes(4)
+    expect(spawnProcess).toHaveBeenCalledTimes(5)
+
+    const parentMessagePromise = manager.addUserMessage('session-one', 'Continue on parent')
+    await waitFor(() => restoredParentProcess.writes.length === 2)
+    const parentMessageRequest = JSON.parse(restoredParentProcess.writes[1] ?? '{}') as {
+      id?: string
+      method?: string
+      params?: Record<string, unknown>
+    }
+    expect(parentMessageRequest.method).toBe('droid.add_user_message')
+    expect(parentMessageRequest.params).toMatchObject({ text: 'Continue on parent' })
+    expect(
+      firstProcess.writes
+        .map((write) => JSON.parse(write) as { method?: string })
+        .some((write) => write.method === 'droid.add_user_message'),
+    ).toBe(false)
+    restoredParentProcess.emitStdout(
+      createResponse(parentMessageRequest.id ?? 'session:message:1', {}),
+    )
+    await parentMessagePromise
 
     const sessions = database.listSessions()
     expect(sessions.map((session) => session.id).sort()).toEqual([
@@ -1233,10 +1268,12 @@ describe('createSessionProcessManager', () => {
 
     const sourceProcess = new FakeChildProcess(7_001)
     const rewindProcess = new FakeChildProcess(7_002)
+    const restoredParentProcess = new FakeChildProcess(7_003)
     const spawnProcess = vi
       .fn()
       .mockReturnValueOnce(sourceProcess)
       .mockReturnValueOnce(rewindProcess)
+      .mockReturnValueOnce(restoredParentProcess)
     const manager = createSessionProcessManager({
       database,
       droidPath: '/opt/factory/bin/droid',
@@ -1369,6 +1406,24 @@ describe('createSessionProcessManager', () => {
       }),
     )
 
+    await waitFor(() => restoredParentProcess.writes.length === 1)
+    restoredParentProcess.emitStdout(
+      createResponse(getRequestId(restoredParentProcess), {
+        session: {
+          messages: [
+            {
+              id: 'message-1',
+              role: 'user',
+              content: [{ type: 'text', text: 'Rewind me' }],
+            },
+          ],
+        },
+        settings: { modelId: 'gpt-5.4', reasoningEffort: 'medium' },
+        cwd: '/tmp/rewind-source',
+        isAgentLoopInProgress: false,
+      }),
+    )
+
     await expect(executeRewindPromise).resolves.toMatchObject({
       snapshot: expect.objectContaining({
         sessionId: 'session-rewind-fork',
@@ -1405,7 +1460,12 @@ describe('createSessionProcessManager', () => {
 
     const sourceProcess = new FakeChildProcess(7_101)
     const forkProcess = new FakeChildProcess(7_102)
-    const spawnProcess = vi.fn().mockReturnValueOnce(sourceProcess).mockReturnValueOnce(forkProcess)
+    const restoredParentProcess = new FakeChildProcess(7_103)
+    const spawnProcess = vi
+      .fn()
+      .mockReturnValueOnce(sourceProcess)
+      .mockReturnValueOnce(forkProcess)
+      .mockReturnValueOnce(restoredParentProcess)
     const manager = createSessionProcessManager({
       database,
       droidPath: '/opt/factory/bin/droid',
@@ -1468,6 +1528,24 @@ describe('createSessionProcessManager', () => {
       }),
     )
 
+    await waitFor(() => restoredParentProcess.writes.length === 1)
+    restoredParentProcess.emitStdout(
+      createResponse(getRequestId(restoredParentProcess), {
+        session: {
+          messages: [
+            {
+              id: 'message-1',
+              role: 'user',
+              content: [{ type: 'text', text: 'Fork me' }],
+            },
+          ],
+        },
+        settings: { modelId: 'gpt-5.4', reasoningEffort: 'medium' },
+        cwd: '/tmp/fork-source',
+        isAgentLoopInProgress: false,
+      }),
+    )
+
     await expect(forkPromise).resolves.toMatchObject({
       sessionId: 'session-fork-derived',
       parentSessionId: 'session-fork-source',
@@ -1510,7 +1588,12 @@ describe('createSessionProcessManager', () => {
 
     const sourceProcess = new FakeChildProcess(7_121)
     const forkProcess = new FakeChildProcess(7_122)
-    const spawnProcess = vi.fn().mockReturnValueOnce(sourceProcess).mockReturnValueOnce(forkProcess)
+    const restoredParentProcess = new FakeChildProcess(7_123)
+    const spawnProcess = vi
+      .fn()
+      .mockReturnValueOnce(sourceProcess)
+      .mockReturnValueOnce(forkProcess)
+      .mockReturnValueOnce(restoredParentProcess)
     const manager = createSessionProcessManager({
       database,
       droidPath: '/opt/factory/bin/droid',
@@ -1557,6 +1640,24 @@ describe('createSessionProcessManager', () => {
     await waitFor(() => forkProcess.writes.length === 1)
     forkProcess.emitStdout(
       createResponse(getRequestId(forkProcess), {
+        session: {
+          messages: [
+            {
+              id: 'message-1',
+              role: 'user',
+              content: [{ type: 'text', text: 'Fork me' }],
+            },
+          ],
+        },
+        settings: { modelId: 'gpt-5.4', reasoningEffort: 'medium' },
+        cwd: '/tmp/fork-source',
+        isAgentLoopInProgress: false,
+      }),
+    )
+
+    await waitFor(() => restoredParentProcess.writes.length === 1)
+    restoredParentProcess.emitStdout(
+      createResponse(getRequestId(restoredParentProcess), {
         session: {
           messages: [
             {
@@ -1708,10 +1809,12 @@ describe('createSessionProcessManager', () => {
 
     const sourceProcess = new FakeChildProcess(7_201)
     const compactProcess = new FakeChildProcess(7_202)
+    const restoredParentProcess = new FakeChildProcess(7_203)
     const spawnProcess = vi
       .fn()
       .mockReturnValueOnce(sourceProcess)
       .mockReturnValueOnce(compactProcess)
+      .mockReturnValueOnce(restoredParentProcess)
     const manager = createSessionProcessManager({
       database,
       droidPath: '/opt/factory/bin/droid',
@@ -1721,6 +1824,8 @@ describe('createSessionProcessManager', () => {
     cleanup.push(() => manager.dispose())
 
     const compactPromise = manager.compactSession('session-compact-source', {
+      customInstructions: 'Keep decisions and open tasks',
+      compactionModel: 'gpt-5.4-mini',
       viewerId: 'window-1',
     })
 
@@ -1743,13 +1848,25 @@ describe('createSessionProcessManager', () => {
     )
 
     await waitFor(() => sourceProcess.writes.length === 2)
-    const compactRequest = JSON.parse(sourceProcess.writes[1] ?? '{}') as {
+    const settingsRequest = JSON.parse(sourceProcess.writes[1] ?? '{}') as {
+      method?: string
+      params?: Record<string, unknown>
+      id?: string
+    }
+    expect(settingsRequest.method).toBe('droid.update_session_settings')
+    expect(settingsRequest.params).toEqual({ compactionModel: 'gpt-5.4-mini' })
+    sourceProcess.emitStdout(createResponse(settingsRequest.id ?? 'session:compact:settings:1', {}))
+
+    await waitFor(() => sourceProcess.writes.length === 3)
+    const compactRequest = JSON.parse(sourceProcess.writes[2] ?? '{}') as {
       method?: string
       params?: Record<string, unknown>
       id?: string
     }
     expect(compactRequest.method).toBe('droid.compact_session')
-    expect(compactRequest.params).toEqual({})
+    expect(compactRequest.params).toEqual({
+      customInstructions: 'Keep decisions and open tasks',
+    })
     sourceProcess.emitStdout(
       createResponse(compactRequest.id ?? 'session:compact:1', {
         newSessionId: 'session-compact-derived',
@@ -1766,6 +1883,24 @@ describe('createSessionProcessManager', () => {
               id: 'message-1',
               role: 'assistant',
               content: [{ type: 'text', text: 'Compacted summary' }],
+            },
+          ],
+        },
+        settings: { modelId: 'gpt-5.4', reasoningEffort: 'medium' },
+        cwd: '/tmp/compact-source',
+        isAgentLoopInProgress: false,
+      }),
+    )
+
+    await waitFor(() => restoredParentProcess.writes.length === 1)
+    restoredParentProcess.emitStdout(
+      createResponse(getRequestId(restoredParentProcess), {
+        session: {
+          messages: [
+            {
+              id: 'message-1',
+              role: 'user',
+              content: [{ type: 'text', text: 'Compact me' }],
             },
           ],
         },

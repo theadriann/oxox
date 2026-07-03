@@ -1,5 +1,6 @@
 import { useReducedMotion } from 'framer-motion'
 import { useStores } from '../../state/root/store-provider'
+import { SessionCompactDialogConnected } from '../transcript/SessionCompactDialogConnected'
 import { SessionForkDialogConnected } from '../transcript/SessionForkDialogConnected'
 import { SessionRenameDialogConnected } from '../transcript/SessionRenameDialogConnected'
 import { SessionRewindDialogConnected } from '../transcript/SessionRewindDialogConnected'
@@ -36,6 +37,7 @@ export function AppShell() {
 
   return (
     <AppShellControllerProvider value={controller}>
+      <SessionCompactDialogConnected />
       <SessionForkDialogConnected />
       <SessionRenameDialogConnected />
       <SessionRewindDialogConnected />

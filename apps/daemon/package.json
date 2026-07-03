@@ -1,6 +1,6 @@
 {
   "name": "@oxox/daemon",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "main": "./out/apps/daemon/src/index.js",

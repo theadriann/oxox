@@ -1266,7 +1266,9 @@ describe('DroidSdkSessionTransport', () => {
       failedDeleteCount: 0,
     })
 
-    const compactPromise = sessionTransport.compactSession('compact:1', 'Focus on the latest bug')
+    const compactPromise = sessionTransport.compactSession('compact:1', {
+      customInstructions: 'Focus on the latest bug',
+    })
     await waitFor(() => client.compactSessionCalls.length === 1)
 
     expect(client.compactSessionCalls).toEqual([{ customInstructions: 'Focus on the latest bug' }])

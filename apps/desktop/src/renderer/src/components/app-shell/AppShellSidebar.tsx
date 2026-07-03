@@ -69,7 +69,7 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
   const handleCompactSession = useCallback(
     (sessionId: string) => {
       sessionStore.selectSession(sessionId)
-      void composerStore.compactSelected()
+      composerStore.compactWorkflow.openCompactDialog()
     },
     [composerStore, sessionStore],
   )

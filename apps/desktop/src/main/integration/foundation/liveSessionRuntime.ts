@@ -3,6 +3,7 @@ import type {
   LiveSessionAskUserAnswerRecord,
   LiveSessionBugReportRequest,
   LiveSessionBugReportResult,
+  LiveSessionCompactRequest,
   LiveSessionCompactResult,
   LiveSessionContextStatsInfo,
   LiveSessionCreateRequest,
@@ -98,6 +99,7 @@ interface SessionProcessManagerLike {
     sessionId: string,
     request?: {
       customInstructions?: string
+      compactionModel?: string
       viewerId?: string
     },
   ) => Promise<LiveSessionCompactResult>
@@ -179,7 +181,7 @@ export interface FoundationLiveSessionRuntime {
   ) => Promise<LiveSessionExecuteRewindResult>
   compactSession: (
     sessionId: string,
-    customInstructions?: string,
+    request?: LiveSessionCompactRequest,
     viewerId?: string,
   ) => Promise<LiveSessionCompactResult>
   forkSession: (
@@ -359,9 +361,9 @@ export function createFoundationLiveSessionRuntime({
       onChange?.()
       return serializeExecuteRewindResult(result)
     },
-    compactSession: async (sessionId, customInstructions, viewerId) => {
+    compactSession: async (sessionId, request, viewerId) => {
       const result = await sessionProcessManager.compactSession(sessionId, {
-        customInstructions,
+        ...request,
         viewerId,
       })
       ensureSessionSubscription(result.snapshot.sessionId)

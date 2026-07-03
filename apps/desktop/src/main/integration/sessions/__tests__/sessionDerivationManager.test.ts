@@ -92,12 +92,19 @@ describe('SessionDerivationManager', () => {
   it('forks a session by calling transport and attaching the derived session', async () => {
     const parentSession = createManagedSession()
     const transport = parentSession.transport as StreamJsonRpcProcessTransportLike
+    const derivedTransport = createMockTransport()
+    const restoredParentTransport = createMockTransport()
+    const createTransport = vi
+      .fn()
+      .mockReturnValueOnce(derivedTransport)
+      .mockReturnValueOnce(restoredParentTransport)
+    const bindTransport = vi.fn()
     const manager = createSessionDerivationManager({
       now: () => '2026-04-09T00:00:01.000Z',
       nextRequestId: () => 'req:1',
-      createTransport: vi.fn().mockReturnValue(createMockTransport()),
+      createTransport,
       hydrateManagedSession: vi.fn(),
-      bindTransport: vi.fn(),
+      bindTransport,
       persistManagedSession: vi.fn(),
       createManagedSession: (sessionId, transport, cwd, title) =>
         createManagedSessionFromArgs(sessionId, transport, cwd, title),
@@ -106,6 +113,11 @@ describe('SessionDerivationManager', () => {
     const snapshot = await manager.fork(parentSession, { viewerId: 'w-1' })
 
     expect(transport.forkSession).toHaveBeenCalledWith('req:1')
+    expect(createTransport).toHaveBeenNthCalledWith(1, 'derived-1', '/tmp/test')
+    expect(createTransport).toHaveBeenNthCalledWith(2, 'parent-1', '/tmp/test')
+    expect(restoredParentTransport.loadSession).toHaveBeenCalledWith('req:1', 'parent-1')
+    expect(bindTransport).toHaveBeenCalledWith(parentSession, restoredParentTransport)
+    expect(transport.dispose).toHaveBeenCalled()
     expect(snapshot.parentSessionId).toBe('parent-1')
   })
 
@@ -155,10 +167,17 @@ describe('SessionDerivationManager', () => {
 
     const result = await manager.compact(parentSession, {
       customInstructions: 'Focus on core logic',
+      compactionModel: 'gpt-5.4-mini',
       viewerId: 'w-1',
     })
 
-    expect(transport.compactSession).toHaveBeenCalledWith('req:1', 'Focus on core logic')
+    expect(transport.updateSessionSettings).toHaveBeenCalledWith('req:1', {
+      compactionModel: 'gpt-5.4-mini',
+    })
+    expect(transport.compactSession).toHaveBeenCalledWith('req:1', {
+      customInstructions: 'Focus on core logic',
+    })
+    expect(parentSession.settings.compactionModel).toBe('gpt-5.4-mini')
     expect(result).toMatchObject({
       removedCount: 3,
     })

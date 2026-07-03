@@ -889,6 +889,11 @@ export interface LiveSessionCompactResult {
   removedCount: number
 }
 
+export interface LiveSessionCompactRequest {
+  customInstructions?: string
+  compactionModel?: string
+}
+
 export interface LiveSessionModel {
   id: string
   name: string
@@ -912,6 +917,7 @@ export type LiveSessionSettings = Partial<Record<DroidSdkSessionSettingsKey, unk
   autonomyMode?: string
   specModeModelId?: string
   specModeReasoningEffort?: string
+  compactionModel?: string
   enabledToolIds?: string[]
   disabledToolIds?: string[]
 }
@@ -1372,7 +1378,10 @@ export interface OxoxBridge {
       sessionId: string,
       params: LiveSessionExecuteRewindParams,
     ) => Promise<LiveSessionExecuteRewindResult>
-    compact: (sessionId: string, customInstructions?: string) => Promise<LiveSessionCompactResult>
+    compact: (
+      sessionId: string,
+      request?: LiveSessionCompactRequest,
+    ) => Promise<LiveSessionCompactResult>
     resolvePermissionRequest: (
       sessionId: string,
       requestId: string,

@@ -10,6 +10,7 @@ import type { FoundationStore } from '../foundation/foundation.model'
 import type { LiveSessionStore } from '../live-sessions/live-session.model'
 import { toSessionRecord } from '../live-sessions/live-session-record.factories'
 import type { SessionStore } from '../sessions/session.model'
+import { CompactWorkflowStore } from '../workflows/compact/compact-workflow.model'
 import { ForkWorkflowStore } from '../workflows/fork/fork-workflow.model'
 import { PermissionResolutionStore } from '../workflows/permission-resolution/permission-resolution.model'
 import { RenameWorkflowStore } from '../workflows/rename/rename-workflow.model'
@@ -52,6 +53,7 @@ export class ComposerStore {
 
   readonly asyncActionsStore: AsyncActionsStore
   readonly feedbackStore: FeedbackStore
+  readonly compactWorkflow: CompactWorkflowStore
   readonly forkWorkflow: ForkWorkflowStore
   readonly renameWorkflow: RenameWorkflowStore
   readonly rewindWorkflow: RewindWorkflowStore
@@ -84,6 +86,33 @@ export class ComposerStore {
 
     this.asyncActionsStore = new AsyncActionsStore()
     this.feedbackStore = new FeedbackStore()
+
+    this.compactWorkflow = new CompactWorkflowStore(
+      () => this.sessionStore.selectedSessionId || null,
+      () =>
+        this.sessionStore.selectedSession ??
+        (this.liveSessionStore.selectedSnapshot as { title: string } | null),
+      () => {
+        const settings = this.liveSessionStore.selectedSnapshot?.settings
+        const value = settings?.compactionModel
+        return typeof value === 'string' && value.length > 0 ? value : 'current-model'
+      },
+      this.sessionApi,
+      this.asyncActionsStore,
+      async (result) => {
+        const existingSession = this.sessionStore.selectedSession
+
+        this.sessionStore.upsertSession({
+          ...toSessionRecord(result.snapshot, existingSession),
+          derivationType: 'compact',
+        })
+        this.liveSessionStore.upsertSnapshot(result.snapshot)
+        this.sessionStore.selectSession(result.snapshot.sessionId)
+        this.feedbackStore.showFeedback(
+          `Compacted “${result.snapshot.title}” and removed ${result.removedCount} messages.`,
+        )
+      },
+    )
 
     this.forkWorkflow = new ForkWorkflowStore(
       () => this.sessionStore.selectedSessionId || null,
@@ -646,7 +675,10 @@ export class ComposerStore {
     }
   }
 
-  compactSelected = async (customInstructions?: string): Promise<void> => {
+  compactSelected = async (request?: {
+    customInstructions?: string
+    compactionModel?: string
+  }): Promise<void> => {
     const selectedSessionId = this.sessionStore.selectedSessionId
     const compact = this.sessionApi.compact
 
@@ -658,9 +690,14 @@ export class ComposerStore {
       this.error = null
     })
 
+    const actionId = this.asyncActionsStore.startAction(
+      'Compressing session',
+      this.sessionStore.selectedSession?.title ?? selectedSessionId,
+    )
+
     try {
       const existingSession = this.sessionStore.selectedSession
-      const result = await compact(selectedSessionId, customInstructions)
+      const result = await compact(selectedSessionId, request)
 
       this.sessionStore.upsertSession({
         ...toSessionRecord(result.snapshot, existingSession),
@@ -671,6 +708,11 @@ export class ComposerStore {
       this.feedbackStore.showFeedback(
         `Compacted “${result.snapshot.title}” and removed ${result.removedCount} messages.`,
       )
+      this.asyncActionsStore.completeAction(
+        actionId,
+        'Compression complete',
+        `${result.snapshot.title} · removed ${result.removedCount} messages`,
+      )
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to compact the selected session.'
@@ -679,6 +721,7 @@ export class ComposerStore {
         this.error = message
       })
       this.feedbackStore.showFeedback(message, 'error')
+      this.asyncActionsStore.failAction(actionId, 'Compression failed', message)
     }
   }
 

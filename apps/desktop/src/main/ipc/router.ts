@@ -510,14 +510,10 @@ export function registerAppIpcHandlers({
     [IPC_CHANNELS.sessionCompact]: async (
       event: IpcInvokeEventLike,
       sessionId: string,
-      customInstructions?: string,
+      request?: Parameters<FoundationService['compactSession']>[1],
     ) => {
       ensureSenderCleanup(event.sender)
-      const result = await service.compactSession(
-        sessionId,
-        customInstructions,
-        `renderer:${event.sender.id}`,
-      )
+      const result = await service.compactSession(sessionId, request, `renderer:${event.sender.id}`)
       registerRendererSessionAttachment(event.sender.id, result.snapshot.sessionId)
       return result
     },

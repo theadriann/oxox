@@ -81,6 +81,7 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
   const nextRequestId = tracker.nextRequestId
   const persistManagedSession = tracker.persist
   const emitToSubscribers = tracker.emitToSubscribers
+  const transportSubscriptions = new WeakMap<ManagedSession, () => void>()
   const getRewindBoundaryMessageIdsByMessageId = (sessionId: string): ReadonlyMap<string, string> =>
     new Map(
       options.database
@@ -109,10 +110,11 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
     session: ManagedSession,
     transport: StreamJsonRpcProcessTransportLike,
   ): void => {
+    transportSubscriptions.get(session)?.()
     session.transport = transport
     session.processId = transport.processId
 
-    transport.subscribe((event) => {
+    const unsubscribe = transport.subscribe((event) => {
       applyEventToSession(session, event, now())
       if (event.type === 'message.completed' && event.rewindBoundaryMessageId) {
         options.database.upsertSessionRewindBoundary({
@@ -129,6 +131,7 @@ export function createSessionProcessManager(options: CreateSessionProcessManager
         void reconnectHandler.reconnect(session)
       }
     })
+    transportSubscriptions.set(session, unsubscribe)
   }
 
   const hydrateManagedSession = (
