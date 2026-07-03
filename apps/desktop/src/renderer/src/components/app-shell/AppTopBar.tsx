@@ -1,4 +1,4 @@
-import { Info, PanelLeft, Search } from 'lucide-react'
+import { Info, PanelLeft, Plus, Search } from 'lucide-react'
 import type { CSSProperties } from 'react'
 
 import { Button } from '../ui/button'
@@ -20,6 +20,7 @@ export interface AppTopBarProps {
   onToggleSidebar?: () => void
   onToggleContextPanel?: () => void
   onOpenSearch?: () => void
+  onNewSession?: () => void
 }
 
 export function AppTopBar({
@@ -31,12 +32,13 @@ export function AppTopBar({
   onToggleSidebar,
   onToggleContextPanel,
   onOpenSearch,
+  onNewSession,
 }: AppTopBarProps) {
   return (
     <header className="ox-topbar flex h-[50px] items-center gap-2 px-3" style={DRAG_STYLE}>
       {/* Spacer: matches sidebar width when open, traffic light width when closed */}
       <div
-        className="shrink-0 transition-[width] duration-200 ease-in-out"
+        className="hidden shrink-0 transition-[width] duration-200 ease-in-out xl:block"
         style={{ width: isSidebarHidden ? 60 : 'var(--oxox-sidebar-width, 240px)' }}
       />
 
@@ -80,7 +82,7 @@ export function AppTopBar({
             </Tooltip>
           </TooltipProvider>
           {sessionProjectLabel ? (
-            <span className="shrink-0 rounded-md border border-fd-border-subtle bg-fd-panel/70 px-1.5 py-0.5 text-[10px] text-fd-tertiary">
+            <span className="hidden shrink-0 rounded-md border border-fd-border-subtle bg-fd-panel/70 px-1.5 py-0.5 text-[10px] text-fd-tertiary sm:inline">
               {sessionProjectLabel}
             </span>
           ) : null}
@@ -90,6 +92,28 @@ export function AppTopBar({
       )}
 
       <div className="ml-auto flex items-center gap-1.5" style={NO_DRAG_STYLE}>
+        {onNewSession ? (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Create new session"
+                  className="h-7 gap-1.5 px-2 xl:hidden"
+                  onClick={onNewSession}
+                >
+                  <Plus className="size-3.5" />
+                  <span className="text-xs">New</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-[11px]">
+                Create new session
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
+
         {onOpenSearch ? (
           <TooltipProvider delayDuration={200}>
             <Tooltip>
@@ -97,7 +121,7 @@ export function AppTopBar({
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label="Open full-page search"
+                  aria-label={isSearchOpen ? 'Close session search' : 'Open full-page search'}
                   aria-pressed={isSearchOpen}
                   className={`h-7 gap-1.5 px-2 ${isSearchOpen ? 'bg-fd-surface-hover text-fd-primary' : 'ox-icon-button'}`}
                   onClick={onOpenSearch}
@@ -107,7 +131,7 @@ export function AppTopBar({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-[11px]">
-                Open full-page search
+                {isSearchOpen ? 'Close' : 'Open'} full-page search
                 <kbd className="ml-1.5 rounded bg-white/10 px-1 py-0.5 font-mono text-[9px] text-fd-tertiary">
                   Cmd+Shift+F
                 </kbd>

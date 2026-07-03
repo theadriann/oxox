@@ -18,6 +18,7 @@ export interface PlatformApiClient {
   foundation: OptionalGroup<OxoxBridge['foundation']>
   database: OptionalGroup<OxoxBridge['database']>
   workspaceFiles: OptionalGroup<OxoxBridge['workspaceFiles']>
+  workspaceDirectories: OptionalGroup<OxoxBridge['workspaceDirectories']>
   git: OptionalGroup<OxoxBridge['git']>
   factoryApi: OptionalGroup<OxoxBridge['factoryApi']>
   transcript: OptionalGroup<OxoxBridge['transcript']>
@@ -62,6 +63,7 @@ export function buildPlatformApiClient(bridge: OxoxBridge | null): PlatformApiCl
     foundation: bridge?.foundation ?? {},
     database: bridge?.database ?? {},
     workspaceFiles: bridge?.workspaceFiles ?? {},
+    workspaceDirectories: bridge?.workspaceDirectories ?? {},
     git: bridge?.git ?? {},
     factoryApi: bridge?.factoryApi ?? {},
     transcript: bridge?.transcript ?? {},

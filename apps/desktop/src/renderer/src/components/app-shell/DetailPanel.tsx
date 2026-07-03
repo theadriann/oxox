@@ -8,6 +8,7 @@ import type {
   SessionSearchTarget,
   SessionTranscript,
   SessionTranscriptScrollState,
+  WorkspaceDirectoryEntry,
 } from '../../../../shared/ipc/contracts'
 import type { SessionPreview } from '../../state/sessions/session.model'
 import type { ContentLayout } from '../../state/ui/ui.model'
@@ -42,6 +43,15 @@ export interface DetailPanelProps {
   foundation: FoundationBootstrap
   newSessionPath: string
   newSessionError: string | null
+  newSessionDirectoryPicker: {
+    isOpen: boolean
+    isLoading: boolean
+    error: string | null
+    currentPath: string
+    parentPath: string | null
+    homePath: string
+    entries: WorkspaceDirectoryEntry[]
+  }
   transcriptScrollSignal: number
   transcriptSearchTarget: SessionSearchTarget | null
   transcriptScrollPersistenceEnabled: boolean
@@ -52,7 +62,12 @@ export interface DetailPanelProps {
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
   transportProtocol: string
   contentLayout: ContentLayout
+  onCancelNewSession: () => void
+  onCloseNewSessionDirectoryPicker: () => void
+  onNavigateNewSessionDirectoryPicker: (path: string | null) => void
+  onNewSessionPathChange: (path: string) => void
   onPickDirectory: () => void
+  onSelectNewSessionDirectory: (path?: string) => void
   onRefreshFoundation: () => void
   onRetrySelectedTranscript: () => void
   onBrowseSessions: () => void
@@ -81,6 +96,7 @@ export function DetailPanel({
   foundation,
   newSessionPath,
   newSessionError,
+  newSessionDirectoryPicker,
   transcriptScrollSignal,
   transcriptSearchTarget,
   transcriptScrollPersistenceEnabled,
@@ -91,7 +107,12 @@ export function DetailPanel({
   transcriptPrimaryActionRef,
   transportProtocol,
   contentLayout,
+  onCancelNewSession,
+  onCloseNewSessionDirectoryPicker,
+  onNavigateNewSessionDirectoryPicker,
+  onNewSessionPathChange,
   onPickDirectory,
+  onSelectNewSessionDirectory,
   onRefreshFoundation,
   onRetrySelectedTranscript,
   onBrowseSessions,
@@ -105,12 +126,24 @@ export function DetailPanel({
       <DetailPanelContentFrame contentLayout={contentLayout}>
         <div className="rounded-lg border border-fd-border-default bg-fd-surface px-3 py-3">
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-lg font-semibold tracking-tight text-fd-primary">New session</h2>
-              <p className="text-sm text-fd-secondary">
-                Pick a workspace, then use the composer below to send the first message and kick off
-                the session only when you are ready.
-              </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-lg font-semibold tracking-tight text-fd-primary">
+                  New session
+                </h2>
+                <p className="text-sm text-fd-secondary">
+                  Pick a workspace, then use the composer below to send the first message and kick
+                  off the session only when you are ready.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="self-start"
+                onClick={onCancelNewSession}
+              >
+                Cancel
+              </Button>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -121,13 +154,13 @@ export function DetailPanel({
                 Workspace directory
               </label>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="relative min-w-[18rem] flex-1">
+                <div className="relative min-w-0 flex-1">
                   <FolderSearch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fd-tertiary" />
                   <input
                     id="new-session-path"
-                    readOnly
                     className="h-8 w-full rounded-md border border-fd-border-default bg-fd-panel pl-10 pr-3 text-sm text-fd-primary outline-none"
                     placeholder="Choose a workspace folder"
+                    onChange={(event) => onNewSessionPathChange(event.target.value)}
                     value={newSessionPath}
                   />
                 </div>
@@ -142,6 +175,15 @@ export function DetailPanel({
               <p className="rounded-md border border-fd-ember-400/30 bg-fd-ember-500/10 px-3 py-2 text-sm text-fd-ember-400">
                 {newSessionError}
               </p>
+            ) : null}
+
+            {newSessionDirectoryPicker.isOpen ? (
+              <WorkspaceDirectoryPicker
+                picker={newSessionDirectoryPicker}
+                onClose={onCloseNewSessionDirectoryPicker}
+                onNavigate={onNavigateNewSessionDirectoryPicker}
+                onSelect={onSelectNewSessionDirectory}
+              />
             ) : null}
           </div>
         </div>
@@ -334,6 +376,93 @@ export function DetailPanel({
       onForkFromMessage={onForkFromMessage}
       onTranscriptScrollStateChange={onTranscriptScrollStateChange}
     />
+  )
+}
+
+function WorkspaceDirectoryPicker({
+  picker,
+  onClose,
+  onNavigate,
+  onSelect,
+}: {
+  picker: DetailPanelProps['newSessionDirectoryPicker']
+  onClose: () => void
+  onNavigate: (path: string | null) => void
+  onSelect: (path?: string) => void
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-fd-border-subtle bg-fd-panel">
+      <div className="flex flex-col gap-2 border-b border-fd-border-subtle px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-fd-tertiary">
+            Browse daemon folders
+          </p>
+          <p className="truncate font-mono text-xs text-fd-primary" title={picker.currentPath}>
+            {picker.currentPath || 'Loading…'}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!picker.homePath || picker.isLoading}
+            onClick={() => onNavigate(picker.homePath)}
+          >
+            Home
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!picker.parentPath || picker.isLoading}
+            onClick={() => onNavigate(picker.parentPath)}
+          >
+            Up
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={!picker.currentPath || picker.isLoading}
+            onClick={() => onSelect()}
+          >
+            Use this folder
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </div>
+
+      {picker.error ? (
+        <p className="m-3 rounded-md border border-fd-ember-400/30 bg-fd-ember-500/10 px-3 py-2 text-sm text-fd-ember-400">
+          {picker.error}
+        </p>
+      ) : null}
+
+      <div className="max-h-72 overflow-y-auto p-1.5">
+        {picker.isLoading ? (
+          <p className="px-2 py-4 text-center text-xs text-fd-tertiary">Loading folders…</p>
+        ) : picker.entries.length > 0 ? (
+          <div className="flex flex-col gap-0.5">
+            {picker.entries.map((entry) => (
+              <button
+                key={entry.path}
+                type="button"
+                className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-fd-secondary hover:bg-fd-surface-hover hover:text-fd-primary"
+                onClick={() => onNavigate(entry.path)}
+              >
+                <FolderSearch className="size-3.5 shrink-0 text-fd-tertiary" />
+                <span className="truncate">{entry.name}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="px-2 py-4 text-center text-xs text-fd-tertiary">No child folders found.</p>
+        )}
+      </div>
+    </div>
   )
 }
 

@@ -1,5 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
-import type { LiveSessionMessageImageSource } from '../../../shared/ipc/contracts'
+import type {
+  LiveSessionMessageImageSource,
+  WorkspaceDirectoryEntry,
+} from '../../../shared/ipc/contracts'
 
 import type { PlatformApiClient } from '../platform/apiClient'
 import type { ComposerStore } from '../state/composer/composer.model'
@@ -7,6 +10,7 @@ import type { LiveSessionStore } from '../state/live-sessions/live-session.model
 import type { SessionStore } from '../state/sessions/session.model'
 
 export type NewSessionFormDialogApi = PlatformApiClient['dialog']
+export type NewSessionFormDirectoryApi = PlatformApiClient['workspaceDirectories']
 export type NewSessionFormSessionApi = PlatformApiClient['session']
 
 interface UseNewSessionFormOptions {
@@ -14,6 +18,7 @@ interface UseNewSessionFormOptions {
   liveSessionStore: LiveSessionStore
   composerStore: ComposerStore
   dialogApi: NewSessionFormDialogApi
+  directoryApi: NewSessionFormDirectoryApi
   sessionApi: NewSessionFormSessionApi
 }
 
@@ -22,8 +27,21 @@ interface UseNewSessionFormResult {
   path: string
   error: string | null
   isSubmitting: boolean
+  directoryPicker: {
+    isOpen: boolean
+    isLoading: boolean
+    error: string | null
+    currentPath: string
+    parentPath: string | null
+    homePath: string
+    entries: WorkspaceDirectoryEntry[]
+  }
+  setPath: (path: string) => void
   openDraft: (workspacePath?: string, folderId?: string | null) => void
   pickDirectory: () => Promise<void>
+  closeDirectoryPicker: () => void
+  navigateDirectoryPicker: (path: string | null) => Promise<void>
+  selectDirectoryFromPicker: (path?: string) => void
   submitNewSession: (payload: {
     text: string
     modelId: string
@@ -40,12 +58,22 @@ export function useNewSessionForm({
   liveSessionStore,
   composerStore,
   dialogApi,
+  directoryApi,
   sessionApi,
 }: UseNewSessionFormOptions): UseNewSessionFormResult {
   const [showForm, setShowForm] = useState(false)
   const [path, setPath] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [directoryPicker, setDirectoryPicker] = useState({
+    isOpen: false,
+    isLoading: false,
+    error: null as string | null,
+    currentPath: '',
+    parentPath: null as string | null,
+    homePath: '',
+    entries: [] as WorkspaceDirectoryEntry[],
+  })
   const triggerRef = useRef<HTMLElement | null>(null)
   const previousSessionIdRef = useRef('')
   const pendingFolderIdRef = useRef<string | null>(null)
@@ -54,6 +82,7 @@ export function useNewSessionForm({
     setShowForm(false)
     setPath('')
     setError(null)
+    setDirectoryPicker((current) => ({ ...current, isOpen: false, error: null }))
     pendingFolderIdRef.current = null
     composerStore.clearPendingDraft()
 
@@ -97,7 +126,58 @@ export function useNewSessionForm({
     [composerStore, sessionStore, showForm],
   )
 
+  const closeDirectoryPicker = useCallback(() => {
+    setDirectoryPicker((current) => ({ ...current, isOpen: false, error: null }))
+  }, [])
+
+  const loadDirectoryPicker = useCallback(
+    async (nextPath: string | null) => {
+      if (!directoryApi.list) {
+        return false
+      }
+
+      setDirectoryPicker((current) => ({
+        ...current,
+        isOpen: true,
+        isLoading: true,
+        error: null,
+      }))
+
+      try {
+        const result = await directoryApi.list({
+          path: nextPath,
+          showHidden: false,
+        })
+
+        setDirectoryPicker({
+          isOpen: true,
+          isLoading: false,
+          error: null,
+          currentPath: result.currentPath,
+          parentPath: result.parentPath,
+          homePath: result.homePath,
+          entries: result.entries,
+        })
+        return true
+      } catch (nextError) {
+        setDirectoryPicker((current) => ({
+          ...current,
+          isOpen: true,
+          isLoading: false,
+          error:
+            nextError instanceof Error ? nextError.message : 'Unable to browse workspace folders.',
+        }))
+        return true
+      }
+    },
+    [directoryApi.list],
+  )
+
   const pickDirectory = useCallback(async () => {
+    if (directoryApi.list && (await loadDirectoryPicker(path.trim() || null))) {
+      return
+    }
+
     if (!dialogApi.selectDirectory) {
       return
     }
@@ -114,7 +194,29 @@ export function useNewSessionForm({
         nextError instanceof Error ? nextError.message : 'Unable to open the workspace picker.',
       )
     }
-  }, [composerStore, dialogApi.selectDirectory])
+  }, [composerStore, dialogApi.selectDirectory, directoryApi.list, loadDirectoryPicker, path])
+
+  const navigateDirectoryPicker = useCallback(
+    async (nextPath: string | null) => {
+      await loadDirectoryPicker(nextPath)
+    },
+    [loadDirectoryPicker],
+  )
+
+  const selectDirectoryFromPicker = useCallback(
+    (selectedPath?: string) => {
+      const nextPath = (selectedPath ?? directoryPicker.currentPath).trim()
+
+      if (!nextPath) {
+        return
+      }
+
+      setPath(nextPath)
+      composerStore.beginPendingDraftForWorkspace(nextPath)
+      closeDirectoryPicker()
+    },
+    [closeDirectoryPicker, composerStore, directoryPicker.currentPath],
+  )
 
   const submitNewSession = useCallback(
     async (payload: {
@@ -192,8 +294,13 @@ export function useNewSessionForm({
     path,
     error,
     isSubmitting,
+    directoryPicker,
+    setPath,
     openDraft,
     pickDirectory,
+    closeDirectoryPicker,
+    navigateDirectoryPicker,
+    selectDirectoryFromPicker,
     submitNewSession,
     closeForm,
   }

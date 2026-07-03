@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { Info } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type {
   DaemonConnectionStatus,
@@ -7,6 +8,8 @@ import type {
 import { useTimeTick } from '../../hooks/useTimeTick'
 import { createStatusDotTarget } from '../../lib/motion'
 import { formatAbsoluteSessionTime, toTimestamp } from '../../lib/sessionTime'
+import { Button } from '../ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 
 export interface StatusBarProps {
   daemonStatus: DaemonConnectionStatus
@@ -60,11 +63,11 @@ export function StatusBar({
 
   return (
     <footer
-      className="flex h-6 shrink-0 items-center justify-between border-t border-fd-border-subtle bg-fd-surface px-3 text-[11px] text-fd-tertiary"
+      className="ox-status-bar flex h-6 shrink-0 items-center justify-between gap-2 overflow-hidden border-t border-fd-border-subtle bg-fd-surface px-3 text-[11px] text-fd-tertiary"
       data-testid="global-status-bar"
     >
-      <div className="flex items-center gap-4">
-        <span className="flex items-center gap-1.5" title={daemonDetail}>
+      <div className="flex min-w-0 items-center gap-4">
+        <span className="ox-status-daemon flex min-w-0 items-center gap-1.5" title={daemonDetail}>
           <motion.span
             aria-hidden="true"
             className={`size-1.5 rounded-full ${daemonMeta.indicatorClassName}`}
@@ -79,24 +82,36 @@ export function StatusBar({
           {connectedPort ? ` :${connectedPort}` : ''}
         </span>
 
-        <span className="text-fd-border-strong">|</span>
+        <span className="ox-status-detail text-fd-border-strong">|</span>
 
-        <span>
+        <span className="ox-status-detail">
           {activeSessionCount} active session{activeSessionCount !== 1 ? 's' : ''}
         </span>
 
-        <span className="text-fd-border-strong">|</span>
+        <span className="ox-status-detail text-fd-border-strong">|</span>
 
-        <LastSyncText lastSyncAt={lastSyncAt} now={now} />
+        <LastSyncText className="ox-status-detail" lastSyncAt={lastSyncAt} now={now} />
 
         <SearchIndexingProgress progress={searchIndexingProgress} />
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 items-center gap-4">
         {notificationTray}
-        {updateStatusLabel ? <span>{updateStatusLabel}</span> : null}
+        <StatusBarDetailsPopover
+          activeSessionCount={activeSessionCount}
+          daemonDetail={daemonDetail}
+          daemonLabel={daemonMeta.label}
+          droidCliVersion={droidCliVersion}
+          lastSyncAt={lastSyncAt}
+          nextRetryDelayMs={nextRetryDelayMs}
+          now={now}
+          updateStatusLabel={updateStatusLabel}
+        />
+        {updateStatusLabel ? (
+          <span className="ox-status-update truncate">{updateStatusLabel}</span>
+        ) : null}
         {droidCliVersion ? (
-          <span className="font-mono" title={droidCliVersion}>
+          <span className="ox-status-version font-mono" title={droidCliVersion}>
             droid {droidCliVersion}
           </span>
         ) : null}
@@ -114,9 +129,9 @@ function SearchIndexingProgress({ progress }: { progress?: SessionSearchIndexing
 
   return (
     <>
-      <span className="text-fd-border-strong">|</span>
+      <span className="ox-status-detail text-fd-border-strong">|</span>
       <span
-        className="flex items-center gap-1.5"
+        className="ox-status-detail flex items-center gap-1.5"
         title={`${progress.indexedSessions} of ${progress.totalSessions} sessions indexed for search`}
       >
         <span>
@@ -141,13 +156,99 @@ function SearchIndexingProgress({ progress }: { progress?: SessionSearchIndexing
   )
 }
 
-function LastSyncText({ lastSyncAt, now }: { lastSyncAt: string | null; now?: number }) {
+function LastSyncText({
+  className,
+  lastSyncAt,
+  now,
+}: {
+  className?: string
+  lastSyncAt: string | null
+  now?: number
+}) {
   const liveNow = useTimeTick()
 
   return (
-    <span title={lastSyncAt ? formatAbsoluteSessionTime(lastSyncAt) : undefined}>
+    <span
+      className={className}
+      title={lastSyncAt ? formatAbsoluteSessionTime(lastSyncAt) : undefined}
+    >
       Sync: {formatStatusBarRelativeTime(lastSyncAt, now ?? liveNow)}
     </span>
+  )
+}
+
+function StatusBarDetailsPopover({
+  activeSessionCount,
+  daemonDetail,
+  daemonLabel,
+  droidCliVersion,
+  lastSyncAt,
+  nextRetryDelayMs,
+  now,
+  updateStatusLabel,
+}: {
+  activeSessionCount: number
+  daemonDetail: string
+  daemonLabel: string
+  droidCliVersion: string | null
+  lastSyncAt: string | null
+  nextRetryDelayMs: number | null
+  now?: number
+  updateStatusLabel?: string | null
+}) {
+  const liveNow = useTimeTick()
+  const resolvedNow = now ?? liveNow
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="ox-status-more xl:hidden"
+          aria-label="Show status details"
+        >
+          <Info className="size-3" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="end" className="w-64 gap-2">
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-[11px]">
+          <dt className="text-fd-tertiary">Daemon</dt>
+          <dd className="truncate text-fd-primary" title={daemonDetail}>
+            {daemonLabel}
+          </dd>
+          <dt className="text-fd-tertiary">Active</dt>
+          <dd className="text-fd-primary">{activeSessionCount} sessions</dd>
+          <dt className="text-fd-tertiary">Sync</dt>
+          <dd className="text-fd-primary">
+            {formatStatusBarRelativeTime(lastSyncAt, resolvedNow)}
+          </dd>
+          {nextRetryDelayMs ? (
+            <>
+              <dt className="text-fd-tertiary">Retry</dt>
+              <dd className="text-fd-primary">{Math.ceil(nextRetryDelayMs / 1000)}s</dd>
+            </>
+          ) : null}
+          {updateStatusLabel ? (
+            <>
+              <dt className="text-fd-tertiary">Update</dt>
+              <dd className="truncate text-fd-primary" title={updateStatusLabel}>
+                {updateStatusLabel}
+              </dd>
+            </>
+          ) : null}
+          {droidCliVersion ? (
+            <>
+              <dt className="text-fd-tertiary">CLI</dt>
+              <dd className="truncate font-mono text-fd-primary" title={droidCliVersion}>
+                droid {droidCliVersion}
+              </dd>
+            </>
+          ) : null}
+        </dl>
+      </PopoverContent>
+    </Popover>
   )
 }
 

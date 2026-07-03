@@ -64,6 +64,7 @@ export const IPC_CHANNELS = {
   databaseListProjects: 'database:list-projects',
   databaseListSessions: 'database:list-sessions',
   databaseListSyncMetadata: 'database:list-sync-metadata',
+  workspaceDirectoriesList: 'workspace-directories:list',
   workspaceFilesList: 'workspace-files:list',
   workspaceFilesSearch: 'workspace-files:search',
   workspaceFilesGetContent: 'workspace-files:get-content',
@@ -261,6 +262,23 @@ export interface SessionReindexProgress {
 export interface WorkspaceFilesListRequest {
   sessionId: string
   showHidden?: boolean
+}
+
+export interface WorkspaceDirectoryEntry {
+  name: string
+  path: string
+}
+
+export interface WorkspaceDirectoriesListRequest {
+  path?: string | null
+  showHidden?: boolean
+}
+
+export interface WorkspaceDirectoriesListResponse {
+  currentPath: string
+  parentPath: string | null
+  homePath: string
+  entries: WorkspaceDirectoryEntry[]
 }
 
 export interface WorkspaceFilesListResponse {
@@ -1254,6 +1272,9 @@ export interface OxoxBridge {
     list: (request: WorkspaceFilesListRequest) => Promise<WorkspaceFilesListResponse>
     search: (request: WorkspaceFilesSearchRequest) => Promise<WorkspaceFilesSearchResponse>
     getContent: (request: WorkspaceFileContentRequest) => Promise<WorkspaceFileContentResponse>
+  }
+  workspaceDirectories: {
+    list: (request: WorkspaceDirectoriesListRequest) => Promise<WorkspaceDirectoriesListResponse>
   }
   git: {
     getDiff: (request: GitDiffRequest) => Promise<GitDiffResponse>

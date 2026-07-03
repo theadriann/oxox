@@ -1,7 +1,14 @@
 import { useValue } from '@legendapp/state/react'
+import { useCallback } from 'react'
 import { useLiveSessionStore, useSessionStore, useUIStore } from '../../state/root/store-provider'
 import { useAppShellControllerContext } from './AppShellControllerContext'
 import { AppTopBar } from './AppTopBar'
+
+const MOBILE_LAYOUT_QUERY = '(max-width: 1279px)'
+
+function isMobileLayout(): boolean {
+  return window.matchMedia?.(MOBILE_LAYOUT_QUERY).matches ?? false
+}
 
 export function AppShellTopBarConnected() {
   const liveSessionStore = useLiveSessionStore()
@@ -23,6 +30,13 @@ export function AppShellTopBarConnected() {
       : (liveSessionStore.selectedSnapshot?.projectWorkspacePath ??
         sessionStore.selectedSession?.projectLabel),
   )
+  const handleNewSession = useCallback(() => {
+    newSessionForm.openDraft()
+
+    if (isMobileLayout()) {
+      uiStore.hideSidebar()
+    }
+  }, [newSessionForm, uiStore])
 
   if (isSettingsOpen) {
     return (
@@ -32,7 +46,7 @@ export function AppShellTopBarConnected() {
         isSidebarHidden={isSidebarHidden}
         isSearchOpen={isSearchOpen}
         onToggleSidebar={uiStore.toggleSidebar}
-        onOpenSearch={uiStore.openSearch}
+        onOpenSearch={uiStore.toggleSearch}
       />
     )
   }
@@ -45,7 +59,7 @@ export function AppShellTopBarConnected() {
         isSidebarHidden
         isSearchOpen={isSearchOpen}
         onToggleSidebar={uiStore.toggleSidebar}
-        onOpenSearch={uiStore.openSearch}
+        onOpenSearch={uiStore.toggleSearch}
       />
     )
   }
@@ -59,7 +73,8 @@ export function AppShellTopBarConnected() {
       isSearchOpen={isSearchOpen}
       onToggleSidebar={uiStore.toggleSidebar}
       onToggleContextPanel={uiStore.toggleContextPanel}
-      onOpenSearch={uiStore.openSearch}
+      onOpenSearch={uiStore.toggleSearch}
+      onNewSession={handleNewSession}
     />
   )
 }

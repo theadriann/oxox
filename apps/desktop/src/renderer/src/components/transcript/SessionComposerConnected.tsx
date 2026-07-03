@@ -83,7 +83,10 @@ export function SessionComposerConnected({
         sessionStore,
         uiStore,
       }),
-      selectedWorkspaceSessionId: selectedSession?.projectWorkspacePath ? selectedSession.id : null,
+      selectedWorkspaceSessionId:
+        selectedSession?.projectWorkspacePath || selectedSession?.transport === 'daemon'
+          ? selectedSession.id
+          : null,
     }
   })
   const handleWorkspaceFileQueryChange = useCallback(

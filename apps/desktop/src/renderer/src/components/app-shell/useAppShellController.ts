@@ -10,6 +10,8 @@ import type { RootStore } from '../../state/root/root.model'
 import type { StoreContextValue } from '../../state/root/store-provider'
 import { createAppShellKeyboardShortcuts } from './appShellKeyboardShortcuts'
 
+const MOBILE_LAYOUT_BREAKPOINT_PX = 1280
+
 interface UseAppShellControllerOptions
   extends Pick<
     StoreContextValue,
@@ -24,6 +26,13 @@ interface UseAppShellControllerOptions
     | 'updateStore'
   > {
   rootStore: RootStore
+}
+
+function isMobileLayout(): boolean {
+  return (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(`(max-width: ${MOBILE_LAYOUT_BREAKPOINT_PX - 1}px)`).matches
+  )
 }
 
 export function useAppShellController({
@@ -51,6 +60,7 @@ export function useAppShellController({
     liveSessionStore,
     composerStore,
     dialogApi: rootStore.api.dialog,
+    directoryApi: rootStore.api.workspaceDirectories,
     sessionApi: rootStore.api.session,
   })
   const { startSidebarResize, startContextPanelResize } = usePanelResize({ uiStore })
@@ -73,13 +83,16 @@ export function useAppShellController({
       }
 
       sessionStore.selectSession(sessionId)
+      if (isMobileLayout()) {
+        uiStore.hideSidebar()
+      }
       setTranscriptSearchTarget(target ?? null)
 
       if (!target) {
         setTranscriptScrollSignal((current) => current + 1)
       }
     },
-    [newSessionForm, sessionStore],
+    [newSessionForm, sessionStore, uiStore],
   )
 
   useAppRuntime({

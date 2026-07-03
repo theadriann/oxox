@@ -45,6 +45,7 @@ import type {
   SessionTranscript,
   SessionTranscriptScrollState,
   SyncMetadataRecord,
+  WorkspaceDirectoriesListResponse,
   WorkspaceFileContentResponse,
   WorkspaceFilesListResponse,
   WorkspaceFilesSearchResponse,
@@ -186,6 +187,14 @@ export function createOxoxBridge(
         invokeTyped<WorkspaceFileContentResponse>(
           invoke,
           IPC_CHANNELS.workspaceFilesGetContent,
+          request,
+        ),
+    },
+    workspaceDirectories: {
+      list: (request) =>
+        invokeTyped<WorkspaceDirectoriesListResponse>(
+          invoke,
+          IPC_CHANNELS.workspaceDirectoriesList,
           request,
         ),
     },

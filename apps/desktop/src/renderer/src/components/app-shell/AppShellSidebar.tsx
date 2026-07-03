@@ -18,6 +18,15 @@ import { useAppShellControllerContext } from './AppShellControllerContext'
 import { buildAppShellSidebarProps } from './connectedSelectors'
 import { useAppShellViewModel } from './useAppShellViewModel'
 
+const MOBILE_LAYOUT_BREAKPOINT_PX = 1280
+
+function isMobileLayout(): boolean {
+  return (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(`(max-width: ${MOBILE_LAYOUT_BREAKPOINT_PX - 1}px)`).matches
+  )
+}
+
 interface AppShellSidebarProps {
   prefersReducedMotion: boolean
   shouldAnimate: boolean
@@ -167,6 +176,14 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
     [rootStore.api.session.deleteSession, sessionStore],
   )
 
+  const handleNewSession = useCallback(() => {
+    newSessionForm.openDraft()
+
+    if (isMobileLayout()) {
+      uiStore.hideSidebar()
+    }
+  }, [newSessionForm, uiStore])
+
   const sidebarState = useValue(() =>
     buildAppShellSidebarProps({
       errorState: sidebarErrorState,
@@ -176,7 +193,7 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
       onDeleteSession: handleDeleteSession,
       onForkSession: handleForkSession,
       onMoveSessionProject: handleMoveSessionProject,
-      onNewSession: newSessionForm.openDraft,
+      onNewSession: handleNewSession,
       onRenameSession: handleRenameSession,
       onResizeStart: startSidebarResize,
       onRewindSession: handleRewindSession,
@@ -201,7 +218,7 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
   )
 
   if (!shouldAnimate) {
-    return <div className="min-h-0 min-w-0">{sidebar}</div>
+    return <div className="oxox-sidebar-region min-h-0 min-w-0">{sidebar}</div>
   }
 
   return (
@@ -210,7 +227,7 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
         key="sidebar"
         layout
         animate="animate"
-        className="min-h-0 min-w-0"
+        className="oxox-sidebar-region min-h-0 min-w-0"
         exit="exit"
         initial="initial"
         variants={createPanelVariants(prefersReducedMotion, 'left')}

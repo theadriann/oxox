@@ -8,6 +8,7 @@ import { extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AppUpdateState, RuntimeInfo } from '../../desktop/src/shared/ipc/contracts'
 import { IPC_CHANNELS } from '../../desktop/src/shared/ipc/contracts'
+import { type RemoteRelayClient, startRemoteRelayClient } from './remote/relayClient'
 
 type IpcHandler = (...args: unknown[]) => unknown
 type FoundationServiceLike = {
@@ -75,6 +76,7 @@ type DatabaseConnectionLike = {
 
 const DEFAULT_PORT = 3210
 const DAEMON_VIEWER_ID = 1
+const MAX_REQUEST_BODY_BYTES = 1024 * 1024
 const require = createRequire(import.meta.url)
 
 process.env.OXOX_BETTER_SQLITE3_PACKAGE ??= 'better-sqlite3-node'
@@ -138,6 +140,31 @@ function resolvePort(): number {
   const value = Number.parseInt(process.env.OXOX_DAEMON_PORT ?? `${DEFAULT_PORT}`, 10)
 
   return Number.isFinite(value) ? value : DEFAULT_PORT
+}
+
+function resolveRemoteRelayConfig(): {
+  accessToken: string
+  hostId: string
+  hostToken: string
+  relayUrl: string
+} | null {
+  const relayUrl = process.env.OXOX_REMOTE_RELAY_URL?.trim()
+  const hostId = process.env.OXOX_REMOTE_HOST_ID?.trim()
+  const hostToken = process.env.OXOX_REMOTE_HOST_TOKEN?.trim()
+  const accessToken = process.env.OXOX_REMOTE_ACCESS_TOKEN?.trim()
+
+  if (!relayUrl && !hostId && !hostToken && !accessToken) {
+    return null
+  }
+
+  if (!relayUrl || !hostId || !hostToken || !accessToken) {
+    console.warn(
+      'OXOX remote relay disabled. Set OXOX_REMOTE_RELAY_URL, OXOX_REMOTE_HOST_ID, OXOX_REMOTE_HOST_TOKEN, and OXOX_REMOTE_ACCESS_TOKEN.',
+    )
+    return null
+  }
+
+  return { accessToken, hostId, hostToken, relayUrl }
 }
 
 function createUnsupportedUpdateState(): AppUpdateState {
@@ -204,9 +231,17 @@ function writeCorsHeaders(response: ServerResponse): void {
 
 async function readJsonBody(request: IncomingMessage): Promise<{ args?: unknown[] }> {
   const chunks: Buffer[] = []
+  let bytesRead = 0
 
   for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    bytesRead += buffer.byteLength
+
+    if (bytesRead > MAX_REQUEST_BODY_BYTES) {
+      throw new Error('Request body is too large.')
+    }
+
+    chunks.push(buffer)
   }
 
   if (chunks.length === 0) {
@@ -316,6 +351,7 @@ async function tryWriteStaticFile(
 const userDataPath = resolveUserDataPath()
 const ipcMain = new RpcHandlerRegistry()
 const eventHub = new ServerEventHub()
+let remoteRelayClient: RemoteRelayClient | null = null
 const webDistPath = resolve(fileURLToPath(new URL('../../web/dist', import.meta.url)))
 const desktopSourceRoot = new URL('../../desktop/src/', import.meta.url)
 const desktopModules = await Promise.all([
@@ -379,22 +415,54 @@ appKernel = new AppKernel({
 
 const foundationService = appKernel.start()
 void appKernel.loadPlugins()
+const remoteRelayConfig = resolveRemoteRelayConfig()
+
+if (remoteRelayConfig) {
+  remoteRelayClient = startRemoteRelayClient({
+    ...remoteRelayConfig,
+    invokeRpc: invokeIpcHandler,
+  })
+  console.log(`OXOX remote relay enabled for host "${remoteRelayConfig.hostId}"`)
+}
+
+function broadcastDaemonEvent(channel: string, payload: unknown): void {
+  eventHub.broadcast(channel, payload)
+  remoteRelayClient?.publishEvent(channel, payload)
+}
+
+async function invokeIpcHandler(channel: string, args: unknown[] = []): Promise<unknown> {
+  const handler = ipcMain.handlers.get(channel)
+
+  if (!handler) {
+    throw new Error(`Unknown OXOX RPC channel "${channel}".`)
+  }
+
+  return handler(
+    {
+      sender: {
+        id: DAEMON_VIEWER_ID,
+        once: () => undefined,
+      },
+    },
+    ...args,
+  )
+}
 
 const stopRuntimeCoordinator = startRuntimeCoordinator({
   foundationService,
   pluginHost: appKernel.getPluginHost(),
   broadcastFoundationChanged: (payload) => {
-    eventHub.broadcast(IPC_CHANNELS.foundationChanged, payload)
+    broadcastDaemonEvent(IPC_CHANNELS.foundationChanged, payload)
   },
   broadcastLiveSessionSnapshot: ({ sessionId }) => {
     const snapshot = foundationService.getSessionSnapshot(sessionId)
 
     if (snapshot) {
-      eventHub.broadcast(IPC_CHANNELS.sessionSnapshotChanged, { snapshot })
+      broadcastDaemonEvent(IPC_CHANNELS.sessionSnapshotChanged, { snapshot })
     }
   },
   broadcastLiveSessionEvent: ({ sessionId, event }) => {
-    eventHub.broadcast(IPC_CHANNELS.sessionEventBatch, {
+    broadcastDaemonEvent(IPC_CHANNELS.sessionEventBatch, {
       sessionId,
       sequenceStart: Date.now(),
       sequenceEnd: Date.now(),
@@ -402,7 +470,7 @@ const stopRuntimeCoordinator = startRuntimeCoordinator({
     })
   },
   broadcastPluginHostSnapshot: (payload) => {
-    eventHub.broadcast(IPC_CHANNELS.pluginHostChanged, payload)
+    broadcastDaemonEvent(IPC_CHANNELS.pluginHostChanged, payload)
   },
   startPluginBootstrap: () => undefined,
 })
@@ -436,24 +504,15 @@ const server = createServer(async (request, response) => {
 
   if (request.method === 'POST' && url.pathname.startsWith('/rpc/')) {
     const channel = decodeURIComponent(url.pathname.slice('/rpc/'.length))
-    const handler = ipcMain.handlers.get(channel)
 
-    if (!handler) {
+    if (!ipcMain.handlers.has(channel)) {
       writeJson(response, 404, { error: { message: `Unknown OXOX RPC channel "${channel}".` } })
       return
     }
 
     try {
       const body = await readJsonBody(request)
-      const result = await handler(
-        {
-          sender: {
-            id: DAEMON_VIEWER_ID,
-            once: () => undefined,
-          },
-        },
-        ...(body.args ?? []),
-      )
+      const result = await invokeIpcHandler(channel, body.args ?? [])
       writeJson(response, 200, { result })
     } catch (error) {
       writeJson(response, 500, {
@@ -484,6 +543,7 @@ server.listen(resolvePort(), resolveHost(), () => {
 })
 
 const stop = async (): Promise<void> => {
+  remoteRelayClient?.stop()
   stopRuntimeCoordinator()
   server.close()
   await appKernel.stopAsync()

@@ -13,6 +13,7 @@ import type {
   LiveSessionCreateRequest,
   RuntimeInfo,
   TranscriptPerformanceEvent,
+  WorkspaceDirectoriesListRequest,
   WorkspaceFileContentRequest,
   WorkspaceFilesListRequest,
   WorkspaceFilesSearchRequest,
@@ -293,6 +294,8 @@ export function registerAppIpcHandlers({
     [IPC_CHANNELS.databaseListProjects]: () => service.listProjects(),
     [IPC_CHANNELS.databaseListSessions]: () => service.listSessions(),
     [IPC_CHANNELS.databaseListSyncMetadata]: () => service.listSyncMetadata(),
+    [IPC_CHANNELS.workspaceDirectoriesList]: (_event, request: WorkspaceDirectoriesListRequest) =>
+      service.listWorkspaceDirectories(request),
     [IPC_CHANNELS.workspaceFilesList]: (_event, request: WorkspaceFilesListRequest) =>
       service.listWorkspaceFiles(request),
     [IPC_CHANNELS.workspaceFilesSearch]: (_event, request: WorkspaceFilesSearchRequest) =>

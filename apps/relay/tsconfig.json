@@ -1,0 +1,9 @@
+{
+  "extends": "../desktop/tsconfig.node.json",
+  "compilerOptions": {
+    "composite": false,
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/**/*"]
+}

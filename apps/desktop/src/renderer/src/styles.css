@@ -351,6 +351,7 @@ body.oxox-context-panel-resizing {
   display: grid;
   gap: 0;
   height: 100%;
+  grid-template-columns: minmax(0, 1fr);
   transition: grid-template-columns var(--fd-motion-base) var(--fd-ease-default);
 }
 
@@ -358,9 +359,14 @@ body.oxox-context-panel-resizing {
 .oxox-content-area {
   display: grid;
   gap: 0;
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
   transition: grid-template-columns var(--fd-motion-base) var(--fd-ease-default);
+}
+
+.oxox-context-panel-backdrop {
+  display: none;
 }
 
 /* Sidebar shell */
@@ -442,6 +448,99 @@ body.oxox-sidebar-resizing .oxox-sidebar-resize-handle::before {
 .oxox-context-panel-resize-handle:hover::before,
 body.oxox-context-panel-resizing .oxox-context-panel-resize-handle::before {
   background: var(--fd-ember-400);
+}
+
+/* Mobile layout */
+@media (max-width: 1279px) {
+  .oxox-sidebar-region {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    min-height: 100dvh;
+    background: var(--fd-canvas);
+  }
+
+  .oxox-sidebar-shell {
+    height: 100dvh;
+    max-width: none;
+    border-right: 0;
+  }
+
+  .oxox-content-area {
+    position: relative;
+  }
+
+  .oxox-context-panel-region {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    height: auto;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .oxox-context-panel-region [data-context-panel-sheet] {
+    height: min(72dvh, 560px);
+    min-height: 280px;
+    margin: 0 8px 8px;
+    overflow: hidden;
+    pointer-events: auto;
+    background: var(--fd-panel);
+    border: 1px solid var(--fd-border-subtle);
+    border-radius: 18px;
+    box-shadow: 0 24px 80px color-mix(in srgb, var(--fd-canvas) 65%, transparent);
+  }
+
+  .oxox-context-panel-shell {
+    max-width: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .oxox-context-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    display: block;
+    cursor: default;
+    pointer-events: auto;
+    background: color-mix(in srgb, var(--fd-canvas) 55%, transparent);
+  }
+
+  .oxox-context-panel-region [data-right-context-rail] {
+    display: none;
+  }
+
+  .oxox-sidebar-resize-handle,
+  .oxox-context-panel-resize-handle {
+    display: none;
+  }
+
+  .ox-sidebar-row .ox-icon-button {
+    pointer-events: auto;
+    opacity: 1;
+  }
+
+  .ox-sidebar-row [data-session-time] {
+    display: none;
+  }
+
+  .ox-status-bar {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .ox-status-detail,
+  .ox-status-version {
+    display: none;
+  }
+
+  .ox-status-daemon {
+    max-width: 46vw;
+  }
+
+  .ox-status-update {
+    max-width: 26vw;
+  }
 }
 
 /* Desktop layout */

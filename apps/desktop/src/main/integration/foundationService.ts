@@ -46,6 +46,8 @@ import type {
   SessionTranscript,
   SessionTranscriptScrollState,
   SyncMetadataRecord,
+  WorkspaceDirectoriesListRequest,
+  WorkspaceDirectoriesListResponse,
   WorkspaceFileContentRequest,
   WorkspaceFileContentResponse,
   WorkspaceFilesListRequest,
@@ -96,6 +98,7 @@ import { createSessionSearchService } from './search/sessionSearchService'
 import { createSessionProcessManager } from './sessions/processManager'
 import type { StreamJsonRpcProcessTransportLike } from './sessions/types'
 import { loadSessionTranscriptFromFile } from './transcripts/service'
+import { listLocalWorkspaceDirectories } from './workspaceFiles/localWorkspaceDirectories'
 import {
   getLocalWorkspaceFileContent,
   listLocalWorkspaceFiles,
@@ -194,6 +197,9 @@ export interface FoundationService {
   deleteSessionFolder: (folderId: string) => Promise<void>
   setSessionFolderAssignment: (assignment: SessionFolderAssignmentRecord) => Promise<void>
   removeSessionFolderAssignment: (sessionId: string) => Promise<void>
+  listWorkspaceDirectories: (
+    request: WorkspaceDirectoriesListRequest,
+  ) => Promise<WorkspaceDirectoriesListResponse>
   listWorkspaceFiles: (request: WorkspaceFilesListRequest) => Promise<WorkspaceFilesListResponse>
   searchWorkspaceFiles: (
     request: WorkspaceFilesSearchRequest,
@@ -688,6 +694,7 @@ export function createFoundationService(
       database.removeSessionFolderAssignment(sessionId)
       emitFoundationChanged()
     },
+    listWorkspaceDirectories: listLocalWorkspaceDirectories,
     listWorkspaceFiles,
     searchWorkspaceFiles,
     getWorkspaceFileContent,

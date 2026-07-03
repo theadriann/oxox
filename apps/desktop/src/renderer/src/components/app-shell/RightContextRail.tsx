@@ -10,7 +10,7 @@ interface RightContextRailProps {
   onTogglePanel: (mode: ContextPanelMode) => void
 }
 
-const RAIL_ITEMS = [
+export const RAIL_ITEMS = [
   {
     mode: 'session-details',
     label: 'Session details',
@@ -33,7 +33,8 @@ export function RightContextRail({
   return (
     <nav
       aria-label="Right sidebar panels"
-      className="flex h-full w-10 shrink-0 flex-col items-center gap-1 border-l border-fd-border-subtle bg-fd-panel/70 px-1.5 py-2"
+      className="hidden h-full w-10 shrink-0 flex-col items-center gap-1 border-l border-fd-border-subtle bg-fd-panel/70 px-1.5 py-2 xl:flex"
+      data-right-context-rail
     >
       <TooltipProvider delayDuration={200}>
         {RAIL_ITEMS.map(({ mode, label, ariaLabel, Icon }) => {

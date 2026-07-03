@@ -166,7 +166,10 @@ export const SessionItem = memo(function SessionItem({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <span className="shrink-0 pr-2 text-[10px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-menu-open=true]]/row:hidden">
+        <span
+          className="shrink-0 pr-2 text-[10px] tabular-nums text-fd-tertiary group-hover/row:hidden group-has-[[data-menu-open=true]]/row:hidden"
+          data-session-time
+        >
           {formatRelativeSessionTime(lastActivityAt ?? updatedAt, now)}
         </span>
       </ContextMenuTrigger>

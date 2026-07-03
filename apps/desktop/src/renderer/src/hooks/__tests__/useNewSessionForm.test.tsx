@@ -97,6 +97,14 @@ type NewSessionFormProbeProps = ReturnType<typeof createStores> & {
   dialogApi: {
     selectDirectory?: () => Promise<string | null>
   }
+  directoryApi?: {
+    list?: (request: { path?: string | null; showHidden?: boolean }) => Promise<{
+      currentPath: string
+      parentPath: string | null
+      homePath: string
+      entries: Array<{ name: string; path: string }>
+    }>
+  }
   sessionApi: {
     create?: (request: {
       cwd: string
@@ -121,6 +129,7 @@ function NewSessionFormProbe({
   liveSessionStore,
   composerStore,
   dialogApi,
+  directoryApi = {},
   sessionApi,
 }: NewSessionFormProbeProps) {
   const form = useNewSessionForm({
@@ -128,6 +137,7 @@ function NewSessionFormProbe({
     liveSessionStore,
     composerStore,
     dialogApi,
+    directoryApi,
     sessionApi,
   })
 
@@ -141,6 +151,12 @@ function NewSessionFormProbe({
       </button>
       <button onClick={() => void form.pickDirectory()} type="button">
         Choose workspace
+      </button>
+      <button onClick={() => void form.navigateDirectoryPicker('/home/adrian/code')} type="button">
+        Open code folder
+      </button>
+      <button onClick={() => form.selectDirectoryFromPicker()} type="button">
+        Use current folder
       </button>
       <button
         onClick={() =>
@@ -160,6 +176,12 @@ function NewSessionFormProbe({
       </button>
       <output data-testid="show-form">{String(form.showForm)}</output>
       <output data-testid="workspace-path">{form.path}</output>
+      <output data-testid="directory-picker-current-path">
+        {form.directoryPicker.currentPath}
+      </output>
+      <output data-testid="directory-picker-entry-count">
+        {String(form.directoryPicker.entries.length)}
+      </output>
       <output data-testid="form-error">{form.error ?? ''}</output>
       <output data-testid="is-submitting">{String(form.isSubmitting)}</output>
     </div>
@@ -204,6 +226,56 @@ describe('useNewSessionForm', () => {
       expect(document.activeElement).toBe(trigger)
     })
     expect(screen.getByTestId('show-form').textContent).toBe('false')
+  })
+
+  it('browses daemon folders in-app and selects the current directory', async () => {
+    const stores = createStores()
+    const selectDirectory = vi.fn().mockResolvedValue('/tmp/native')
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce({
+        currentPath: '/home/adrian',
+        parentPath: '/home',
+        homePath: '/home/adrian',
+        entries: [{ name: 'code', path: '/home/adrian/code' }],
+      })
+      .mockResolvedValueOnce({
+        currentPath: '/home/adrian/code',
+        parentPath: '/home/adrian',
+        homePath: '/home/adrian',
+        entries: [{ name: 'oxox', path: '/home/adrian/code/oxox' }],
+      })
+    Reflect.deleteProperty(window, 'oxox')
+
+    render(
+      <NewSessionFormProbe
+        {...stores}
+        dialogApi={{ selectDirectory }}
+        directoryApi={{ list }}
+        sessionApi={stores.sessionApi}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /open draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /choose workspace/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('directory-picker-current-path').textContent).toBe('/home/adrian')
+    })
+    expect(screen.getByTestId('directory-picker-entry-count').textContent).toBe('1')
+    expect(selectDirectory).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /open code folder/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('directory-picker-current-path').textContent).toBe(
+        '/home/adrian/code',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /use current folder/i }))
+
+    expect(screen.getByTestId('workspace-path').textContent).toBe('/home/adrian/code')
   })
 
   it('creates a session with selected settings, selects it, and refreshes the live snapshot', async () => {

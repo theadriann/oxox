@@ -15,6 +15,11 @@ describe('app-shell connected selectors', () => {
   it('builds detail-panel props from renderer stores and external handlers', () => {
     const refresh = vi.fn()
     const pickDirectory = vi.fn()
+    const closeForm = vi.fn()
+    const setPath = vi.fn()
+    const closeDirectoryPicker = vi.fn()
+    const navigateDirectoryPicker = vi.fn()
+    const selectDirectoryFromPicker = vi.fn()
     const openSession = vi.fn()
     const resolvePermission = vi.fn()
     const resolveAskUser = vi.fn()
@@ -40,9 +45,23 @@ describe('app-shell connected selectors', () => {
         selectedTimelineItems: [],
       } as never,
       newSessionForm: {
+        closeForm,
+        closeDirectoryPicker,
+        directoryPicker: {
+          isOpen: true,
+          isLoading: false,
+          error: null,
+          currentPath: '/tmp/project',
+          parentPath: '/tmp',
+          homePath: '/Users/tester',
+          entries: [],
+        },
         error: 'bad path',
+        navigateDirectoryPicker,
         path: '/tmp/project',
         pickDirectory,
+        selectDirectoryFromPicker,
+        setPath,
         showForm: true,
       },
       onBrowseSessions: vi.fn(),
@@ -117,6 +136,11 @@ describe('app-shell connected selectors', () => {
     )
 
     props.onPickDirectory()
+    props.onNewSessionPathChange('/tmp/next')
+    props.onCloseNewSessionDirectoryPicker()
+    props.onNavigateNewSessionDirectoryPicker('/tmp')
+    props.onSelectNewSessionDirectory('/tmp/project')
+    props.onCancelNewSession()
     props.onRefreshFoundation()
     props.onRetrySelectedTranscript()
     props.onResolvePermissionRequest({ requestId: 'perm-1', selectedOption: 'allow' })
@@ -126,6 +150,11 @@ describe('app-shell connected selectors', () => {
     })
 
     expect(pickDirectory).toHaveBeenCalledTimes(1)
+    expect(setPath).toHaveBeenCalledWith('/tmp/next')
+    expect(closeDirectoryPicker).toHaveBeenCalledTimes(1)
+    expect(navigateDirectoryPicker).toHaveBeenCalledWith('/tmp')
+    expect(selectDirectoryFromPicker).toHaveBeenCalledWith('/tmp/project')
+    expect(closeForm).toHaveBeenCalledTimes(1)
     expect(refresh).toHaveBeenCalledTimes(1)
     expect(openSession).toHaveBeenCalledWith('session-1')
     expect(resolvePermission).toHaveBeenCalledWith('perm-1', 'allow')

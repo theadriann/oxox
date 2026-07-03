@@ -38,7 +38,13 @@ interface BuildDetailPanelConnectedPropsOptions {
     showForm: boolean
     path: string
     error: string | null
+    directoryPicker: DetailPanelProps['newSessionDirectoryPicker']
+    setPath: (path: string) => void
     pickDirectory: () => Promise<void>
+    closeForm: () => void
+    closeDirectoryPicker: () => void
+    navigateDirectoryPicker: (path: string | null) => Promise<void>
+    selectDirectoryFromPicker: (path?: string) => void
   }
   onBrowseSessions: () => void
   sessionStore: {
@@ -102,9 +108,16 @@ export function buildDetailPanelConnectedProps({
       ? transcriptStore.isRefreshingSession(selectedSessionId)
       : false,
     newSessionError: newSessionForm.error,
+    newSessionDirectoryPicker: newSessionForm.directoryPicker,
     newSessionPath: newSessionForm.path,
     onBrowseSessions,
+    onCancelNewSession: newSessionForm.closeForm,
+    onCloseNewSessionDirectoryPicker: newSessionForm.closeDirectoryPicker,
+    onNewSessionPathChange: newSessionForm.setPath,
+    onNavigateNewSessionDirectoryPicker: (path) =>
+      void newSessionForm.navigateDirectoryPicker(path),
     onPickDirectory: () => void newSessionForm.pickDirectory(),
+    onSelectNewSessionDirectory: newSessionForm.selectDirectoryFromPicker,
     onRefreshFoundation: () => void foundationStore.refresh(),
     onResolvePermissionRequest: (payload) =>
       void composerStore.permissionResolution.resolvePermission(

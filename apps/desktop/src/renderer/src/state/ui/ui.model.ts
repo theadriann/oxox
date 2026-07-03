@@ -101,6 +101,15 @@ export class UIStore {
     this.persist()
   }
 
+  hideSidebar = (): void => {
+    if (this.state$.isSidebarHidden.get()) {
+      return
+    }
+
+    this.state$.isSidebarHidden.set(true)
+    this.persist()
+  }
+
   setIsResizingSidebar = (value: boolean): void => {
     this.state$.isResizingSidebar.set(value)
   }
@@ -159,6 +168,10 @@ export class UIStore {
 
   openSearch = (): void => {
     this.state$.activeView.set('search')
+  }
+
+  toggleSearch = (): void => {
+    this.state$.activeView.set((activeView) => (activeView === 'search' ? 'sessions' : 'search'))
   }
 
   closeSearch = (): void => {

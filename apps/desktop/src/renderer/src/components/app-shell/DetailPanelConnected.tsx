@@ -11,13 +11,19 @@ import {
 } from '../../state/root/store-provider'
 import { useOptionalAppShellControllerContext } from './AppShellControllerContext'
 import { buildDetailPanelConnectedProps } from './connectedSelectors'
-import { DetailPanel } from './DetailPanel'
+import { DetailPanel, type DetailPanelProps } from './DetailPanel'
 
 interface NewSessionFormState {
   showForm: boolean
   path: string
   error: string | null
+  directoryPicker: DetailPanelProps['newSessionDirectoryPicker']
+  setPath: (path: string) => void
   pickDirectory: () => Promise<void>
+  closeForm: () => void
+  closeDirectoryPicker: () => void
+  navigateDirectoryPicker: (path: string | null) => Promise<void>
+  selectDirectoryFromPicker: (path?: string) => void
 }
 
 interface DetailPanelConnectedProps {

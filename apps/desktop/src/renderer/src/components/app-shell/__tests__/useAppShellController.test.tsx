@@ -109,6 +109,7 @@ describe('useAppShellController', () => {
           app: { openNewWindow: vi.fn() },
           dialog: {},
           session: {},
+          workspaceDirectories: {},
         },
       },
       sessionStore: {
@@ -131,6 +132,7 @@ describe('useAppShellController', () => {
     expect(useNewSessionFormMock).toHaveBeenCalledWith({
       composerStore: stores.composerStore,
       dialogApi: stores.rootStore.api.dialog,
+      directoryApi: stores.rootStore.api.workspaceDirectories,
       liveSessionStore: stores.liveSessionStore,
       sessionApi: stores.rootStore.api.session,
       sessionStore: stores.sessionStore,
@@ -191,11 +193,15 @@ describe('useAppShellController', () => {
       const focusSpy = vi.spyOn(button, 'focus')
       const closeForm = vi.fn()
       const selectSession = vi.fn()
+      const hideSidebar = vi.fn()
       const attachSelected = vi.fn().mockResolvedValue(true)
       const compactSelected = vi.fn().mockResolvedValue(undefined)
       const openForkDialog = vi.fn()
       const openRewindDialog = vi.fn()
       const resultRef = { current: null as ReturnType<typeof useAppShellController> | null }
+      const originalMatchMedia = window.matchMedia
+
+      window.matchMedia = vi.fn().mockReturnValue({ matches: true })
 
       useNewSessionFormMock.mockReturnValue({
         closeForm,
@@ -265,6 +271,7 @@ describe('useAppShellController', () => {
               },
               transcriptStore: {},
               uiStore: {
+                hideSidebar,
                 showSidebar: vi.fn(),
               },
               updateStore: {},
@@ -285,6 +292,7 @@ describe('useAppShellController', () => {
 
       expect(closeForm).toHaveBeenCalledTimes(1)
       expect(selectSession).toHaveBeenCalledWith('session-2')
+      expect(hideSidebar).toHaveBeenCalledTimes(1)
       expect(resultRef.current.transcriptScrollSignal).toBe(1)
 
       // Selecting with a search target keeps the scroll signal untouched so
@@ -301,6 +309,8 @@ describe('useAppShellController', () => {
       expect(selectSession).toHaveBeenCalledWith('session-3')
       expect(resultRef.current.transcriptScrollSignal).toBe(1)
       expect(resultRef.current.transcriptSearchTarget).toMatchObject({ messageId: 'message-9' })
+
+      window.matchMedia = originalMatchMedia
 
       await act(async () => {
         await resultRef.current?.handleAttachSelectedSession()

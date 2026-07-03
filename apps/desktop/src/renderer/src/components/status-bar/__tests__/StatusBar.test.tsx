@@ -29,6 +29,7 @@ describe('StatusBar', () => {
     expect(screen.getByText('Downloading update…')).toBeTruthy()
     expect(screen.getByText('droid 0.84.0')).toBeTruthy()
     expect(screen.getByTestId('daemon-status-indicator').className).toContain('bg-fd-ready')
+    expect(screen.getByRole('button', { name: /show status details/i })).toBeTruthy()
   })
 
   it('renders search indexing progress when background indexing is active', () => {

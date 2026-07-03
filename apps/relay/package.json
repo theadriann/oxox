@@ -1,23 +1,22 @@
 {
-  "name": "@oxox/daemon",
+  "name": "@oxox/relay",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./out/apps/daemon/src/index.js",
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@factory/droid-sdk": "link:../../../droid-sdk-typescript",
-    "better-sqlite3-node": "npm:better-sqlite3@12.11.1",
     "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.1"
   }
 }
