@@ -176,13 +176,16 @@ export function AppShellSidebar({ prefersReducedMotion, shouldAnimate }: AppShel
     [rootStore.api.session.deleteSession, sessionStore],
   )
 
-  const handleNewSession = useCallback(() => {
-    newSessionForm.openDraft()
+  const handleNewSession = useCallback(
+    (workspacePath?: string, folderId?: string | null) => {
+      newSessionForm.openDraft(workspacePath, folderId)
 
-    if (isMobileLayout()) {
-      uiStore.hideSidebar()
-    }
-  }, [newSessionForm, uiStore])
+      if (isMobileLayout()) {
+        uiStore.hideSidebar()
+      }
+    },
+    [newSessionForm, uiStore],
+  )
 
   const sidebarState = useValue(() =>
     buildAppShellSidebarProps({
