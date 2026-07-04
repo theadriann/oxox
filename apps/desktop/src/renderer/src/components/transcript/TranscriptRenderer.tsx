@@ -39,7 +39,6 @@ import { PermissionCard } from './PermissionCard'
 import { parseMessageSegments } from './parseMessageSegments'
 import { SystemEventCard } from './SystemEventCard'
 import { ThinkingCard } from './ThinkingCard'
-import { ToolCallCard } from './ToolCallCard'
 import { ToolCallGroup } from './ToolCallGroup'
 import {
   buildTranscriptUserMessageMarkers,
@@ -789,7 +788,6 @@ function LiveTranscriptView({
                     {renderItem.kind === 'tool-group' ? (
                       <ToolGroupRow
                         group={renderItem}
-                        isLive
                         expandedToolIds={expandedToolIds}
                         expandedGroup={Boolean(expandedToolGroupIds[renderItem.id])}
                         onToggleToolGroup={onToggleToolGroup}
@@ -1124,7 +1122,6 @@ function HistoricalTranscriptView({
                     {entry.kind === 'tool-group' ? (
                       <ToolGroupRow
                         group={entry}
-                        isLive={false}
                         expandedToolIds={expandedToolIds}
                         expandedGroup={Boolean(expandedToolGroupIds[entry.id])}
                         onToggleToolGroup={toggleToolGroup}
@@ -1138,10 +1135,10 @@ function HistoricalTranscriptView({
                       />
                     ) : entry.item.kind === 'tool' ? (
                       <StandaloneToolWrapper toolUseId={entry.item.toolUseId}>
-                        <HistoricalToolCallRow
+                        <LiveToolRow
                           item={entry.item}
                           expanded={Boolean(expandedToolIds[entry.item.toolUseId])}
-                          onToggle={toggleToolCall}
+                          onToggleTool={toggleToolCall}
                         />
                       </StandaloneToolWrapper>
                     ) : (
@@ -1172,14 +1169,12 @@ function HistoricalTranscriptView({
 
 const ToolGroupRow = memo(function ToolGroupRow({
   group,
-  isLive,
   expandedToolIds,
   expandedGroup,
   onToggleToolGroup,
   onToggleTool,
 }: {
   group: { id: string; items: ToolTimelineItem[] }
-  isLive: boolean
   expandedToolIds: Record<string, boolean>
   expandedGroup: boolean
   onToggleToolGroup: (groupId: string) => void
@@ -1192,25 +1187,15 @@ const ToolGroupRow = memo(function ToolGroupRow({
       toolNames={group.items.map((t) => t.toolName)}
       onToggle={() => onToggleToolGroup(group.id)}
     >
-      {group.items.map((toolItem) =>
-        isLive ? (
-          <div key={toolItem.id} data-transcript-tool-use-id={toolItem.toolUseId}>
-            <LiveToolRow
-              item={toolItem}
-              expanded={Boolean(expandedToolIds[toolItem.toolUseId])}
-              onToggleTool={onToggleTool}
-            />
-          </div>
-        ) : (
-          <div key={toolItem.id} data-transcript-tool-use-id={toolItem.toolUseId}>
-            <HistoricalToolCallRow
-              item={toolItem}
-              expanded={Boolean(expandedToolIds[toolItem.toolUseId])}
-              onToggle={onToggleTool}
-            />
-          </div>
-        ),
-      )}
+      {group.items.map((toolItem) => (
+        <div key={toolItem.id} data-transcript-tool-use-id={toolItem.toolUseId}>
+          <LiveToolRow
+            item={toolItem}
+            expanded={Boolean(expandedToolIds[toolItem.toolUseId])}
+            onToggleTool={onToggleTool}
+          />
+        </div>
+      ))}
     </ToolCallGroup>
   )
 })
@@ -1259,37 +1244,6 @@ const McpStatusGroupRow = memo(function McpStatusGroupRow({
       ) : null}
     </div>
   )
-})
-
-const HistoricalToolCallRow = memo(function HistoricalToolCallRow({
-  item,
-  expanded,
-  onToggle,
-}: {
-  item: ToolTimelineItem
-  expanded: boolean
-  onToggle: (toolUseId: string) => void
-}) {
-  const handleToggle = useCallback(() => {
-    onToggle(item.toolUseId)
-  }, [onToggle, item.toolUseId])
-
-  const transcriptEntry = useMemo(
-    () => ({
-      kind: 'tool_call' as const,
-      id: item.id,
-      toolUseId: item.toolUseId,
-      occurredAt: item.occurredAt,
-      toolName: item.toolName,
-      status: item.status,
-      inputMarkdown: item.inputMarkdown ?? '',
-      resultMarkdown: item.resultMarkdown,
-      resultIsError: item.resultIsError,
-    }),
-    [item],
-  )
-
-  return <ToolCallCard entry={transcriptEntry} expanded={expanded} onToggle={handleToggle} />
 })
 
 const TimelineItemRow = memo(function TimelineItemRow({

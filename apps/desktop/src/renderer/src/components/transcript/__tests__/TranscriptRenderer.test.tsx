@@ -1798,7 +1798,7 @@ describe('TranscriptRenderer (historical)', () => {
   it('renders markdown, sync state, and grouped progressive-disclosure tool calls', async () => {
     const transcript = createTranscript()
 
-    render(
+    const { container } = render(
       <TranscriptRenderer
         items={buildHistoricalTimeline(transcript.entries)}
         isLive={false}
@@ -1825,6 +1825,7 @@ describe('TranscriptRenderer (historical)', () => {
     expect(screen.getByText(/Read, TodoWrite/i)).toBeTruthy()
 
     fireEvent.click(toolGroupToggle)
+    expect(container.querySelector('.ox-tool-call')).toBeNull()
     const toolToggles = screen.getAllByRole('button', {
       name: /toggle details for/i,
     })
