@@ -311,12 +311,18 @@ describe('app-shell connected selectors', () => {
       derivationType: 'fork',
       title: 'Fork',
     })
+    const compact = createSessionPreview({
+      id: 'compact',
+      parentSessionId: 'parent',
+      derivationType: 'compact',
+      title: 'Compacted continuation',
+    })
     const group: ProjectSessionGroup = {
       key: 'project-1',
       label: 'Project',
       workspacePath: '/tmp/project',
       latestActivityAt: 5,
-      sessions: [parent, child, unrelatedParent, unrelatedChild, fork],
+      sessions: [parent, child, unrelatedParent, unrelatedChild, fork, compact],
     }
     const baseOptions = {
       errorState: undefined,
@@ -358,6 +364,7 @@ describe('app-shell connected selectors', () => {
       'child',
       'other-parent',
       'fork',
+      'compact',
     ])
     expect(props.sidebar.pinnedSessions).toEqual([])
 
@@ -368,6 +375,7 @@ describe('app-shell connected selectors', () => {
       'parent',
       'other-parent',
       'fork',
+      'compact',
     ])
     expect(props.sidebar.pinnedSessions).toEqual([])
 
@@ -380,6 +388,7 @@ describe('app-shell connected selectors', () => {
       'other-parent',
       'other-child',
       'fork',
+      'compact',
     ])
   })
 })

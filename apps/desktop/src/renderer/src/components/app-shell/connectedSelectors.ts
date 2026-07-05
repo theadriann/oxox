@@ -3,6 +3,7 @@ import type {
   LiveSessionAskUserAnswerRecord,
   SessionSearchTarget,
 } from '../../../../shared/ipc/contracts'
+import { isNestedSessionChild } from '../../state/sessions/session.types'
 import type { UIStore } from '../../state/ui/ui.model'
 import type { ChildSessionVisibilityMode } from '../../state/ui/ui.state'
 
@@ -336,9 +337,7 @@ function isChildSession(
 ): session is SessionSidebarProps['groups'][number]['sessions'][number] & {
   parentSessionId: string
 } {
-  return Boolean(
-    session.parentSessionId && session.derivationType && session.derivationType !== 'fork',
-  )
+  return isNestedSessionChild(session)
 }
 
 export function buildAppShellContextPanelState({

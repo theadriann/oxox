@@ -70,3 +70,11 @@ export interface SessionState {
   sessionFolders: SessionFolder[]
   sessionFolderAssignments: Record<string, string>
 }
+
+export function isNestedSessionChild(
+  session: Pick<SessionPreview, 'derivationType' | 'parentSessionId'>,
+): session is Pick<SessionPreview, 'derivationType' | 'parentSessionId'> & {
+  parentSessionId: string
+} {
+  return Boolean(session.parentSessionId && session.derivationType === 'subagent')
+}

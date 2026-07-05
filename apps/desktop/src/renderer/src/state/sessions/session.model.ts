@@ -29,6 +29,7 @@ import type {
   SessionPreview,
   SessionState,
 } from './session.types'
+import { isNestedSessionChild } from './session.types'
 
 export type {
   ExtendedSessionStatus,
@@ -782,9 +783,7 @@ function collectDescendantFolderIds(folders: SessionFolder[], folderId: string):
 }
 
 function isNestedChild(session: SessionPreview): boolean {
-  return Boolean(
-    session.parentSessionId && session.derivationType && session.derivationType !== 'fork',
-  )
+  return isNestedSessionChild(session)
 }
 
 function sessionFolderAssignmentRecordFromObject(

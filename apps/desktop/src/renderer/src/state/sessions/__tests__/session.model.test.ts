@@ -95,7 +95,7 @@ describe('SessionStore', () => {
     expect(store.selectedSessionId).toBe('session-beta-new')
   })
 
-  it('keeps forked sessions top-level while nesting subagent sessions under their recorded parents', () => {
+  it('keeps forked and compacted sessions top-level while nesting subagent sessions under their recorded parents', () => {
     const store = new SessionStore()
 
     store.hydrateSessions([
@@ -112,6 +112,21 @@ describe('SessionStore', () => {
         createdAt: '2026-03-24T10:00:00.000Z',
         lastActivityAt: '2026-03-24T10:30:00.000Z',
         updatedAt: '2026-03-24T10:30:00.000Z',
+      },
+      {
+        id: 'session-compact',
+        projectId: 'project-alpha',
+        projectWorkspacePath: '/tmp/project-alpha',
+        projectDisplayName: null,
+        parentSessionId: 'session-root',
+        derivationType: 'compact',
+        title: 'Compacted continuation',
+        status: 'idle',
+        transport: 'artifacts',
+        createdAt: '2026-03-24T09:15:00.000Z',
+        lastActivityAt: '2026-03-24T09:45:00.000Z',
+        updatedAt: '2026-03-24T09:45:00.000Z',
+        hasUserMessage: false,
       },
       {
         id: 'session-fork',
@@ -144,6 +159,7 @@ describe('SessionStore', () => {
     ])
 
     expect(store.projectGroups[0]?.sessions.map((session) => session.id)).toEqual([
+      'session-compact',
       'session-fork',
       'session-subagent',
       'session-root',

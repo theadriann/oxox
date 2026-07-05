@@ -17,6 +17,7 @@ import type {
   SessionFolder,
   SessionPreview,
 } from '../../state/sessions/session.model'
+import { isNestedSessionChild } from '../../state/sessions/session.types'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -625,9 +626,7 @@ function countFolderSessions(
 }
 
 function isNestedChildSession(session: SessionPreview): boolean {
-  return Boolean(
-    session.parentSessionId && session.derivationType && session.derivationType !== 'fork',
-  )
+  return isNestedSessionChild(session)
 }
 
 const FolderHeader = ({

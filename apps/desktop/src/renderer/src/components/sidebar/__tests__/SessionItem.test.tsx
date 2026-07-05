@@ -192,6 +192,34 @@ describe('SessionItem', () => {
     expect(screen.queryByTitle('Session transport: Remote daemon')).toBeNull()
   })
 
+  it('does not indent compacted sessions as child rows', () => {
+    const session$ = observable(
+      createSessionPreview({
+        parentSessionId: 'session-parent',
+        derivationType: 'compact',
+      }),
+    )
+    const now$ = observable(Date.parse('2026-03-25T00:00:00.000Z'))
+
+    render(
+      <SessionItem
+        session$={session$}
+        focusKey="project:project-alpha:session-alpha"
+        isPinned={false}
+        isSelected={false}
+        isFocused={false}
+        now$={now$}
+        onSelectSession={vi.fn()}
+        onTogglePinnedSession={vi.fn()}
+        onKeyDown={vi.fn()}
+        onFocus={vi.fn()}
+        setSessionRef={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTitle('Alpha').getAttribute('style')).toContain('padding-left: 10px')
+  })
+
   it('does not indent forked sessions as child rows', () => {
     const session$ = observable(
       createSessionPreview({

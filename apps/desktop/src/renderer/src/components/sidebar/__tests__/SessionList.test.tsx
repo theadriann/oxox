@@ -159,6 +159,54 @@ describe('SessionList', () => {
     ])
   })
 
+  it('keeps compact-derived sessions as root rows even when they have a parent id', () => {
+    const store = new SessionSidebarStore()
+    const parent = createSession('session-parent')
+    const compact = {
+      ...createSession('session-compact'),
+      parentSessionId: 'session-parent',
+      derivationType: 'compact',
+    }
+    const subagent = {
+      ...createSession('session-subagent'),
+      parentSessionId: 'session-parent',
+      derivationType: 'subagent',
+    }
+
+    const flatItems = buildFlatItems({
+      pinnedSessions: [],
+      groups: [
+        {
+          key: 'project-alpha',
+          label: 'project-alpha',
+          workspacePath: '/tmp/project-alpha',
+          latestActivityAt: parent.lastActivityTimestamp,
+          sessions: [parent, compact, subagent],
+        },
+      ],
+      sessionFolders: [],
+      sessionFolderAssignments: {},
+      isFiltering: false,
+      isLoading: false,
+      hasError: false,
+      editingProjectKey: null,
+      editingFolderId: null,
+      isProjectCollapsed: () => false,
+      isFolderCollapsed: () => false,
+      store,
+    })
+
+    const sessionRows = flatItems.filter(
+      (item): item is Extract<VirtualSidebarItem, { kind: 'session' }> => item.kind === 'session',
+    )
+
+    expect(sessionRows.map((row) => [row.sessionId, row.depth ?? 0])).toEqual([
+      ['session-parent', 0],
+      ['session-subagent', 1],
+      ['session-compact', 0],
+    ])
+  })
+
   it('includes folder-assigned sessions beyond the project overflow limit by default', () => {
     const store = new SessionSidebarStore()
     const looseSessions = Array.from({ length: 6 }, (_, index) => ({

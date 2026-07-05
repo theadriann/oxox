@@ -1,5 +1,9 @@
 import { deriveProjectLabel } from '../../lib/sessionTime'
-import type { ProjectSessionGroup, SessionPreview } from './session.types'
+import {
+  isNestedSessionChild,
+  type ProjectSessionGroup,
+  type SessionPreview,
+} from './session.types'
 
 export function selectPinnedSessions(
   sessions: SessionPreview[],
@@ -144,12 +148,7 @@ function nestDerivedSessions(sessions: SessionPreview[]): SessionPreview[] {
   const topLevel: SessionPreview[] = []
 
   for (const session of sessions) {
-    if (
-      session.derivationType &&
-      session.derivationType !== 'fork' &&
-      session.parentSessionId &&
-      sessionIds.has(session.parentSessionId)
-    ) {
+    if (isNestedSessionChild(session) && sessionIds.has(session.parentSessionId)) {
       const siblings = childrenByParent.get(session.parentSessionId)
       if (siblings) {
         siblings.push(session)

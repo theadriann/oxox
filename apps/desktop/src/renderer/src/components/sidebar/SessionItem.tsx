@@ -16,6 +16,7 @@ import { type DragEvent, type KeyboardEvent, memo, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { formatRelativeSessionTime } from '../../lib/sessionTime'
 import type { SessionPreview } from '../../state/sessions/session.model'
+import { isNestedSessionChild } from '../../state/sessions/session.types'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -97,7 +98,7 @@ export const SessionItem = memo(function SessionItem({
   const lastActivityAt = useValue(session$.lastActivityAt)
   const updatedAt = useValue(session$.updatedAt)
   const now = useValue(now$)
-  const isDerivedChild = Boolean(parentSessionId && derivationType !== 'fork')
+  const isDerivedChild = isNestedSessionChild({ parentSessionId, derivationType })
   const isSubagent = derivationType === 'subagent'
   const effectiveStatus = isSubagent ? 'idle' : status
   const statusDot = STATUS_DOT[effectiveStatus] ?? ''

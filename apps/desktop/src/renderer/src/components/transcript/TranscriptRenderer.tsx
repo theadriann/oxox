@@ -71,6 +71,7 @@ export interface TranscriptRendererProps {
   items: TimelineItem[]
   isLive: boolean
   isLoading: boolean
+  emptyState?: TranscriptEmptyState | null
   loadingError?: string | null
   scrollContextKey?: string
   searchTarget?: SessionSearchTarget | null
@@ -94,10 +95,17 @@ export interface TranscriptRendererProps {
   onRetry?: () => void
 }
 
+export interface TranscriptEmptyState {
+  eyebrow: string
+  title: string
+  description: string
+}
+
 export function TranscriptRenderer({
   items,
   isLive,
   isLoading,
+  emptyState = null,
   loadingError = null,
   scrollContextKey,
   searchTarget = null,
@@ -139,6 +147,7 @@ export function TranscriptRenderer({
         pendingPermissionRequestIds={pendingPermissionRequestIds}
         pendingAskUserRequestIds={pendingAskUserRequestIds}
         statusIndicator={statusIndicator}
+        emptyState={emptyState}
         onResolvePermissionRequest={onResolvePermissionRequest}
         onSubmitAskUserResponse={onSubmitAskUserResponse}
         onForkFromMessage={onForkFromMessage}
@@ -155,6 +164,7 @@ export function TranscriptRenderer({
       searchTarget={searchTarget}
       scrollTargetRequest={scrollTargetRequest}
       loadingError={loadingError}
+      emptyState={emptyState}
       scrollContextKey={resolvedScrollContextKey}
       scrollToBottomSignal={scrollToBottomSignal}
       contentLayout={contentLayout}
@@ -630,6 +640,7 @@ function LiveTranscriptView({
   pendingPermissionRequestIds,
   pendingAskUserRequestIds,
   statusIndicator,
+  emptyState,
   onResolvePermissionRequest,
   onSubmitAskUserResponse,
   onForkFromMessage,
@@ -648,6 +659,7 @@ function LiveTranscriptView({
   pendingPermissionRequestIds: string[]
   pendingAskUserRequestIds: string[]
   statusIndicator: LiveSessionStatusIndicator | null
+  emptyState: TranscriptEmptyState | null
   onResolvePermissionRequest?: (payload: { requestId: string; selectedOption: string }) => void
   onSubmitAskUserResponse?: (payload: {
     requestId: string
@@ -742,10 +754,19 @@ function LiveTranscriptView({
       >
         {items.length === 0 ? (
           <TranscriptContentFrame contentLayout={contentLayout}>
-            <div className="flex items-center gap-2 py-8 text-fd-tertiary">
-              <span className="size-1.5 animate-pulse rounded-full bg-fd-session-active" />
-              <span className="text-sm">Waiting for output...</span>
-            </div>
+            {emptyState ? (
+              <StateCard
+                icon={FileSearch}
+                eyebrow={emptyState.eyebrow}
+                title={emptyState.title}
+                description={emptyState.description}
+              />
+            ) : (
+              <div className="flex items-center gap-2 py-8 text-fd-tertiary">
+                <span className="size-1.5 animate-pulse rounded-full bg-fd-session-active" />
+                <span className="text-sm">Waiting for output...</span>
+              </div>
+            )}
           </TranscriptContentFrame>
         ) : (
           <div
@@ -860,6 +881,7 @@ function HistoricalTranscriptView({
   items,
   isLoading,
   loadingError,
+  emptyState,
   scrollContextKey,
   searchTarget,
   scrollTargetRequest,
@@ -876,6 +898,7 @@ function HistoricalTranscriptView({
   items: RenderItem[]
   isLoading: boolean
   loadingError: string | null
+  emptyState: TranscriptEmptyState | null
   scrollContextKey: string
   searchTarget: SessionSearchTarget | null
   scrollTargetRequest: TranscriptScrollRequest | null
@@ -1071,9 +1094,12 @@ function HistoricalTranscriptView({
           <TranscriptContentFrame contentLayout={contentLayout}>
             <StateCard
               icon={FileSearch}
-              eyebrow="Transcript"
-              title="Transcript unavailable"
-              description="Choose a session with artifact-backed transcript data to inspect its chronological conversation history."
+              eyebrow={emptyState?.eyebrow ?? 'Transcript'}
+              title={emptyState?.title ?? 'Transcript unavailable'}
+              description={
+                emptyState?.description ??
+                'Choose a session with artifact-backed transcript data to inspect its chronological conversation history.'
+              }
             />
           </TranscriptContentFrame>
         ) : (

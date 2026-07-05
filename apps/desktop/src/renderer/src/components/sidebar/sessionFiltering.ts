@@ -4,6 +4,7 @@ import type {
   ProjectSessionGroup,
   SessionPreview,
 } from '../../state/sessions/session.model'
+import { isNestedSessionChild } from '../../state/sessions/session.types'
 
 export type SidebarDateRange = 'all' | '24h' | '7d' | '30d'
 
@@ -294,12 +295,7 @@ function isVisibleChildSession(
   session: SessionPreview,
   visibleSessionIds: Set<string>,
 ): session is SessionPreview & { parentSessionId: string } {
-  return Boolean(
-    session.parentSessionId &&
-      visibleSessionIds.has(session.parentSessionId) &&
-      session.derivationType &&
-      session.derivationType !== 'fork',
-  )
+  return isNestedSessionChild(session) && visibleSessionIds.has(session.parentSessionId)
 }
 
 export function deriveSessionTags(session: SessionPreview): string[] {

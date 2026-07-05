@@ -202,7 +202,15 @@ describe('filterSessionGroups', () => {
       lastActivityTimestamp: Date.parse('2026-06-15T10:27:26.473Z'),
       lastActivityAt: '2026-06-15T10:27:26.473Z',
     })
-    const groups = [createGroup('project-alpha', [parent, fork, child])]
+    const compact = createSession({
+      id: 'compact',
+      title: 'Compacted continuation',
+      parentSessionId: 'parent',
+      derivationType: 'compact',
+      lastActivityTimestamp: Date.parse('2026-06-15T10:25:26.473Z'),
+      lastActivityAt: '2026-06-15T10:25:26.473Z',
+    })
+    const groups = [createGroup('project-alpha', [parent, fork, compact, child])]
 
     const result = filterSessionGroups(groups, [], DEFAULT_SIDEBAR_FILTERS)
 
@@ -210,6 +218,7 @@ describe('filterSessionGroups', () => {
       'parent',
       'child',
       'fork',
+      'compact',
     ])
     expect(result.groups[0]?.latestActivityAt).toBe(fork.lastActivityTimestamp)
   })

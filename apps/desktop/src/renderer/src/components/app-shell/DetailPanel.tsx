@@ -14,7 +14,7 @@ import type { SessionPreview } from '../../state/sessions/session.model'
 import type { ContentLayout } from '../../state/ui/ui.model'
 import { buildHistoricalTimeline } from '../transcript/buildHistoricalTimeline'
 import { deriveLiveSessionStatusIndicator } from '../transcript/liveSessionStatusIndicator'
-import { TranscriptRenderer } from '../transcript/TranscriptRenderer'
+import { type TranscriptEmptyState, TranscriptRenderer } from '../transcript/TranscriptRenderer'
 import type { TimelineItem } from '../transcript/timelineTypes'
 import { Button } from '../ui/button'
 import { SkeletonBlock } from '../ui/skeleton'
@@ -121,6 +121,10 @@ export function DetailPanel({
   onSubmitAskUserResponse,
   onForkFromMessage,
 }: DetailPanelProps) {
+  const transcriptEmptyState = selectedSession
+    ? getSessionTranscriptEmptyState(selectedSession, foundation)
+    : null
+
   if (showNewSessionForm) {
     return (
       <DetailPanelContentFrame contentLayout={contentLayout}>
@@ -289,6 +293,7 @@ export function DetailPanel({
         items={selectedLiveTimeline}
         transcriptPrimaryActionRef={transcriptPrimaryActionRef}
         transcriptSearchTarget={transcriptSearchTarget}
+        transcriptEmptyState={transcriptEmptyState}
         transcriptScrollSignal={transcriptScrollSignal}
         transcriptScrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
         transcriptScrollState={transcriptScrollState}
@@ -363,6 +368,7 @@ export function DetailPanel({
     <HistoricalTranscriptView
       transcript={selectedTranscript}
       sessionId={selectedSession.id}
+      transcriptEmptyState={transcriptEmptyState}
       transcriptPrimaryActionRef={transcriptPrimaryActionRef}
       transcriptSearchTarget={transcriptSearchTarget}
       transcriptScrollSignal={transcriptScrollSignal}
@@ -472,6 +478,7 @@ function LiveSessionTranscriptView({
   items,
   transcriptPrimaryActionRef,
   transcriptSearchTarget,
+  transcriptEmptyState,
   transcriptScrollSignal,
   transcriptScrollPersistenceEnabled,
   transcriptScrollState,
@@ -489,6 +496,7 @@ function LiveSessionTranscriptView({
   items: TimelineItem[]
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
   transcriptSearchTarget: SessionSearchTarget | null
+  transcriptEmptyState: TranscriptEmptyState | null
   transcriptScrollSignal: number
   transcriptScrollPersistenceEnabled: boolean
   transcriptScrollState: SessionTranscriptScrollState | null | undefined
@@ -516,6 +524,7 @@ function LiveSessionTranscriptView({
       isLive
       statusIndicator={statusIndicator}
       isLoading={false}
+      emptyState={transcriptEmptyState}
       searchTarget={transcriptSearchTarget}
       scrollToBottomSignal={transcriptScrollSignal}
       scrollPersistenceEnabled={transcriptScrollPersistenceEnabled}
@@ -536,6 +545,7 @@ function LiveSessionTranscriptView({
 function HistoricalTranscriptView({
   transcript,
   sessionId,
+  transcriptEmptyState,
   transcriptPrimaryActionRef,
   transcriptSearchTarget,
   transcriptScrollSignal,
@@ -551,6 +561,7 @@ function HistoricalTranscriptView({
 }: {
   transcript: SessionTranscript | null
   sessionId: string
+  transcriptEmptyState: TranscriptEmptyState | null
   transcriptPrimaryActionRef: RefObject<HTMLElement | null>
   transcriptSearchTarget: SessionSearchTarget | null
   transcriptScrollSignal: number
@@ -572,6 +583,7 @@ function HistoricalTranscriptView({
       items={items}
       isLive={false}
       isLoading={isRefreshing}
+      emptyState={transcriptEmptyState}
       loadingError={refreshError}
       searchTarget={transcriptSearchTarget}
       scrollToBottomSignal={transcriptScrollSignal}
@@ -585,6 +597,38 @@ function HistoricalTranscriptView({
       onRetry={onRetry}
     />
   )
+}
+
+function getSessionTranscriptEmptyState(
+  session: SessionPreview,
+  foundation: FoundationBootstrap,
+): TranscriptEmptyState | null {
+  if (session.derivationType !== 'compact') {
+    return null
+  }
+
+  const parentLabel = getParentSessionLabel(session.parentSessionId, foundation)
+  const parentReference = parentLabel ? ` from ${parentLabel}` : ''
+
+  return {
+    eyebrow: 'Compacted context',
+    title: 'Fresh session after compaction',
+    description: `Droid created this session${parentReference} with a fresh transcript and no copied message history. The previous conversation remains available in the parent session.`,
+  }
+}
+
+function getParentSessionLabel(
+  parentSessionId: string | null,
+  foundation: FoundationBootstrap,
+): string | null {
+  if (!parentSessionId) {
+    return null
+  }
+
+  const parent = foundation.sessions.find((session) => session.id === parentSessionId)
+  const title = parent?.title?.trim()
+
+  return title ? `"${title}"` : parentSessionId
 }
 
 function DetailPanelContentFrame({

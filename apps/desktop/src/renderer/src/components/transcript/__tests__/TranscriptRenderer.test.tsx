@@ -1971,6 +1971,26 @@ describe('TranscriptRenderer (historical)', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
+  it('renders a custom empty state for compacted sessions without copied history', () => {
+    render(
+      <TranscriptRenderer
+        items={[]}
+        isLive={false}
+        isLoading={false}
+        emptyState={{
+          eyebrow: 'Compacted context',
+          title: 'Fresh session after compaction',
+          description:
+            'Droid created this session from Parent session with a fresh transcript and no copied message history.',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('Compacted context')).toBeTruthy()
+    expect(screen.getByText('Fresh session after compaction')).toBeTruthy()
+    expect(screen.getByText(/Parent session/)).toBeTruthy()
+  })
+
   it('opens at the latest transcript row and removes the dead top/bottom arrow controls', async () => {
     render(
       <TranscriptRenderer
